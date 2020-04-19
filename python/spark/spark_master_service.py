@@ -1,6 +1,7 @@
 from services import MasterService
 from typing import Dict
 
+import atexit
 import os
 import subprocess
 import tempfile
@@ -11,13 +12,20 @@ class SparkMasterService(MasterService):
                  spark_home: str,
                  port: int = 7077,
                  webui_port: int = 8080,
-                 properties: Dict[str, str] = None):
+                 properties: Dict[str, str] = None,
+                 **kwargs):
         self._spark_home = spark_home
         self._host = self.get_host()
         self._port = port
         self._webui_port = webui_port
         self._properties = properties
+        self._properties_file = None
         self._start_up = False
+
+        os.environ["SPARK_HOME"] = self._spark_home
+        os.environ["SPARK_MASTER_IP"] = self._host
+
+        atexit.register(self.stop)
 
     def start_up(self) -> bool:
         if self._start_up:
@@ -26,8 +34,8 @@ class SparkMasterService(MasterService):
 
         args = [f"{self._spark_home}/sbin/start-master.sh",
                 "--host", self._host,
-                "--port", self._port,
-                "--webui-port", self._webui_port]
+                "--port", str(self._port),
+                "--webui-port", str(self._webui_port)]
 
         if self._properties:
             self._properties_file = tempfile.NamedTemporaryFile(delete=False)
@@ -48,7 +56,7 @@ class SparkMasterService(MasterService):
                 args.append(self._properties_file)
 
         try:
-            subprocess.call(args=args, shell=True)
+            subprocess.check_call(args=args, shell=True)
         except:
             if self._properties_file:
                 os.remove(self._properties_file)
@@ -63,11 +71,11 @@ class SparkMasterService(MasterService):
         else:
             return ""
 
-    def kill(self):
+    def stop(self):
         if self._start_up:
             args = [f"{self._spark_home}/sbin/stop-master.sh"]
             try:
-                subprocess.call(args=args, shell=True)
+                subprocess.check_call(args=args, shell=True)
             except:
                 # TODO: force kill?
                 pass

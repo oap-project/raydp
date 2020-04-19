@@ -8,48 +8,44 @@ class Cluster(ABC):
     """
     This is the base class for all specified cluster, such as SparkCluster, FlinkCluster.
 
-    :param num_nodes: the total number of nodes request, this should the size of worker + 1
-    :param master_class: the master actor class that will startup subcluster master service
-    :param master_resources: the resources requirement for the master service
-    :param worker_class: the worker actor class that will startup subcluster worker service
-    :param worker_resources_mapping: the resources mapping between worker index to resources
-                                     requirement. The size should be equal as workers.
+    :param master_resources_requirement: The resources requirement for the master service.
     """
-    def __init__(self,
-                 num_nodes: int,
-                 master_class: Type,
-                 master_resources: Dict[str, float],
-                 worker_class: Type,
-                 worker_resources_mapping: Dict[int, Dict[str, float]]):
-        self._num_nodes = num_nodes
-        self._master_class = master_class
-        self._master_resources = master_resources
-        self._worker_class = worker_class
-        self._worker_resources_mapping = worker_resources_mapping
+    def __init__(self, master_resources_requirement):
+        # the master node is live as same as ray driver node. And we can specify the resources
+        # limitation for master node. So we don't count it.
+        self._num_nodes = 0
 
-        assert num_nodes == (len(self._master_resources) + 1)
-        self._resource_check()
-
-    def _resource_check(self):
-        total_alive_nodes = ClusterResources.total_alive_nodes()
-        # check nodes request can be satisfied
-        assert total_alive_nodes >= self._num_nodes, f"Don't have enough nodes, "\
-            f"available: {total_alive_nodes}, request: {self._num_nodes}"
-
+    def _resource_check(self, resources: Dict[str, float]):
         # check whether this is any node could satisfy the master service requirement
-        if not ClusterResources.satisfy(self._master_resources):
-            raise Exception("There is not any node can satisfy the master service resources "
-                            f"requirement, request: {self._master_resources}")
-
-        for index, requirement in self._worker_resources_mapping.items():
-            if not ClusterResources.satisfy(requirement):
-                raise Exception(f"There is not any node can satisfy the {index}th worker service "
-                                f"resources requirement, request: {requirement}")
+        if not ClusterResources.satisfy(resources):
+            raise Exception("There is not any node can satisfy the service resources "
+                            f"requirement, request: {resources}")
 
     @abstractmethod
-    def _set_up(self):
+    def _set_up_master(self,
+                       resources: Dict[str, float],
+                       kwargs: Dict[Any, Any]):
         """
-        Subcluster should implement this to set up cluster.
+        Subcluster should implement this to set up master node.
+        """
+        pass
+
+    def add_worker(self,
+                   resources_requirement: Dict[str, float],
+                   **kwargs: Dict[Any, Any]):
+        """
+        Add one worker to the cluster.
+
+        :param resources_requirement: The resource requirements for the worker service.
+        """
+        self._set_up_worker(resources_requirement, kwargs)
+
+    @abstractmethod
+    def _set_up_worker(self,
+                       resources: Dict[str, float],
+                       kwargs: Dict[str, str]):
+        """
+        Subcluster should implement this to set up worker node.
         """
         pass
 
@@ -60,13 +56,7 @@ class Cluster(ABC):
         """
 
     @abstractmethod
-    def kill(self):
+    def stop(self):
         """
-        Kill cluster
+        Stop cluster
         """
-
-
-
-
-
-

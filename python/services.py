@@ -17,7 +17,7 @@ class MasterService(ABC):
         return ray.services.get_node_ip_address()
 
     @abstractmethod
-    def kill(self):
+    def stop(self):
         pass
 
 
@@ -31,5 +31,5 @@ class WorkerService(ABC):
         return ray.services.get_node_ip_address()
 
     @abstractmethod
-    def kill(self):
+    def stop(self):
         pass
