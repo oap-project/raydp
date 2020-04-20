@@ -7,9 +7,9 @@ import ray
 GB = 1 * 1024 * 1024 * 1024
 
 # connect ray to cluster
-redis_address = "sr231:6379"
+redis_address = "192.168.1.17:46846"
 redis_password = "123"
-ray.init(address=redis_address, node_ip_address="sr231", redis_password=redis_password)
+ray.init(node_ip_address="192.168.1.17", redis_password=redis_password)
 
 # setup spark master
 master_resources = {"num_cpus": 1}

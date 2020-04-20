@@ -12,7 +12,7 @@ default_config = {
     "spark.sql.execution.arrow.enabled": "true"
 }
 
-_global_broadcasted = None
+_global_broadcasted = {}
 
 
 class SparkCluster(Cluster):
@@ -21,7 +21,7 @@ class SparkCluster(Cluster):
                  ray_redis_password: str,
                  master_resources: Dict[str, float],
                  spark_home: str,
-                 master_port: int = 7077,
+                 master_port: int = 8080,
                  master_webui_port: Any = None,
                  master_properties: Dict[str, str] = None):
         self._ray_redis_address = ray_redis_address
@@ -79,8 +79,6 @@ class SparkCluster(Cluster):
         return self._master_url
 
     def get_spark_session(self,
-                          ray_redis_address: str,
-                          ray_redis_password: str,
                           app_name: str,
                           num_executors: int,
                           executor_cores: int,
@@ -103,7 +101,7 @@ class SparkCluster(Cluster):
         # broadcast redis address and password
         global _global_broadcasted
         value = {"address": self._ray_redis_address, "password": self._ray_redis_password}
-        _global_broadcasted = spark.sparkContext.broadcast(value)
+        _global_broadcasted["redis"] = spark.sparkContext.broadcast(value)
 
         return spark
 

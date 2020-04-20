@@ -12,18 +12,15 @@ import ray.cloudpickle as rpickle
 
 @pandas_udf(BinaryType())
 def save_to_ray(*columns) -> List[bytes]:
-    global redis_config
-    if not redis_config:
+    # TODO: need to replace with java side solutions.
+    if not ray.is_initialized():
         redis_config = {}
-        broadcased = _global_broadcasted.value
+        broadcased = _global_broadcasted["redis"].value
         redis_config["address"] = broadcased["address"]
         redis_config["password"] = broadcased["password"]
 
-    global local_address
-    if not local_address:
         local_address = get_node_address()
 
-    if not ray.is_initialized():
         ray.init(address=redis_config["address"],
                  node_ip_address=local_address,
                  redis_password=redis_config["password"])
