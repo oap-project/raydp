@@ -1,21 +1,24 @@
-from spark.spark_cluster import SparkCluster
-from spark.utils import load_into_ids, save_to_ray
+from spark_on_ray.spark.spark_cluster import SparkCluster
+from spark_on_ray.spark.utils import load_into_ids, save_to_ray
 
 import ray
 
-import time
 
 GB = 1 * 1024 * 1024 * 1024
 
 # connect ray to cluster
-ray.init(address="auto", redis_password="123")
+redis_address = "sr231:6379"
+redis_password = "123"
+ray.init(address=redis_address, node_ip_address="sr231", redis_password=redis_password)
 
 # setup spark master
 master_resources = {"num_cpus": 1}
 spark_home = "/Users/xianyang/opt/spark-2.4.5-bin-hadoop2.7"
-spark_cluster = SparkCluster(master_resources, spark_home)
-
-time.sleep(2)
+spark_cluster = SparkCluster(
+    ray_redis_address=redis_address,
+    ray_redis_password=redis_password,
+    master_resources=master_resources,
+    spark_home=spark_home)
 
 # add spark worker
 worker_resources = {"num_cpus": 2, "memory": 1 * GB}

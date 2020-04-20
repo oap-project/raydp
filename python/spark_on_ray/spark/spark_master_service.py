@@ -1,8 +1,9 @@
-from services import MasterService
-from typing import Dict
+from spark_on_ray.services import MasterService
+from typing import Any, Dict
 
 import atexit
 import os
+import ray
 import subprocess
 import tempfile
 
@@ -10,10 +11,9 @@ import tempfile
 class SparkMasterService(MasterService):
     def __init__(self,
                  spark_home: str,
-                 port: int = 7077,
-                 webui_port: int = 8080,
-                 properties: Dict[str, str] = None,
-                 **kwargs):
+                 port: Any = None,
+                 webui_port: Any = None,
+                 properties: Dict[str, str] = None):
         self._spark_home = spark_home
         self._host = self.get_host()
         self._port = port
@@ -33,9 +33,15 @@ class SparkMasterService(MasterService):
             return True
 
         args = [f"{self._spark_home}/sbin/start-master.sh",
-                "--host", self._host,
-                "--port", str(self._port),
-                "--webui-port", str(self._webui_port)]
+                "--host", self._host]
+
+        if self._port:
+            args.append("--port")
+            args.append(str(self._port))
+
+        if self._webui_port:
+            args.append("--webui-port")
+            args.append(str(self._webui_port))
 
         if self._properties:
             self._properties_file = tempfile.NamedTemporaryFile(delete=False)
@@ -56,6 +62,7 @@ class SparkMasterService(MasterService):
                 args.append(self._properties_file)
 
         try:
+            args = " ".join(args)
             subprocess.check_call(args=args, shell=True)
         except:
             if self._properties_file:
@@ -71,9 +78,13 @@ class SparkMasterService(MasterService):
         else:
             return ""
 
+    def get_host(self) -> str:
+        # use the same ip as the ray worker
+        return ray.worker.global_worker.node_ip_address
+
     def stop(self):
         if self._start_up:
-            args = [f"{self._spark_home}/sbin/stop-master.sh"]
+            args = f"{self._spark_home}/sbin/stop-master.sh"
             try:
                 subprocess.check_call(args=args, shell=True)
             except:

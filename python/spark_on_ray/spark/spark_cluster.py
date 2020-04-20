@@ -1,8 +1,8 @@
-from cluster import Cluster
-from typing import Dict, Type
-from ray_cluster_resources import ClusterResources
-from spark.spark_master_service import SparkMasterService
-from spark.spark_worker_service import SparkWorkerService
+from spark_on_ray.cluster import Cluster
+from typing import Any, Dict
+from spark_on_ray.ray_cluster_resources import ClusterResources
+from spark_on_ray.spark.spark_master_service import SparkMasterService
+from spark_on_ray.spark.spark_worker_service import SparkWorkerService
 
 import pyspark
 from pyspark.sql import SparkSession
@@ -12,14 +12,21 @@ default_config = {
     "spark.sql.execution.arrow.enabled": "true"
 }
 
+_global_broadcasted = None
+
 
 class SparkCluster(Cluster):
     def __init__(self,
+                 ray_redis_address: str,
+                 ray_redis_password: str,
                  master_resources: Dict[str, float],
                  spark_home: str,
                  master_port: int = 7077,
-                 master_webui_port: int = None,
+                 master_webui_port: Any = None,
                  master_properties: Dict[str, str] = None):
+        self._ray_redis_address = ray_redis_address
+        self._ray_redis_password = ray_redis_password
+
         self._spark_home = spark_home
         self._master_port = master_port
         self._master_webui_port = master_webui_port
@@ -72,6 +79,8 @@ class SparkCluster(Cluster):
         return self._master_url
 
     def get_spark_session(self,
+                          ray_redis_address: str,
+                          ray_redis_password: str,
                           app_name: str,
                           num_executors: int,
                           executor_cores: int,
@@ -89,7 +98,14 @@ class SparkCluster(Cluster):
         for k, v in conf.items():
             builder.config(k, v)
 
-        return builder.getOrCreate()
+        spark = builder.getOrCreate()
+
+        # broadcast redis address and password
+        global _global_broadcasted
+        value = {"address": self._ray_redis_address, "password": self._ray_redis_password}
+        _global_broadcasted = spark.sparkContext.broadcast(value)
+
+        return spark
 
     def stop(self):
         if not self._stopped:
@@ -106,3 +122,5 @@ class SparkCluster(Cluster):
 
             self._master_url = None
             self._stopped = True
+            global _global_broadcasted_redis_address
+            _global_broadcasted_redis_address = None

@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
 
-import ray
-
 
 class MasterService(ABC):
 
@@ -13,8 +11,9 @@ class MasterService(ABC):
     def get_master_url(self) -> str:
         pass
 
+    @abstractmethod
     def get_host(self) -> str:
-        return ray.services.get_node_ip_address()
+        pass
 
     @abstractmethod
     def stop(self):
@@ -27,8 +26,9 @@ class WorkerService(ABC):
     def start_up(self) -> bool:
         pass
 
+    @abstractmethod
     def get_host(self) -> str:
-        return ray.services.get_node_ip_address()
+        pass
 
     @abstractmethod
     def stop(self):

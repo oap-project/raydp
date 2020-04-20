@@ -1,8 +1,9 @@
-from services import WorkerService
+from spark_on_ray.services import WorkerService
 from typing import Any, Dict
 
 import atexit
 import os
+import ray
 import subprocess
 import tempfile
 
@@ -16,8 +17,7 @@ class SparkWorkerService(WorkerService):
                  port: Any = None,
                  webui_port: Any = None,
                  work_dir: str = None,
-                 properties: Dict[str, str] = None,
-                 **kwargs):
+                 properties: Dict[str, str] = None):
         self._master_url = master_url
         self._cores = cores
         self._memory = memory
@@ -74,8 +74,8 @@ class SparkWorkerService(WorkerService):
             args.append("--work-dir")
             args.append(self._work_dir)
 
-        print(" ".join(args))
         try:
+            args = " ".join(args)
             subprocess.check_call(args=args, shell=True)
         except:
             if self._properties_file:
@@ -85,9 +85,13 @@ class SparkWorkerService(WorkerService):
             self._start_up = True
             return True
 
+    def get_host(self) -> str:
+        # use the same ip as ray worker
+        return ray.worker.global_worker.node_ip_address
+
     def stop(self):
         if self._start_up:
-            args = [f"{self._spark_home}/sbin/stop-slave.sh"]
+            args = f"{self._spark_home}/sbin/stop-slave.sh"
             try:
                 subprocess.check_call(args=args, shell=True)
             except:

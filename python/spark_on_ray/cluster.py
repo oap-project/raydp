@@ -1,7 +1,7 @@
 from typing import Any, Dict, Type
 
 from abc import ABC, abstractmethod
-from ray_cluster_resources import ClusterResources
+from spark_on_ray.ray_cluster_resources import ClusterResources
 
 
 class Cluster(ABC):
