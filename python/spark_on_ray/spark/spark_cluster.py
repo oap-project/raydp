@@ -1,18 +1,30 @@
-from spark_on_ray.cluster import Cluster
-from typing import Any, Dict
-from spark_on_ray.ray_cluster_resources import ClusterResources
-from spark_on_ray.spark.spark_master_service import SparkMasterService
-from spark_on_ray.spark.spark_worker_service import SparkWorkerService
+import numpy as np
 
 import pyspark
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.types import IntegerType, StringType, StructField, StructType
+
 import ray
+import ray.cloudpickle as rpickle
+
+import pandas as pd
+
+from typing import Any, Dict, List
+
+from spark_on_ray.cluster import Cluster
+from spark_on_ray.ray_cluster_resources import ClusterResources
+from spark_on_ray.spark.dataholder import DataHolder, DataHolderActorHandlerWrapper, ObjectIdWrapper
+from spark_on_ray.spark.utils import get_node_address
+from spark_on_ray.spark.spark_master_service import SparkMasterService
+from spark_on_ray.spark.spark_worker_service import SparkWorkerService
 
 default_config = {
     "spark.sql.execution.arrow.enabled": "true"
 }
 
 _global_broadcasted = {}
+_global_data_holder: Dict[str, DataHolderActorHandlerWrapper] = {}
 
 
 class SparkCluster(Cluster):
@@ -35,11 +47,25 @@ class SparkCluster(Cluster):
         self._master = None
         self._workers = []
 
+        self._node_selected = set()
+
         self._stopped = False
 
         super().__init__(master_resources)
 
         self._set_up_master(master_resources, None)
+
+    def _resource_check(self, resources: Dict[str, float]) -> str:
+        # check whether this is any node could satisfy the master service requirement
+        satisfied = ClusterResources.satisfy(resources)
+        satisfied = [node for node in satisfied if node not in self._node_selected]
+        if not satisfied:
+            raise Exception("There is not any node can satisfy the service resources "
+                            f"requirement, request: {resources}")
+
+        choosed = np.random.choice(satisfied)
+        assert choosed not in self._node_selected
+        return choosed
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[str, str]):
         self._resource_check(resources)
@@ -48,9 +74,14 @@ class SparkCluster(Cluster):
         self._master = master_remote.remote(
             self._spark_home, self._master_port, self._master_webui_port, self._master_properties)
         # start up master
-        ray.get(self._master.start_up.remote())
-        # get master url after master start up
-        self._master_url = ray.get(self._master.get_master_url.remote())
+        error_msg = ray.get(self._master.start_up.remote())
+        if not error_msg:
+            # get master url after master start up
+            self._master_url = ray.get(self._master.get_master_url.remote())
+        else:
+            del self._master
+            self._master = None
+            raise Exception(error_msg)
 
     def _set_up_worker(self, resources: Dict[str, float], kwargs: Dict[str, str]):
         # set up workers
@@ -58,7 +89,7 @@ class SparkCluster(Cluster):
         if total_alive_nodes <= self._num_nodes:
             raise Exception("Don't have enough nodes,"
                             f"available: {total_alive_nodes}, request: {self._num_nodes}")
-        self._resource_check(resources)
+        choosed = self._resource_check(resources)
 
         port = kwargs.get("port", None)
         webui_port = kwargs.get("webui_port", None)
@@ -72,8 +103,18 @@ class SparkCluster(Cluster):
                                       webui_port=webui_port,
                                       properties=properties)
         # startup worker
-        worker.start_up.remote()
-        self._workers.append(worker)
+        error_msg = ray.get(worker.start_up.remote())
+        if not error_msg:
+            self._node_selected.add(choosed)
+            if choosed not in _global_data_holder:
+                # set up data holder if has not set up
+                data_holder = DataHolder.remote()
+                _global_data_holder[choosed] = DataHolderActorHandlerWrapper(data_holder)
+
+            self._workers.append(worker)
+        else:
+            del worker
+            raise Exception(error_msg)
 
     def get_cluster_url(self) -> str:
         return self._master_url
@@ -107,6 +148,11 @@ class SparkCluster(Cluster):
 
     def stop(self):
         if not self._stopped:
+            # destroy all data holder
+            ray.get([holder.stop.remote() for holder in _global_data_holder.values()])
+            _global_data_holder.clear()
+            # TODO: wrap SparkSession to remove this
+            _global_broadcasted.clear()
             # kill master
             if self._master:
                 ray.get(self._master.stop.remote())
@@ -122,3 +168,37 @@ class SparkCluster(Cluster):
             self._stopped = True
             global _global_broadcasted_redis_address
             _global_broadcasted_redis_address = None
+
+
+def save_to_ray(df: pyspark.sql.DataFrame) -> List[ObjectIdWrapper]:
+
+    return_type = StructType()
+    return_type.add(StructField("node_label", StringType(), True))
+    return_type.add(StructField("fetch_index", IntegerType(), True))
+
+    @pandas_udf(return_type, PandasUDFType.MAP_ITER)
+    def save(batch_iter):
+        if not ray.is_initialized():
+            redis_config = {}
+            broadcased = _global_broadcasted["redis"].value
+            redis_config["address"] = broadcased["address"]
+            redis_config["password"] = broadcased["password"]
+
+            local_address = get_node_address()
+
+            ray.init(address=redis_config["address"],
+                     node_ip_address=local_address,
+                     redis_password=redis_config["password"])
+
+        node_label = f"node:{ray.services.get_node_ip_address()}"
+        data_handler = _global_data_holder[node_label]
+        for pdf in batch_iter:
+            obj = ray.put(pdf)
+            # TODO: register object in batch
+            fetch_index = ray.get(data_handler.register_object_id.remote(rpickle.dumps(obj)))
+            yield pd.DataFrame({"node_label": [node_label], "fetch_index": [fetch_index]})
+
+    results = df.mapInPandas(save).collect()
+
+    return [ObjectIdWrapper(_global_data_holder[row["node_label"]], row["fetch_index"])
+            for row in results]

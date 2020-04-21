@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import ray
 from ray.ray_constants import MEMORY_RESOURCE_UNIT_BYTES
@@ -8,9 +8,10 @@ import time
 class ClusterResources:
     # TODO: make this configurable
     refresh_interval = 0.1
-    latest_refresh_time = time.time()
+    latest_refresh_time = time.time() - refresh_interval
     node_to_resources = {}
     item_keys_mapping = {"num_cpus": "CPU"}
+    label_name = "__ray_spark_node_label"
 
     @classmethod
     def total_alive_nodes(cls):
@@ -18,13 +19,14 @@ class ClusterResources:
         return len(cls.node_to_resources)
 
     @classmethod
-    def satisfy(cls, request: Dict[str, float]) -> Any:
+    def satisfy(cls, request: Dict[str, float]) -> List[str]:
         cls._refresh()
+        satisfied = []
         for host_name, resources in cls.node_to_resources.items():
             if cls._compare_two_dict(resources, request):
-                return host_name
+                satisfied.append(resources[cls.label_name])
 
-        return None
+        return satisfied
 
     @classmethod
     def _refresh(cls):
@@ -35,6 +37,12 @@ class ClusterResources:
             if node["Alive"]:
                 host_name = node["NodeManagerHostname"]
                 resources = node["Resources"]
+                for key in resources:
+                    if key.startswith("node:"):
+                        resources[cls.label_name] = key
+                        break
+                assert cls.label_name in resources,\
+                    f"{resources} should contain a resource likes: 'node:10.0.0.131': 1.0"
                 cls.node_to_resources[host_name] = resources
         cls.latest_refresh_time = time.time()
 

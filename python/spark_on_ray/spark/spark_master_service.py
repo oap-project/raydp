@@ -1,7 +1,8 @@
 from spark_on_ray.services import MasterService
+from spark_on_ray.spark.utils import register_exit_handler
 from typing import Any, Dict
 
-import atexit
+import logging
 import os
 import ray
 import subprocess
@@ -25,12 +26,10 @@ class SparkMasterService(MasterService):
         os.environ["SPARK_HOME"] = self._spark_home
         os.environ["SPARK_MASTER_IP"] = self._host
 
-        atexit.register(self.stop)
-
-    def start_up(self) -> bool:
+    def start_up(self) -> str:
         if self._start_up:
-            # TODO: add warning?
-            return True
+            logging.warning("The master has started up already.")
+            return None
 
         args = [f"{self._spark_home}/sbin/start-master.sh",
                 "--host", self._host]
@@ -48,11 +47,11 @@ class SparkMasterService(MasterService):
             try:
                 for k, v in self._properties.items():
                     self._properties_file.write(f"{k}\t{v}".encode("utf-8"))
-            except:
+            except Exception as exp:
                 self._properties_file.close()
                 self._properties_file = None
                 os.remove(self._properties_file)
-                raise Exception("Write properties to temp file failed.")
+                return f"Write properties to temp file failed. {exp}"
             finally:
                 if self._properties_file:
                     self._properties_file.close()
@@ -63,14 +62,17 @@ class SparkMasterService(MasterService):
 
         try:
             args = " ".join(args)
+            logging.info(f"Start up master: {args}")
             subprocess.check_call(args=args, shell=True)
-        except:
+        except Exception as exp:
             if self._properties_file:
                 os.remove(self._properties_file)
-            raise
+            return f"Start up master failed: {exp}"
         else:
             self._start_up = True
-            return True
+            # register stop when the worker exist
+            register_exit_handler(self.stop)
+            return None
 
     def get_master_url(self) -> str:
         if self._start_up:
@@ -86,10 +88,11 @@ class SparkMasterService(MasterService):
         if self._start_up:
             args = f"{self._spark_home}/sbin/stop-master.sh"
             try:
+                logging.info(f"Stop master: {args}")
                 subprocess.check_call(args=args, shell=True)
-            except:
+            except Exception as exp:
                 # TODO: force kill?
-                pass
+                logging.error(f"Stop master failed: {exp}")
             finally:
                 if self._properties_file:
                     os.remove(self._properties_file)

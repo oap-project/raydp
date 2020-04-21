@@ -1,8 +1,9 @@
 from spark_on_ray.services import WorkerService
+from spark_on_ray.spark.utils import register_exit_handler
 from typing import Any, Dict
 
-import atexit
 import os
+import logging
 import ray
 import subprocess
 import tempfile
@@ -32,12 +33,10 @@ class SparkWorkerService(WorkerService):
 
         os.environ["SPARK_HOME"] = self._spark_home
 
-        atexit.register(self.stop)
-
-    def start_up(self) -> bool:
+    def start_up(self) -> str:
         if self._start_up:
-            # TODO: add warning?
-            return True
+            logging.warning("The worker has started up already.")
+            return None
 
         args = [f"{self._spark_home}/sbin/start-slave.sh", self._master_url,
                 "--cores", str(self._cores),
@@ -57,11 +56,11 @@ class SparkWorkerService(WorkerService):
             try:
                 for k, v in self._properties.items():
                     self._properties_file.write(f"{k}\t{v}".encode("utf-8"))
-            except:
+            except Exception as exp:
                 self._properties_file.close()
                 self._properties_file = None
                 os.remove(self._properties_file)
-                raise Exception("Write properties to temp file failed.")
+                return f"Write properties to temp file failed: {exp}"
             finally:
                 if self._properties_file:
                     self._properties_file.close()
@@ -76,14 +75,17 @@ class SparkWorkerService(WorkerService):
 
         try:
             args = " ".join(args)
+            logging.info(f"Start up worker: {args}")
             subprocess.check_call(args=args, shell=True)
-        except:
+        except Exception as exp:
             if self._properties_file:
                 os.remove(self._properties_file)
-            raise
+            return f"Start up worker failed: {exp}"
         else:
             self._start_up = True
-            return True
+            # register stop when the worker exist
+            register_exit_handler(self.stop)
+            return None
 
     def get_host(self) -> str:
         # use the same ip as ray worker
@@ -93,10 +95,11 @@ class SparkWorkerService(WorkerService):
         if self._start_up:
             args = f"{self._spark_home}/sbin/stop-slave.sh"
             try:
+                logging.info(f"Stop worker: {args}")
                 subprocess.check_call(args=args, shell=True)
-            except:
+            except Exception as exp:
                 # TODO: force kill?
-                pass
+                logging.error(f"Stop worker failed: {exp}")
             finally:
                 if self._properties_file:
                     os.remove(self._properties_file)
