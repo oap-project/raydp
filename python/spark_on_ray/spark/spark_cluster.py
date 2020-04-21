@@ -195,8 +195,8 @@ def save_to_ray(df: pyspark.sql.DataFrame) -> List[ObjectIdWrapper]:
         for pdf in batch_iter:
             obj = ray.put(pdf)
             # TODO: register object in batch
-            fetch_index = data_handler.register_object_id.remote(rpickle.dumps(obj))
-            yield pd.DataFrame({"node_label": node_label, "fetch_index": fetch_index})
+            fetch_index = ray.get(data_handler.register_object_id.remote(rpickle.dumps(obj)))
+            yield pd.DataFrame({"node_label": [node_label], "fetch_index": [fetch_index]})
 
     results = df.mapInPandas(save).collect()
 

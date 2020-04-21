@@ -8,7 +8,7 @@ import time
 class ClusterResources:
     # TODO: make this configurable
     refresh_interval = 0.1
-    latest_refresh_time = time.time()
+    latest_refresh_time = time.time() - refresh_interval
     node_to_resources = {}
     item_keys_mapping = {"num_cpus": "CPU"}
     label_name = "__ray_spark_node_label"

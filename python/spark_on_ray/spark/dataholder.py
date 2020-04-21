@@ -83,7 +83,7 @@ class DataHolder:
         """
         Clean all data.
         """
-        self.destroy_object_ids(self._data.keys())
+        self.destroy_object_ids(list(self._data.keys()))
 
 
 class DataHolderActorHandlerWrapper:
@@ -115,7 +115,7 @@ class ObjectIdWrapper:
     def __init__(self, data_holder: DataHolder, fetch_index: int):
         self._data_holder = data_holder
         self._fetch_index = fetch_index
-        self._object_id_in_bytes = self._data_holder.get_object.remote(self._fetch_index)
+        self._object_id_in_bytes = ray.get(self._data_holder.get_object.remote(self._fetch_index))
         self._object_id = None
         self._is_valid = True
 
@@ -123,7 +123,13 @@ class ObjectIdWrapper:
         assert self._is_valid
         if not self._object_id:
             self._object_id = rpickle.loads(self._object_id_in_bytes)
-        ray.get(self._object_id)
+        return ray.get(self._object_id)
+
+    def get_object_id(self):
+        assert self._is_valid
+        if not self._object_id:
+            self._object_id = rpickle.loads(self._object_id_in_bytes)
+        return self._object_id
 
     def free(self, destroy: bool):
         """

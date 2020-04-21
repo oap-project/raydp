@@ -10,9 +10,9 @@ from typing import List
 GB = 1 * 1024 * 1024 * 1024
 
 # ------------- connect to ray cluster ------------
-redis_address = "192.168.1.17:28267"
+redis_address = "192.168.1.17:23960"
 redis_password = "123"
-ray.init(node_ip_address="192.168.1.17", redis_password=redis_password)
+ray.init(address=redis_address, redis_password=redis_password)
 
 # -------------- setup spark cluster ----------------
 master_resources = {"num_cpus": 1}
@@ -39,10 +39,12 @@ spark: pyspark.sql.SparkSession = spark_cluster.get_spark_session(
 df: pyspark.sql.DataFrame = spark.range(0, 10)
 
 # save DataFrame to ray
-ray_object: List[ObjectIdWrapper] = save_to_ray(df)
+ray_objects: List[ObjectIdWrapper] = save_to_ray(df)
 
-print([obj.get() for obj in ray_object])
-
+for obj in ray_objects:
+    d = obj.get()
+    print(type(d))
+    print(d)
 
 spark.stop()
 
