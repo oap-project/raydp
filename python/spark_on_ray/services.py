@@ -4,7 +4,10 @@ from abc import ABC, abstractmethod
 class MasterService(ABC):
 
     @abstractmethod
-    def start_up(self) -> bool:
+    def start_up(self) -> str:
+        """
+        :return: error message, return None if succeeded
+        """
         pass
 
     @abstractmethod
@@ -23,7 +26,10 @@ class MasterService(ABC):
 class WorkerService(ABC):
 
     @abstractmethod
-    def start_up(self) -> bool:
+    def start_up(self) -> str:
+        """
+        :return: error message, return None if succeeded
+        """
         pass
 
     @abstractmethod

@@ -1,39 +1,6 @@
-from pyspark.sql.functions import pandas_udf
-from pyspark.sql.types import BinaryType
-from typing import List
-from spark_on_ray.spark.spark_cluster import _global_broadcasted
-
-import pandas as pd
+import atexit
 import psutil
-import ray
-import ray.services
-import ray.cloudpickle as rpickle
-
-
-@pandas_udf(BinaryType())
-def save_to_ray(*columns) -> List[bytes]:
-    # TODO: need to replace with java side solutions.
-    if not ray.is_initialized():
-        redis_config = {}
-        broadcased = _global_broadcasted["redis"].value
-        redis_config["address"] = broadcased["address"]
-        redis_config["password"] = broadcased["password"]
-
-        local_address = get_node_address()
-
-        ray.init(address=redis_config["address"],
-                 node_ip_address=local_address,
-                 redis_password=redis_config["password"])
-
-    df = pd.concat(columns, axis=1, copy=False)
-    id = ray.put(df)
-
-    id_bytes = rpickle.dumps(id)
-    return id_bytes
-
-
-def load_into_ids(id_in_bytes: List[bytes]) -> List[ray.ObjectID]:
-    return [rpickle.loads(i) for i in id_in_bytes]
+import signal
 
 
 def get_node_address() -> str:
@@ -61,3 +28,9 @@ def get_node_address() -> str:
         except psutil.NoSuchProcess:
             pass
     raise Exception("can't find any ray process")
+
+
+def register_exit_handler(func):
+    atexit.register(func)
+    signal.signal(signal.SIGTERM, func)
+    signal.signal(signal.SIGINT, func)

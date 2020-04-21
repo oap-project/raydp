@@ -15,12 +15,6 @@ class Cluster(ABC):
         # limitation for master node. So we don't count it.
         self._num_nodes = 0
 
-    def _resource_check(self, resources: Dict[str, float]):
-        # check whether this is any node could satisfy the master service requirement
-        if not ClusterResources.satisfy(resources):
-            raise Exception("There is not any node can satisfy the service resources "
-                            f"requirement, request: {resources}")
-
     @abstractmethod
     def _set_up_master(self,
                        resources: Dict[str, float],
