@@ -87,7 +87,7 @@ class SparkCluster(Cluster):
         total_alive_nodes = ClusterResources.total_alive_nodes()
         if total_alive_nodes <= self._num_nodes:
             raise Exception("Don't have enough nodes,"
-                            f"available: {total_alive_nodes}, request: {self._num_nodes}")
+                            f"available: {total_alive_nodes}, existed: {self._num_nodes}")
         choosed = self._resource_check(resources)
 
         port = kwargs.get("port", None)
@@ -111,6 +111,7 @@ class SparkCluster(Cluster):
                 _global_data_holder[choosed] = DataHolderActorHandlerWrapper(data_holder)
 
             self._workers.append(worker)
+            self._num_nodes += 1
         else:
             del worker
             raise Exception(error_msg)

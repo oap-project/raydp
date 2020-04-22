@@ -27,6 +27,16 @@ parser.add_argument("--redis-password", type=str, dest="redis_password",
 parser.add_argument("--spark-home", type=str, required=True, dest="spark_home",
                     help="The spark home directory")
 
+parser.add_argument("--num-workers", type=int, dest="num_workers",
+                    help="The number of standalone workers to start up, "
+                         "this will be same as num-executors if it is not set")
+parser.add_argument("--worker-cores", type=int, dest="worker_cores",
+                    help="The number of cores for each of standalone worker, "
+                         "this will be same as executor-cores if it is not set")
+parser.add_argument("--worker-memory", type=float, dest="worker_memory",
+                    help="The size of memory(GB) for each of standalone worker, "
+                         "this will be same as executor-memory if it is not set")
+
 parser.add_argument("--num-executors", type=int, required=True, dest="num_executors",
                     help="The number of executors for this application")
 parser.add_argument("--executor-cores", type=int, required=True, dest="executor_cores",
@@ -34,18 +44,18 @@ parser.add_argument("--executor-cores", type=int, required=True, dest="executor_
 parser.add_argument("--executor-memory", type=float, required=True, dest="executor_memory",
                     help="The size of memory(GB) for each of Spark executor")
 
-parser.parse_args()
+args = parser.parse_args()
 
 GB = 1 * 1024 * 1024 * 1024
 
 # -------------------- set up ray cluster --------------------
-if parser.redis_address:
-    assert parser.redis_password,\
+if args.redis_address:
+    assert args.redis_password,\
         "Connect to existed cluster must provide both redis address and password"
     print("Connect to existed cluster.")
-    ray.init(address=parser.redis_address,
+    ray.init(address=args.redis_address,
              node_ip_address=None,
-             redis_password=parser.redis_password)
+             redis_password=args.redis_password)
 else:
     print("Start up new cluster")
     ray.init()
@@ -53,11 +63,13 @@ else:
 # -------------------- setup spark -------------------------
 
 # set up master node
-spark_cluster = SparkCluster(spark_home=parser.spark_home)
+spark_cluster = SparkCluster(spark_home=args.spark_home)
 
-num_workers = parser.num_executors
-worker_resources = {"num_cpus": parser.executor_cores,
-                    "memory": int(parser.executor_memory * GB)}
+num_workers = args.num_workers if args.num_workers else args.num_executors
+worker_cores = args.worker_cores if args.worker_cores else args.executor_cores
+worker_memory = args.worker_memory if args.worker_memory else args.executor_memory
+worker_resources = {"num_cpus": worker_cores,
+                    "memory": int(worker_memory * GB)}
 
 
 # add spark worker, using the same resource requirements as executor
@@ -67,9 +79,9 @@ for _ in range(num_workers):
 # get SparkSession from spark cluster
 spark = spark_cluster.get_spark_session(
     app_name="A simple example for spark on ray",
-    num_executors=parser.num_executors,
-    executor_cores=parser.executor_cores,
-    executor_memory=int(parser.executor_memory * GB))
+    num_executors=args.num_executors,
+    executor_cores=args.executor_cores,
+    executor_memory=int(args.executor_memory * GB))
 
 
 # ---------------- data process with Spark ------------
