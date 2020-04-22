@@ -102,7 +102,7 @@ def data_creator(config: Dict):
     train_dataset = create_dataset_from_objects(
                         objs=ray_objects,
                         features_column="x",
-                        label_column="y")
+                        label_column="y").batch(128).repeat()
     test_dataset = None
     return train_dataset, test_dataset
 
