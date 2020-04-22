@@ -1,50 +1,124 @@
-from spark_on_ray.spark.dataholder import ObjectIdWrapper
-from spark_on_ray.spark.spark_cluster import save_to_ray, SparkCluster
+import argparse
+import numpy as np
 
 import pyspark
+from pyspark.sql.functions import rand, round
+
 import ray
+from ray.util.sgd.tf.tf_trainer import TFTrainer
 
-from typing import List
+from spark_on_ray.spark.dataholder import ObjectIdWrapper
+from spark_on_ray.spark.spark_cluster import save_to_ray, SparkCluster
+from spark_on_ray.spark.utils import create_dataset_from_objects
 
+from typing import Dict, List
+
+import tensorflow as tf
+
+
+parser = argparse.ArgumentParser(description="A simple example for spark on ray")
+parser.add_argument("--redis-address", type=str, dest="redis_address",
+                    help="The ray redis address(host:port) when you want to connect to existed"
+                         " ray cluster. Will startup a ray cluster if this is not provided")
+parser.add_argument("--redis-password", type=str, dest="redis_password",
+                    help="The ray redis password when you want to connect to existed ray "
+                         "cluster. This must provide when connect to existed cluster.")
+
+parser.add_argument("--spark-home", type=str, required=True, dest="spark_home",
+                    help="The spark home directory")
+
+parser.add_argument("--num-executors", type=int, required=True, dest="num_executors",
+                    help="The number of executors for this application")
+parser.add_argument("--executor-cores", type=int, required=True, dest="executor_cores",
+                    help="The number of cores for each of Spark executor")
+parser.add_argument("--executor-memory", type=float, required=True, dest="executor_memory",
+                    help="The size of memory(GB) for each of Spark executor")
+
+parser.parse_args()
 
 GB = 1 * 1024 * 1024 * 1024
 
-# ------------- connect to ray cluster ------------
-redis_address = "192.168.1.17:23960"
-redis_password = "123"
-ray.init(address=redis_address, redis_password=redis_password)
+# -------------------- set up ray cluster --------------------
+if parser.redis_address:
+    assert parser.redis_password,\
+        "Connect to existed cluster must provide both redis address and password"
+    print("Connect to existed cluster.")
+    ray.init(address=parser.redis_address,
+             node_ip_address=None,
+             redis_password=parser.redis_password)
+else:
+    print("Start up new cluster")
+    ray.init()
 
-# -------------- setup spark cluster ----------------
-master_resources = {"num_cpus": 1}
-spark_home = "/Users/xianyang/opt/spark-3.0.0-preview2-bin-hadoop2.7"
+# -------------------- setup spark -------------------------
+
 # set up master node
-spark_cluster = SparkCluster(
-    ray_redis_address=redis_address,
-    ray_redis_password=redis_password,
-    master_resources=master_resources,
-    spark_home=spark_home)
+spark_cluster = SparkCluster(spark_home=parser.spark_home)
 
-# add spark worker
-worker_resources = {"num_cpus": 2, "memory": 1 * GB}
-spark_cluster.add_worker(worker_resources)
+num_workers = parser.num_executors
+worker_resources = {"num_cpus": parser.executor_cores,
+                    "memory": int(parser.executor_memory * GB)}
 
-# --------- data process with Spark ------------
+
+# add spark worker, using the same resource requirements as executor
+for _ in range(num_workers):
+    spark_cluster.add_worker(worker_resources)
+
 # get SparkSession from spark cluster
-spark: pyspark.sql.SparkSession = spark_cluster.get_spark_session(
-                                      app_name="SimpleTest",
-                                      num_executors=1,
-                                      executor_cores=1,
-                                      executor_memory="512m")
+spark = spark_cluster.get_spark_session(
+    app_name="A simple example for spark on ray",
+    num_executors=parser.num_executors,
+    executor_cores=parser.executor_cores,
+    executor_memory=int(parser.executor_memory * GB))
 
-df: pyspark.sql.DataFrame = spark.range(0, 10)
+
+# ---------------- data process with Spark ------------
+# calculate y = 3 * x + 4
+df: pyspark.sql.DataFrame = spark.range(0, 100000)
+df = df.withColumn("x", rand() * 100)  # add x column
+df = df.withColumn("y", df.x * 3 + rand() + 4)  # ad y column
+df = df.select(df.x, df.y)
 
 # save DataFrame to ray
 ray_objects: List[ObjectIdWrapper] = save_to_ray(df)
 
-for obj in ray_objects:
-    d = obj.get()
-    print(type(d))
-    print(d)
+
+# ---------------- ray sgd -------------------------
+
+class LinearRegress(tf.keras.Model):
+    def __init__(self):
+        self.W = tf.Variable(np.random.random(), name='weight')
+        self.b = tf.Variable(np.random.random(), name='bais')
+
+    def call(self, inputs, training=None, mask=None):
+        return self.W * inputs + self.b
+
+
+def create_mode(config: Dict):
+    return LinearRegress()
+
+
+def data_creator(config: Dict):
+    train_dataset = create_dataset_from_objects(
+                        objs=ray_objects,
+                        features_column="x",
+                        label_column="y")
+    test_dataset = None
+    return train_dataset, test_dataset
+
+
+tf_trainer = TFTrainer(model_creator=create_mode,
+                       data_creator=data_creator,
+                       num_replicas=2)
+
+for i in range(100):
+    stats = tf_trainer.train()
+    print(f"Step: {i}, stats: {stats}")
+
+model = tf_trainer.get_model()
+print(model)
+
+tf_trainer.shutdown()
 
 spark.stop()
 

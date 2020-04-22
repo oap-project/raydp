@@ -29,15 +29,14 @@ _global_data_holder: Dict[str, DataHolderActorHandlerWrapper] = {}
 
 class SparkCluster(Cluster):
     def __init__(self,
-                 ray_redis_address: str,
-                 ray_redis_password: str,
-                 master_resources: Dict[str, float],
                  spark_home: str,
+                 master_resources: Dict[str, float] = {"num_cpus": 0},
                  master_port: int = 8080,
                  master_webui_port: Any = None,
                  master_properties: Dict[str, str] = None):
-        self._ray_redis_address = ray_redis_address
-        self._ray_redis_password = ray_redis_password
+        assert ray.is_initialized()
+        self._ray_redis_address = ray.worker._global_node.redis_address
+        self._ray_redis_password = ray.worker._global_node.redis_password
 
         self._spark_home = spark_home
         self._master_port = master_port

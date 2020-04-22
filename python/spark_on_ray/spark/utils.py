@@ -1,6 +1,10 @@
 import atexit
 import psutil
+import pandas as pd
 import signal
+from spark_on_ray.spark.dataholder import ObjectIdWrapper
+import tensorflow as tf
+from typing import List
 
 
 def get_node_address() -> str:
@@ -34,3 +38,21 @@ def register_exit_handler(func):
     atexit.register(func)
     signal.signal(signal.SIGTERM, func)
     signal.signal(signal.SIGINT, func)
+
+
+def create_dataset_from_objects(objs: List[ObjectIdWrapper],
+                                features_column: str,
+                                label_column: str) -> tf.data.Dataset:
+    # TODO: this will load all data into memory which is not optimized.
+    pdfs: List[pd.DataFrame] = [obj.get() for obj in objs]
+    # transfer to Dataset
+    datasets: List[tf.data.Dataset] = \
+        [tf.data.Dataset.from_tensor_slices((pdf[features_column], pdf[label_column]))
+         for pdf in pdfs]
+    assert len(datasets) > 0
+    # concant
+    result = datasets[0]
+    for i in range(1, len(datasets)):
+        result.concatenate(datasets[i])
+
+    return result

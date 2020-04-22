@@ -1,3 +1,5 @@
+import pandas as pd
+
 import ray
 import ray.cloudpickle as rpickle
 
@@ -112,20 +114,22 @@ class DataHolderActorHandlerWrapper:
 
 
 class ObjectIdWrapper:
-    def __init__(self, data_holder: DataHolder, fetch_index: int):
+    def __init__(self, data_holder: DataHolderActorHandlerWrapper, fetch_index: int):
         self._data_holder = data_holder
         self._fetch_index = fetch_index
         self._object_id_in_bytes = ray.get(self._data_holder.get_object.remote(self._fetch_index))
+        self._data = None
         self._object_id = None
         self._is_valid = True
 
-    def get(self) -> Any:
+    def get(self) -> pd.DataFrame:
         assert self._is_valid
         if not self._object_id:
             self._object_id = rpickle.loads(self._object_id_in_bytes)
-        return ray.get(self._object_id)
+            self._data = ray.get(self._object_id)
+        return self._data
 
-    def get_object_id(self):
+    def get_object_id(self) -> ray.ObjectID:
         assert self._is_valid
         if not self._object_id:
             self._object_id = rpickle.loads(self._object_id_in_bytes)
@@ -143,4 +147,13 @@ class ObjectIdWrapper:
             del self._data_holder
             self._object_id = None
             self._data_holder = None
+            self._data = None
             self._is_valid = False
+
+    def __reduce__(self):
+        assert self._is_valid
+        self.__class__, (self._data_holder, self._fetch_index)
+
+    def __del__(self):
+        if ray.is_initialized():
+            self.free()
