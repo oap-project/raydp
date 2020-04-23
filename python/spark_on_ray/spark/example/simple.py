@@ -8,7 +8,7 @@ import ray
 from ray.util.sgd.tf.tf_trainer import TFTrainer
 
 from spark_on_ray.spark.dataholder import ObjectIdList
-from spark_on_ray.spark.spark_cluster import save_to_ray, SparkCluster
+from spark_on_ray.spark.spark_cluster import save_to_ray, SparkCluster, _global_data_holder
 from spark_on_ray.spark.utils import create_dataset_from_objects
 
 from typing import Dict, List
@@ -114,7 +114,8 @@ def data_creator(config: Dict):
     train_dataset = create_dataset_from_objects(
                         objs=ray_objects,
                         features_column="x",
-                        label_column="y").batch(128).repeat()
+                        label_column="y",
+                        data_holder_mapping=_global_data_holder).batch(128).repeat()
     test_dataset = None
     return train_dataset, test_dataset
 

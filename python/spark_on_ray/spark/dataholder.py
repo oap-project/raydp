@@ -219,11 +219,13 @@ class ObjectIdList:
        3. object_id_list.resolve()  # Resolve the ObjectIdItem and can't add data again after resolve.
        4. object_id_list[0].get() # get the underlying data which should be a pandas.DataFrame
     """
-    def __init__(self):
+    def __init__(self, fetch_indexes: List[Tuple[str, int]]):
         self._fetch_indexes: List[Tuple[str, int]] = []
         self._data: List[ObjectIdItem] = []
         self._batch_mode = False
         self._resolved = False
+        self.append_batch(fetch_indexes)
+        self._data_holder_mapping = None
 
     def append(self, node_label: str, fetch_index) -> None:
         assert not self._resolved
@@ -246,6 +248,7 @@ class ObjectIdList:
                 label = self._fetch_indexes[i][0]
                 self._data[i]._set_data_holder(label, data_holder_mapping[label])
         else:
+            self._data_holder_mapping = data_holder_mapping
             grouped = defaultdict(lambda: [])
             location_mapping = defaultdict(lambda: [])
             resolved = {}
@@ -277,9 +280,7 @@ class ObjectIdList:
 
         self._resolved = True
 
-    def clean(self,
-              data_holder_mapping: Dict[str, DataHolderActorHandlerWrapper],
-              destroy: bool = False):
+    def clean(self, destroy: bool = False):
         if not self._resolved:
             return
         if self._batch_mode:
@@ -288,7 +289,7 @@ class ObjectIdList:
                 grouped[label].append(index)
 
             for label in grouped:
-                holder = data_holder_mapping[label]
+                holder = self._data_holder_mapping[label]
                 if holder:
                     ray.get(holder.remote_object_ids.remote(grouped[label], destroy))
         else:
@@ -298,6 +299,7 @@ class ObjectIdList:
         self._data: List[ObjectIdItem] = []
         self._batch_mode = False
         self._resolved = False
+        self._data_holder_mapping = None
 
     def __getitem__(self, item) -> ObjectIdItem:
         assert self._resolved
