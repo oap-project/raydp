@@ -1,5 +1,4 @@
 import argparse
-import numpy as np
 
 import pyspark
 from pyspark.sql.functions import rand, round
@@ -12,8 +11,6 @@ from spark_on_ray.spark.spark_cluster import save_to_ray, SparkCluster, _global_
 from spark_on_ray.spark.utils import create_dataset_from_objects
 
 from typing import Dict, List
-
-import tensorflow as tf
 
 
 parser = argparse.ArgumentParser(description="A simple example for spark on ray")
@@ -85,37 +82,34 @@ spark = spark_cluster.get_spark_session(
 
 
 # ---------------- data process with Spark ------------
-# calculate y = 3 * x + 4
+# calculate z = 3 * x + 4 * y + 5
 df: pyspark.sql.DataFrame = spark.range(0, 100000)
 df = df.withColumn("x", rand() * 100)  # add x column
-df = df.withColumn("y", df.x * 3 + rand() + 4)  # ad y column
-df = df.select(df.x, df.y)
+df = df.withColumn("y", rand() * 1000)  # ad y column
+df = df.withColumn("z", df.x * 3 + df.y * 4 + rand() + 5)  # ad z column
+df = df.select(df.x, df.y, df.z)
 
 # save DataFrame to ray
 ray_objects: ObjectIdList = save_to_ray(df)
 
 
 # ---------------- ray sgd -------------------------
-
-class LinearRegress(tf.keras.Model):
-    def __init__(self):
-        self.W = tf.Variable(np.random.random(), name='weight')
-        self.b = tf.Variable(np.random.random(), name='bais')
-
-    def call(self, inputs, training=None, mask=None):
-        return self.W * inputs + self.b
-
-
 def create_mode(config: Dict):
-    return LinearRegress()
+    import tensorflow as tf
+    model = tf.keras.Sequential()
+    model.add(tf.keras.layers.Dense(1))
+    model.compile(optimizer=tf.keras.optimizers.Adam(0.01),
+                  loss=tf.keras.losses.mean_squared_error,
+                  metrics=["accuracy", "mse"])
+    return model
 
 
 def data_creator(config: Dict):
     train_dataset = create_dataset_from_objects(
                         objs=ray_objects,
-                        features_column="x",
-                        label_column="y",
-                        data_holder_mapping=_global_data_holder).batch(128).repeat()
+                        features_columns=["x", "y"],
+                        label_column="z",
+                        data_holder_mapping=_global_data_holder)
     test_dataset = None
     return train_dataset, test_dataset
 
@@ -129,7 +123,7 @@ for i in range(100):
     print(f"Step: {i}, stats: {stats}")
 
 model = tf_trainer.get_model()
-print(model)
+print(model.summary())
 
 tf_trainer.shutdown()
 

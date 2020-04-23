@@ -171,7 +171,7 @@ class ObjectIdItem:
 
     def get(self) -> pd.DataFrame:
         assert self._is_valid
-        if not self._data:
+        if self._data is None:
             self._fetch()
         return self._data
 
@@ -313,7 +313,7 @@ class ObjectIdList:
         return self._data.__iter__()
 
     def __reduce__(self):
-        ObjectIdList.__class__, (self._fetch_indexes,)
+        return self.__class__, (self._fetch_indexes,)
 
     def __del__(self):
         if ray.is_initialized():
