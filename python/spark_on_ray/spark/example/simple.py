@@ -7,7 +7,7 @@ from pyspark.sql.functions import rand, round
 import ray
 from ray.util.sgd.tf.tf_trainer import TFTrainer
 
-from spark_on_ray.spark.dataholder import ObjectIdWrapper
+from spark_on_ray.spark.dataholder import ObjectIdList
 from spark_on_ray.spark.spark_cluster import save_to_ray, SparkCluster
 from spark_on_ray.spark.utils import create_dataset_from_objects
 
@@ -92,7 +92,7 @@ df = df.withColumn("y", df.x * 3 + rand() + 4)  # ad y column
 df = df.select(df.x, df.y)
 
 # save DataFrame to ray
-ray_objects: List[ObjectIdWrapper] = save_to_ray(df)
+ray_objects: ObjectIdList = save_to_ray(df)
 
 
 # ---------------- ray sgd -------------------------

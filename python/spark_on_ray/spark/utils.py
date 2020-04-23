@@ -2,9 +2,9 @@ import atexit
 import psutil
 import pandas as pd
 import signal
-from spark_on_ray.spark.dataholder import ObjectIdWrapper
+from spark_on_ray.spark.dataholder import DataHolderActorHandlerWrapper, ObjectIdList
 import tensorflow as tf
-from typing import List
+from typing import Dict, List
 
 
 def get_node_address() -> str:
@@ -40,15 +40,18 @@ def register_exit_handler(func):
     signal.signal(signal.SIGINT, func)
 
 
-def create_dataset_from_objects(objs: List[ObjectIdWrapper],
-                                features_column: str,
-                                label_column: str) -> tf.data.Dataset:
+def create_dataset_from_objects(
+        objs: ObjectIdList,
+        features_column: str,
+        label_column: str,
+        data_holder_mapping: Dict[str, DataHolderActorHandlerWrapper]) -> tf.data.Dataset:
     # TODO: this will load all data into memory which is not optimized.
+    objs.resolve(data_holder_mapping, True)
     pdfs: List[pd.DataFrame] = [obj.get() for obj in objs]
     # transfer to Dataset
     datasets: List[tf.data.Dataset] = \
         [tf.data.Dataset.from_tensor_slices((pdf[features_column], pdf[label_column]))
-         for pdf in pdfs]
+         for pdf in objs]
     assert len(datasets) > 0
     # concant
     result = datasets[0]

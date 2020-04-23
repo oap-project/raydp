@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 
 import pyspark
@@ -10,11 +11,11 @@ import ray.cloudpickle as rpickle
 
 import pandas as pd
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from spark_on_ray.cluster import Cluster
 from spark_on_ray.ray_cluster_resources import ClusterResources
-from spark_on_ray.spark.dataholder import DataHolder, DataHolderActorHandlerWrapper, ObjectIdWrapper
+from spark_on_ray.spark.dataholder import DataHolder, DataHolderActorHandlerWrapper, ObjectIdList
 from spark_on_ray.spark.utils import get_node_address
 from spark_on_ray.spark.spark_master_service import SparkMasterService
 from spark_on_ray.spark.spark_worker_service import SparkWorkerService
@@ -25,6 +26,10 @@ default_config = {
 
 _global_broadcasted = {}
 _global_data_holder: Dict[str, DataHolderActorHandlerWrapper] = {}
+
+
+def get_node_holder(node_label: str) -> Optional[DataHolderActorHandlerWrapper]:
+    return _global_data_holder.get(node_label, None)
 
 
 class SparkCluster(Cluster):
@@ -88,15 +93,18 @@ class SparkCluster(Cluster):
         if total_alive_nodes <= self._num_nodes:
             raise Exception("Don't have enough nodes,"
                             f"available: {total_alive_nodes}, existed: {self._num_nodes}")
-        choosed = self._resource_check(resources)
+
+        resources_copy: Dict[str, Any] = copy.deepcopy(resources)
+        choosed = self._resource_check(resources_copy)
+        resources_copy["resources"] = {choosed: 0.01}
 
         port = kwargs.get("port", None)
         webui_port = kwargs.get("webui_port", None)
         properties = kwargs.get("properties", None)
-        worker_remote = ray.remote(**resources)(SparkWorkerService)
+        worker_remote = ray.remote(**resources_copy)(SparkWorkerService)
         worker = worker_remote.remote(master_url=self._master_url,
-                                      cores=resources["num_cpus"],
-                                      memory=resources["memory"],
+                                      cores=resources_copy["num_cpus"],
+                                      memory=resources_copy["memory"],
                                       spark_home=self._spark_home,
                                       port=port,
                                       webui_port=webui_port,
@@ -170,7 +178,7 @@ class SparkCluster(Cluster):
             _global_broadcasted_redis_address = None
 
 
-def save_to_ray(df: pyspark.sql.DataFrame) -> List[ObjectIdWrapper]:
+def save_to_ray(df: pyspark.sql.DataFrame) -> ObjectIdList:
 
     return_type = StructType()
     return_type.add(StructField("node_label", StringType(), True))
@@ -199,6 +207,5 @@ def save_to_ray(df: pyspark.sql.DataFrame) -> List[ObjectIdWrapper]:
             yield pd.DataFrame({"node_label": [node_label], "fetch_index": [fetch_index]})
 
     results = df.mapInPandas(save).collect()
-
-    return [ObjectIdWrapper(_global_data_holder[row["node_label"]], row["fetch_index"])
-            for row in results]
+    fetch_indexes = [(row["node_label"], row["fetch_index"]) for row in results]
+    return ObjectIdList(fetch_indexes)
