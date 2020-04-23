@@ -97,7 +97,7 @@ ray_objects: ObjectIdList = save_to_ray(df)
 def create_mode(config: Dict):
     import tensorflow as tf
     model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Dense(1))
+    model.add(tf.keras.layers.Dense(1, input_shape=(2,)))
     model.compile(optimizer=tf.keras.optimizers.Adam(0.01),
                   loss=tf.keras.losses.mean_squared_error,
                   metrics=["accuracy", "mse"])
@@ -109,21 +109,22 @@ def data_creator(config: Dict):
                         objs=ray_objects,
                         features_columns=["x", "y"],
                         label_column="z",
-                        data_holder_mapping=_global_data_holder)
+                        data_holder_mapping=_global_data_holder).repeat().batch(1000)
     test_dataset = None
     return train_dataset, test_dataset
 
 
 tf_trainer = TFTrainer(model_creator=create_mode,
                        data_creator=data_creator,
-                       num_replicas=2)
+                       num_replicas=2,
+                       config={"fit_config": {"steps_per_epoch": 100}})
 
 for i in range(100):
     stats = tf_trainer.train()
     print(f"Step: {i}, stats: {stats}")
 
 model = tf_trainer.get_model()
-print(model.summary())
+print(model.get_weights())
 
 tf_trainer.shutdown()
 
