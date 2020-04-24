@@ -1,4 +1,4 @@
-# RayDp: Distributed Data Processing on Ray
+# RayDP: Distributed Data Processing on Ray
 
 A distributed data processing tool on Ray. Currently, we support running Spark on Ray:
 
