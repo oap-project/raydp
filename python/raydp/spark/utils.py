@@ -1,8 +1,7 @@
 import atexit
 import psutil
-import pandas as pd
 import signal
-from spark_on_ray.spark.dataholder import DataHolderActorHandlerWrapper, ObjectIdList
+from raydp.spark.dataholder import DataHolderActorHandlerWrapper, ObjectIdList
 import tensorflow as tf
 from typing import Dict, List
 

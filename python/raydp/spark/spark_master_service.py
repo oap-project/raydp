@@ -1,5 +1,5 @@
-from spark_on_ray.services import MasterService
-from spark_on_ray.spark.utils import register_exit_handler
+from raydp.services import MasterService
+from raydp.spark.utils import register_exit_handler
 from typing import Any, Dict
 
 import logging

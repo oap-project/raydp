@@ -6,9 +6,9 @@ from pyspark.sql.functions import rand, round
 import ray
 from ray.util.sgd.tf.tf_trainer import TFTrainer
 
-from spark_on_ray.spark.dataholder import ObjectIdList
-from spark_on_ray.spark.spark_cluster import save_to_ray, SparkCluster, _global_data_holder
-from spark_on_ray.spark.utils import create_dataset_from_objects
+from raydp.spark.dataholder import ObjectIdList
+from raydp.spark.spark_cluster import save_to_ray, SparkCluster, _global_data_holder
+from raydp.spark.utils import create_dataset_from_objects
 
 from typing import Dict, List
 
