@@ -13,12 +13,12 @@ import pandas as pd
 
 from typing import Any, Dict, List, Optional
 
-from spark_on_ray.cluster import Cluster
-from spark_on_ray.ray_cluster_resources import ClusterResources
-from spark_on_ray.spark.dataholder import DataHolder, DataHolderActorHandlerWrapper, ObjectIdList
-from spark_on_ray.spark.utils import get_node_address
-from spark_on_ray.spark.spark_master_service import SparkMasterService
-from spark_on_ray.spark.spark_worker_service import SparkWorkerService
+from raydp.cluster import Cluster
+from raydp.ray_cluster_resources import ClusterResources
+from raydp.spark.dataholder import DataHolder, DataHolderActorHandlerWrapper, ObjectIdList
+from raydp.spark.utils import get_node_address
+from raydp.spark.spark_master_service import SparkMasterService
+from raydp.spark.spark_worker_service import SparkWorkerService
 
 default_config = {
     "spark.sql.execution.arrow.enabled": "true"

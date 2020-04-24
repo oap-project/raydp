@@ -1,5 +1,5 @@
-from spark_on_ray.services import WorkerService
-from spark_on_ray.spark.utils import register_exit_handler
+from raydp.services import WorkerService
+from raydp.spark.utils import register_exit_handler
 from typing import Any, Dict
 
 import os
