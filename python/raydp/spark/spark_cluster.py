@@ -38,6 +38,9 @@ class SparkCluster(Cluster):
                  master_webui_port: Any = None,
                  master_properties: Dict[str, str] = None):
         assert ray.is_initialized()
+
+        super().__init__(master_resources)
+
         self._ray_redis_address = ray.worker._global_node.redis_address
         self._ray_redis_password = ray.worker._global_node.redis_password
 
@@ -52,8 +55,6 @@ class SparkCluster(Cluster):
         self._node_selected = set()
 
         self._stopped = False
-
-        super().__init__(master_resources)
 
         self._set_up_master(master_resources, None)
 
@@ -131,6 +132,15 @@ class SparkCluster(Cluster):
                           executor_cores: int,
                           executor_memory: str,
                           **kwargs) -> pyspark.sql.SparkSession:
+
+        if self._master is None:
+            # this means we will use the executors setting for the workers setting too
+            # setup the cluster.
+            self._set_up_master(resources={"num_cpus": 0})
+            worker_resources = {"num_cpus": executor_cores, "memory": executor_memory}
+            for _ in range(num_executors):
+                self.add_worker(worker_resources)
+
         conf = default_config
         conf.update(kwargs)
 

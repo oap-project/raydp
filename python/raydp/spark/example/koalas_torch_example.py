@@ -24,16 +24,6 @@ parser.add_argument("--redis-password", type=str, dest="redis_password",
 parser.add_argument("--spark-home", type=str, required=True, dest="spark_home",
                     help="The spark home directory")
 
-parser.add_argument("--num-workers", type=int, dest="num_workers",
-                    help="The number of standalone workers to start up, "
-                         "this will be same as num-executors if it is not set")
-parser.add_argument("--worker-cores", type=int, dest="worker_cores",
-                    help="The number of cores for each of standalone worker, "
-                         "this will be same as executor-cores if it is not set")
-parser.add_argument("--worker-memory", type=float, dest="worker_memory",
-                    help="The size of memory(GB) for each of standalone worker, "
-                         "this will be same as executor-memory if it is not set")
-
 parser.add_argument("--num-executors", type=int, required=True, dest="num_executors",
                     help="The number of executors for this application")
 parser.add_argument("--executor-cores", type=int, required=True, dest="executor_cores",
@@ -57,23 +47,12 @@ else:
     print("Start up new cluster")
     ray.init()
 
+
 # -------------------- setup spark -------------------------
-
-# set up master node
+# We can't hide the creation of SparkCluster easily because of we need to stop the cluster
+# manually. However, this can be improved after we support startup spark natively.
 spark_cluster = SparkCluster(spark_home=args.spark_home)
-
-num_workers = args.num_workers if args.num_workers else args.num_executors
-worker_cores = args.worker_cores if args.worker_cores else args.executor_cores
-worker_memory = args.worker_memory if args.worker_memory else args.executor_memory
-worker_resources = {"num_cpus": worker_cores,
-                    "memory": int(worker_memory * GB)}
-
-
-# add spark worker, using the same resource requirements as executor
-for _ in range(num_workers):
-    spark_cluster.add_worker(worker_resources)
-
-# get SparkSession from spark cluster
+# get SparkSession
 spark = spark_cluster.get_spark_session(
     app_name="A simple example for spark on ray",
     num_executors=args.num_executors,
@@ -81,7 +60,7 @@ spark = spark_cluster.get_spark_session(
     executor_memory=int(args.executor_memory * GB))
 
 
-# ---------------- data process with Spark ------------
+# ---------------- data process with koalas ------------
 # calculate z = 3 * x + 4 * y + 5
 df: ks.DataFrame = ks.range(0, 100000)
 df["x"] = df["id"] + 100
@@ -89,6 +68,7 @@ df["y"] = df["id"] + 1000
 df["z"] = df["x"] * 3 + df["y"] * 4 + 5
 
 # save DataFrame to ray
+# TODO: hide this
 ray_objects: ObjectIdList = save_to_ray(df)
 
 
@@ -128,6 +108,6 @@ print(model.parameters())
 trainer.shutdown()
 
 spark.stop()
-
 spark_cluster.stop()
+
 ray.shutdown()
