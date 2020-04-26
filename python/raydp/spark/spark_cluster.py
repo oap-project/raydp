@@ -20,16 +20,14 @@ from raydp.spark.utils import get_node_address
 from raydp.spark.spark_master_service import SparkMasterService
 from raydp.spark.spark_worker_service import SparkWorkerService
 
-default_config = {
-    "spark.sql.execution.arrow.enabled": "true"
-}
 
 _global_broadcasted = {}
 _global_data_holder: Dict[str, DataHolderActorHandlerWrapper] = {}
 
 
-def get_node_holder(node_label: str) -> Optional[DataHolderActorHandlerWrapper]:
-    return _global_data_holder.get(node_label, None)
+default_config = {
+    "spark.sql.execution.arrow.enabled": "true"
+}
 
 
 class SparkCluster(Cluster):
@@ -178,7 +176,19 @@ class SparkCluster(Cluster):
             _global_broadcasted_redis_address = None
 
 
-def save_to_ray(df: pyspark.sql.DataFrame) -> ObjectIdList:
+def save_to_ray(df: Any) -> ObjectIdList:
+    if not isinstance(df, pyspark.sql.DataFrame):
+        try:
+            import databricks.koalas as ks
+            if isinstance(df, ks.DataFrame):
+                df = df.to_spark()
+            else:
+                raise Exception(f"The type: {type(df)} is not supported, only support "
+                                "pyspark.sql.DataFram and databricks.koalas.DataFrame")
+        except:
+            raise Exception(f"The type: {type(df)} is not supported, only support "
+                            "pyspark.sql.DataFram and databricks.koalas.DataFrame")
+
 
     return_type = StructType()
     return_type.add(StructField("node_label", StringType(), True))
