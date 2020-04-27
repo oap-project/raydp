@@ -140,7 +140,7 @@ class SparkCluster(Cluster):
             # setup the cluster.
             master_resources = (self._master_resources
                                 if self._master_resources is not None else {"num_cpus": 0})
-            self._set_up_master(resources=master_resources)
+            self._set_up_master(resources=master_resources, kwargs=None)
             worker_resources = {"num_cpus": executor_cores, "memory": executor_memory}
             for _ in range(num_executors):
                 self.add_worker(worker_resources)
