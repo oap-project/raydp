@@ -227,8 +227,18 @@ def save_to_ray(df: Any) -> ObjectIdList:
             obj = ray.put(pdf)
             # TODO: register object in batch
             fetch_index = ray.get(data_handler.register_object_id.remote(rpickle.dumps(obj)))
-            yield pd.DataFrame({"node_label": [node_label], "fetch_index": [fetch_index]})
+            yield pd.DataFrame({"node_label": [node_label],
+                                "fetch_index": [fetch_index],
+                                "size": len(pdf)})
 
+    # TODO: groupby this
     results = df.mapInPandas(save).collect()
-    fetch_indexes = [(row["node_label"], row["fetch_index"]) for row in results]
-    return ObjectIdList(fetch_indexes, _global_data_holder)
+    fetch_indexes = []
+    data_holder_mapping = {}
+    total_size = 0
+    for row in results:
+        total_size += row["size"]
+        fetch_indexes.append((row["node_label"], row["fetch_index"]))
+        if row["node_label"] not in data_holder_mapping:
+            data_holder_mapping[row["node_label"]] = _global_data_holder[row["node_label"]]
+    return ObjectIdList(total_size, fetch_indexes, data_holder_mapping)

@@ -220,8 +220,10 @@ class ObjectIdList:
        4. object_id_list[0].get() # get the underlying data which should be a pandas.DataFrame
     """
     def __init__(self,
+                 total_size: int,
                  fetch_indexes: List[Tuple[str, int]],
                  data_holder_mapping: Dict[str, DataHolderActorHandlerWrapper]):
+        self._total_size = total_size
         self._data_holder_mapping = data_holder_mapping
         self._fetch_indexes: List[Tuple[str, int]] = []
         self._data: List[ObjectIdItem] = []
@@ -229,6 +231,10 @@ class ObjectIdList:
         self._resolved = False
 
         self.append_batch(fetch_indexes)
+
+    @property
+    def total_size(self):
+        return self._total_size
 
     def append(self, node_label: str, fetch_index) -> None:
         assert not self._resolved
@@ -315,7 +321,7 @@ class ObjectIdList:
         return self._data.__iter__()
 
     def __reduce__(self):
-        return self.__class__, (self._fetch_indexes, self._data_holder_mapping)
+        return self.__class__, (self._total_size, self._fetch_indexes, self._data_holder_mapping)
 
     def __del__(self):
         if ray.is_initialized():

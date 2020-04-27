@@ -43,3 +43,7 @@ class RayDataset(torch.utils.data.IterableDataset):
                  torch.tensor(self._label_df[self._index], dtype=torch.float)
         self._index += 1
         return result
+
+    def __len__(self):
+        return self._objs.total_size
+

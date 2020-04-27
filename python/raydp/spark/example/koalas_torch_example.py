@@ -74,9 +74,9 @@ ray_objects: ObjectIdList = save_to_ray(df)
 
 # ---------------- ray sgd -------------------------
 def create_mode(config: Dict):
-    model = torch.Sequential()
-    torch.nn.Sequential
-    model.add(torch.nn.Linear(2, 1))
+    model = torch.nn.Sequential(
+        torch.nn.Linear(2, 1)
+    )
     return model
 
 
