@@ -48,6 +48,7 @@ class SparkCluster(Cluster):
         self._master_port = master_port
         self._master_webui_port = master_webui_port
         self._master_properties = master_properties
+        self._master_resources = master_resources
 
         self._master = None
         self._workers = []
@@ -55,8 +56,6 @@ class SparkCluster(Cluster):
         self._node_selected = set()
 
         self._stopped = False
-
-        self._set_up_master(master_resources, None)
 
     def _resource_check(self, resources: Dict[str, float]) -> str:
         # check whether this is any node could satisfy the master service requirement
@@ -87,6 +86,9 @@ class SparkCluster(Cluster):
             raise Exception(error_msg)
 
     def _set_up_worker(self, resources: Dict[str, float], kwargs: Dict[str, str]):
+        if self._master is None:
+            self._set_up_master(self.master_resources, None)
+
         # set up workers
         total_alive_nodes = ClusterResources.total_alive_nodes()
         if total_alive_nodes <= self._num_nodes:
@@ -136,7 +138,9 @@ class SparkCluster(Cluster):
         if self._master is None:
             # this means we will use the executors setting for the workers setting too
             # setup the cluster.
-            self._set_up_master(resources={"num_cpus": 0})
+            master_resources = (self._master_resources
+                                if self._master_resources is not None else {"num_cpus": 0})
+            self._set_up_master(resources=master_resources)
             worker_resources = {"num_cpus": executor_cores, "memory": executor_memory}
             for _ in range(num_executors):
                 self.add_worker(worker_resources)

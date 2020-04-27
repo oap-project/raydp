@@ -5,13 +5,13 @@ from typing import Dict, List
 import tensorflow as tf
 
 
+# TODO: wrap into Dataset class
 def create_dataset_from_objects(
         objs: ObjectIdList,
         features_columns: List[str],
         label_column: str,
         data_holder_mapping: Dict[str, DataHolderActorHandlerWrapper] = _global_data_holder
 ) -> tf.data.Dataset:
-    # TODO: wrap into Dataset class
     # TODO: this will load all data into memory which is not optimized.
     objs.resolve(data_holder_mapping, True)
     # transfer to Dataset
