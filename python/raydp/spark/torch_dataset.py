@@ -1,22 +1,19 @@
-from raydp.spark.dataholder import ObjectIdList, DataHolderActorHandlerWrapper
-from raydp.spark.spark_cluster import _global_data_holder
+from raydp.spark.dataholder import ObjectIdList
 
 import torch
 
-from typing import Dict, List
+from typing import List
 
 
 class RayDataset(torch.utils.data.IterableDataset):
     def __init__(self,
                  objs: ObjectIdList,
                  features_columns: List[str],
-                 label_column: str,
-                 data_holder_mapping: Dict[str, DataHolderActorHandlerWrapper] = _global_data_holder):
+                 label_column: str):
         super(RayDataset, self).__init__()
         self._objs = objs
         self._feature_columns = features_columns
         self._label_column = label_column
-        self._data_holder_mapping = data_holder_mapping
         self._df_index = 0
         self._index = 0
         self._feature_df = None
@@ -28,7 +25,7 @@ class RayDataset(torch.utils.data.IterableDataset):
             # TODO: add support
             raise Exception("Multiple processes loading is not supported")
 
-        self._objs.resolve(self._data_holder_mapping, True)
+        self._objs.resolve(True)
 
         # TODO: should this too slowly?
         if self._feature_df is None or self._index >= len(self._feature_df):

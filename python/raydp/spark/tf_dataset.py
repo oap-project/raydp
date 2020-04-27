@@ -9,11 +9,9 @@ import tensorflow as tf
 def create_dataset_from_objects(
         objs: ObjectIdList,
         features_columns: List[str],
-        label_column: str,
-        data_holder_mapping: Dict[str, DataHolderActorHandlerWrapper] = _global_data_holder
-) -> tf.data.Dataset:
+        label_column: str) -> tf.data.Dataset:
     # TODO: this will load all data into memory which is not optimized.
-    objs.resolve(data_holder_mapping, True)
+    objs.resolve(True)
     # transfer to Dataset
     datasets: List[tf.data.Dataset] = \
         [tf.data.Dataset.from_tensor_slices((pdf[features_columns].values, pdf[label_column].values))

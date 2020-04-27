@@ -203,7 +203,6 @@ def save_to_ray(df: Any) -> ObjectIdList:
             raise Exception(f"The type: {type(df)} is not supported, only support "
                             "pyspark.sql.DataFram and databricks.koalas.DataFrame")
 
-
     return_type = StructType()
     return_type.add(StructField("node_label", StringType(), True))
     return_type.add(StructField("fetch_index", IntegerType(), True))
@@ -232,4 +231,4 @@ def save_to_ray(df: Any) -> ObjectIdList:
 
     results = df.mapInPandas(save).collect()
     fetch_indexes = [(row["node_label"], row["fetch_index"]) for row in results]
-    return ObjectIdList(fetch_indexes)
+    return ObjectIdList(fetch_indexes, _global_data_holder)
