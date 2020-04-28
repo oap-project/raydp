@@ -96,7 +96,8 @@ trainer = TorchTrainer(model_creator=create_mode,
                        data_creator=data_creator,
                        optimizer_creator=optimizer_creator,
                        loss_creator=torch.nn.MSELoss,
-                       num_workers=2)
+                       num_workers=2,
+                       add_dist_sampler=False)
 
 for i in range(100):
     stats = trainer.train()
