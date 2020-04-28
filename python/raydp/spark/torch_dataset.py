@@ -31,8 +31,8 @@ class RayDataset(torch.utils.data.IterableDataset):
         if worker_info:
             # TODO: add support
             raise Exception("Multiple processes loading is not supported")
-        self._reset()
         self._objs.resolve(True)
+        self._reset()
         return self
 
     def __next__(self):
