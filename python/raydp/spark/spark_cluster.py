@@ -4,7 +4,7 @@ import numpy as np
 import pyspark
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf, PandasUDFType
-from pyspark.sql.types import IntegerType, StringType, StructField, StructType
+from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
 
 import ray
 import ray.cloudpickle as rpickle
@@ -205,7 +205,8 @@ def save_to_ray(df: Any) -> ObjectIdList:
 
     return_type = StructType()
     return_type.add(StructField("node_label", StringType(), True))
-    return_type.add(StructField("fetch_index", IntegerType(), True))
+    return_type.add(StructField("fetch_index", IntegerType(), False))
+    return_type.add(StructField("size", LongType(), False))
 
     @pandas_udf(return_type, PandasUDFType.MAP_ITER)
     def save(batch_iter):
@@ -231,7 +232,6 @@ def save_to_ray(df: Any) -> ObjectIdList:
                                 "fetch_index": [fetch_index],
                                 "size": len(pdf)})
 
-    # TODO: groupby this
     results = df.mapInPandas(save).collect()
     fetch_indexes = []
     data_holder_mapping = {}
