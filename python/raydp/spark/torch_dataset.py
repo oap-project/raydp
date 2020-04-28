@@ -39,8 +39,8 @@ class RayDataset(torch.utils.data.IterableDataset):
             self._label_df = df[self._label_column].values
             self._index = 0
 
-        result = torch.from_numpy(self._feature_df[self._index], dtype=torch.float), \
-                 torch.tensor(self._label_df[self._index], dtype=torch.float)
+        result = torch.from_numpy(self._feature_df[self._index]).to(torch.float), \
+                 torch.tensor(self._label_df[self._index]).to(torch.float)
         self._index += 1
         return result
 
