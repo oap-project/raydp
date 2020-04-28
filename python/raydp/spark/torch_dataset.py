@@ -19,14 +19,22 @@ class RayDataset(torch.utils.data.IterableDataset):
         self._feature_df = None
         self._label_df = None
 
+    def _reset(self):
+        self._df_index = 0
+        self._index = 0
+        self._feature_df = None
+        self._label_df = None
+
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
         if worker_info:
             # TODO: add support
             raise Exception("Multiple processes loading is not supported")
-
+        self._reset()
         self._objs.resolve(True)
+        return self
 
+    def __next__(self):
         # TODO: should this too slowly?
         if self._feature_df is None or self._index >= len(self._feature_df):
             # the first call or reach the end of the current df
