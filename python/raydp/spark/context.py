@@ -4,7 +4,7 @@ import os
 
 from raydp.spark.spark_cluster import SparkCluster
 
-from typing import Dict, Optional
+from typing import Dict
 
 
 class spark_context(ContextDecorator):
@@ -12,7 +12,7 @@ class spark_context(ContextDecorator):
                  app_name: str,
                  num_executors: int,
                  executor_cores: int,
-                 executor_memory: Optional[int, str],
+                 executor_memory: int,
                  spark_home: str = None,
                  configs: Dict[str, str] = {}):
         if spark_home is None:

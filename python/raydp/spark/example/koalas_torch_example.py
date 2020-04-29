@@ -2,10 +2,11 @@ import argparse
 
 import databricks.koalas as ks
 
+import os
+
 import ray
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
 
-from raydp.spark.dataholder import ObjectIdList
 from raydp.spark.context import spark_context
 from raydp.spark.torch_dataset import RayDataset
 
@@ -34,6 +35,8 @@ parser.add_argument("--executor-memory", type=float, required=True, dest="execut
 args = parser.parse_args()
 
 GB = 1 * 1024 * 1024 * 1024
+
+os.environ["SPARK_HOME"] = args.spark_home
 
 # -------------------- set up ray cluster --------------------
 if args.redis_address:
@@ -100,6 +103,5 @@ model = trainer.get_model()
 print(list(model.parameters()))
 
 trainer.shutdown()
-
 
 ray.shutdown()
