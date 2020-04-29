@@ -6,7 +6,7 @@ from raydp.spark.spark_cluster import save_to_ray
 
 import torch
 
-from typing import List, Union
+from typing import Any, List, Union
 
 
 # TODO: support shards
@@ -14,15 +14,21 @@ class RayDataset(torch.utils.data.IterableDataset):
     def __init__(self,
                  df: Union[SparkDF, KoalasDF],
                  features_columns: List[str],
-                 label_column: str):
+                 label_column: str,
+                 feature_shapes: List[Any] = None):
         super(RayDataset, self).__init__()
         self._objs: ObjectIdList = None
         self._feature_columns = features_columns
         self._label_column = label_column
+        self._feature_shapes = feature_shapes
         self._df_index = 0
         self._index = 0
         self._feature_df = None
         self._label_df = None
+
+        if self._feature_shapes:
+            assert len(self._feature_columns) == len(self._feature_shapes),\
+                "The feature_shapes size must match the feature_columns"
 
         if df is not None:
             self._objs = save_to_ray(df)
@@ -56,10 +62,18 @@ class RayDataset(torch.utils.data.IterableDataset):
                 self._label_df = df[self._label_column].values
                 self._index = 0
 
-        feature = torch.from_numpy(self._feature_df[self._index]).to(torch.float)
         label = torch.tensor(self._label_df[self._index]).view(1).to(torch.float)
-        self._index += 1
-        return feature, label
+        if self._feature_shapes:
+            feature_tensors = []
+            current_feature = self._feature_df[self._index]
+            for i, shape in enumerate(self._feature_shapes):
+                feature_tensors.append(torch.tensor(current_feature[i]).view(*tuple(shape)))
+            self._index += 1
+            return tuple(feature_tensors), label
+        else:
+            feature = torch.tensor(self._feature_df[self._index]).to(torch.float)
+            self._index += 1
+            return feature, label
 
     def __len__(self):
         return self._objs.total_size
