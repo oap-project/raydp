@@ -22,6 +22,7 @@ from raydp.spark.spark_worker_service import SparkWorkerService
 
 
 _global_broadcasted = {}
+# TODO: better way to stop and clean data holder
 _global_data_holder: Dict[str, DataHolderActorHandlerWrapper] = {}
 
 
@@ -52,6 +53,7 @@ class SparkCluster(Cluster):
 
         self._master = None
         self._workers = []
+        self._master_url = None
 
         self._node_selected = set()
 
@@ -81,7 +83,8 @@ class SparkCluster(Cluster):
             # get master url after master start up
             self._master_url = ray.get(self._master.get_master_url.remote())
         else:
-            del self._master
+            ray.get(self._master.stop.remote())
+            ray.kill(self._master)
             self._master = None
             raise Exception(error_msg)
 
@@ -122,7 +125,8 @@ class SparkCluster(Cluster):
             self._workers.append(worker)
             self._num_nodes += 1
         else:
-            del worker
+            ray.get(worker.stop.remote())
+            ray.kill(worker)
             raise Exception(error_msg)
 
     def get_cluster_url(self) -> str:
@@ -168,26 +172,26 @@ class SparkCluster(Cluster):
 
     def stop(self):
         if not self._stopped:
-            # destroy all data holder
-            ray.get([holder.stop.remote() for holder in _global_data_holder.values()])
-            _global_data_holder.clear()
             # TODO: wrap SparkSession to remove this
             _global_broadcasted.clear()
-            # kill master
+            # stop master
             if self._master:
                 ray.get(self._master.stop.remote())
 
+            # stop workers
             if self._workers:
                 ray.get([worker.stop.remote() for worker in self._workers])
 
-            del self._master
+            # kill master actor
+            ray.kill(self._master)
+            # kill worker actors
             for worker in self._workers:
-                del worker
+                ray.kill(worker)
 
+            self._master = None
+            self._workers = []
             self._master_url = None
             self._stopped = True
-            global _global_broadcasted_redis_address
-            _global_broadcasted_redis_address = None
 
 
 def save_to_ray(df: Any) -> ObjectIdList:

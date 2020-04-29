@@ -6,7 +6,7 @@ import ray
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
 
 from raydp.spark.dataholder import ObjectIdList
-from raydp.spark.spark_cluster import save_to_ray, SparkCluster
+from raydp.spark.context import spark_context
 from raydp.spark.torch_dataset import RayDataset
 
 import torch
@@ -48,28 +48,24 @@ else:
     ray.init()
 
 
-# -------------------- setup spark -------------------------
-# We can't hide the creation of SparkCluster easily because of we need to stop the cluster
-# manually. However, this can be improved after we support startup spark natively.
-spark_cluster = SparkCluster(spark_home=args.spark_home)
-# get SparkSession
-spark = spark_cluster.get_spark_session(
-    app_name="A simple example for spark on ray",
-    num_executors=args.num_executors,
-    executor_cores=args.executor_cores,
-    executor_memory=int(args.executor_memory * GB))
-
-
 # ---------------- data process with koalas ------------
-# calculate z = 3 * x + 4 * y + 5
-df: ks.DataFrame = ks.range(0, 100000)
-df["x"] = df["id"] + 100
-df["y"] = df["id"] + 1000
-df["z"] = df["x"] * 3 + df["y"] * 4 + 5
+app_name = "A simple example for spark on ray"
+num_executors = args.num_executors
+executor_cores = args.executor_cores
+executor_memory = int(args.executor_memory * GB)
 
-# save DataFrame to ray
-# TODO: hide this
-ray_objects: ObjectIdList = save_to_ray(df)
+
+@spark_context(app_name, num_executors, executor_cores, executor_memory)
+def preprocess_data():
+    # calculate z = 3 * x + 4 * y + 5
+    df: ks.DataFrame = ks.range(0, 100000)
+    df["x"] = df["id"] + 100
+    df["y"] = df["id"] + 1000
+    df["z"] = df["x"] * 3 + df["y"] * 4 + 5
+    return RayDataset(df, features_columns=["x", "y"], label_column="z")
+
+
+train_dataset = preprocess_data()
 
 
 # ---------------- ray sgd -------------------------
@@ -81,10 +77,7 @@ def create_mode(config: Dict):
 
 
 def data_creator(config: Dict):
-    dataset = RayDataset(ray_objects,
-                         features_columns=["x", "y"],
-                         label_column="z")
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1000)
+    dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=1000)
     return dataloader, None
 
 
@@ -104,11 +97,9 @@ for i in range(100):
     print(f"Step: {i}, stats: {stats}")
 
 model = trainer.get_model()
-print(model.parameters())
+print(list(model.parameters()))
 
 trainer.shutdown()
 
-spark.stop()
-spark_cluster.stop()
 
 ray.shutdown()
