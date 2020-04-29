@@ -4,7 +4,7 @@ import numpy as np
 import pyspark
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf, PandasUDFType
-from pyspark.sql.types import IntegerType, StringType, StructField, StructType
+from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
 
 import ray
 import ray.cloudpickle as rpickle
@@ -20,16 +20,14 @@ from raydp.spark.utils import get_node_address
 from raydp.spark.spark_master_service import SparkMasterService
 from raydp.spark.spark_worker_service import SparkWorkerService
 
-default_config = {
-    "spark.sql.execution.arrow.enabled": "true"
-}
 
 _global_broadcasted = {}
 _global_data_holder: Dict[str, DataHolderActorHandlerWrapper] = {}
 
 
-def get_node_holder(node_label: str) -> Optional[DataHolderActorHandlerWrapper]:
-    return _global_data_holder.get(node_label, None)
+default_config = {
+    "spark.sql.execution.arrow.enabled": "true"
+}
 
 
 class SparkCluster(Cluster):
@@ -40,6 +38,9 @@ class SparkCluster(Cluster):
                  master_webui_port: Any = None,
                  master_properties: Dict[str, str] = None):
         assert ray.is_initialized()
+
+        super().__init__(master_resources)
+
         self._ray_redis_address = ray.worker._global_node.redis_address
         self._ray_redis_password = ray.worker._global_node.redis_password
 
@@ -47,6 +48,7 @@ class SparkCluster(Cluster):
         self._master_port = master_port
         self._master_webui_port = master_webui_port
         self._master_properties = master_properties
+        self._master_resources = master_resources
 
         self._master = None
         self._workers = []
@@ -54,10 +56,6 @@ class SparkCluster(Cluster):
         self._node_selected = set()
 
         self._stopped = False
-
-        super().__init__(master_resources)
-
-        self._set_up_master(master_resources, None)
 
     def _resource_check(self, resources: Dict[str, float]) -> str:
         # check whether this is any node could satisfy the master service requirement
@@ -88,6 +86,9 @@ class SparkCluster(Cluster):
             raise Exception(error_msg)
 
     def _set_up_worker(self, resources: Dict[str, float], kwargs: Dict[str, str]):
+        if self._master is None:
+            self._set_up_master(self.master_resources, None)
+
         # set up workers
         total_alive_nodes = ClusterResources.total_alive_nodes()
         if total_alive_nodes <= self._num_nodes:
@@ -133,6 +134,17 @@ class SparkCluster(Cluster):
                           executor_cores: int,
                           executor_memory: str,
                           **kwargs) -> pyspark.sql.SparkSession:
+
+        if self._master is None:
+            # this means we will use the executors setting for the workers setting too
+            # setup the cluster.
+            master_resources = (self._master_resources
+                                if self._master_resources is not None else {"num_cpus": 0})
+            self._set_up_master(resources=master_resources, kwargs=None)
+            worker_resources = {"num_cpus": executor_cores, "memory": executor_memory}
+            for _ in range(num_executors):
+                self.add_worker(worker_resources)
+
         conf = default_config
         conf.update(kwargs)
 
@@ -178,11 +190,23 @@ class SparkCluster(Cluster):
             _global_broadcasted_redis_address = None
 
 
-def save_to_ray(df: pyspark.sql.DataFrame) -> ObjectIdList:
+def save_to_ray(df: Any) -> ObjectIdList:
+    if not isinstance(df, pyspark.sql.DataFrame):
+        try:
+            import databricks.koalas as ks
+            if isinstance(df, ks.DataFrame):
+                df = df.to_spark()
+            else:
+                raise Exception(f"The type: {type(df)} is not supported, only support "
+                                "pyspark.sql.DataFram and databricks.koalas.DataFrame")
+        except:
+            raise Exception(f"The type: {type(df)} is not supported, only support "
+                            "pyspark.sql.DataFram and databricks.koalas.DataFrame")
 
     return_type = StructType()
     return_type.add(StructField("node_label", StringType(), True))
-    return_type.add(StructField("fetch_index", IntegerType(), True))
+    return_type.add(StructField("fetch_index", IntegerType(), False))
+    return_type.add(StructField("size", LongType(), False))
 
     @pandas_udf(return_type, PandasUDFType.MAP_ITER)
     def save(batch_iter):
@@ -204,8 +228,17 @@ def save_to_ray(df: pyspark.sql.DataFrame) -> ObjectIdList:
             obj = ray.put(pdf)
             # TODO: register object in batch
             fetch_index = ray.get(data_handler.register_object_id.remote(rpickle.dumps(obj)))
-            yield pd.DataFrame({"node_label": [node_label], "fetch_index": [fetch_index]})
+            yield pd.DataFrame({"node_label": [node_label],
+                                "fetch_index": [fetch_index],
+                                "size": len(pdf)})
 
     results = df.mapInPandas(save).collect()
-    fetch_indexes = [(row["node_label"], row["fetch_index"]) for row in results]
-    return ObjectIdList(fetch_indexes)
+    fetch_indexes = []
+    data_holder_mapping = {}
+    total_size = 0
+    for row in results:
+        total_size += row["size"]
+        fetch_indexes.append((row["node_label"], row["fetch_index"]))
+        if row["node_label"] not in data_holder_mapping:
+            data_holder_mapping[row["node_label"]] = _global_data_holder[row["node_label"]]
+    return ObjectIdList(total_size, fetch_indexes, data_holder_mapping)

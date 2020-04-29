@@ -1,17 +1,16 @@
 import argparse
 
 import pyspark
-from pyspark.sql.functions import rand, round
+from pyspark.sql.functions import rand
 
 import ray
 from ray.util.sgd.tf.tf_trainer import TFTrainer
 
 from raydp.spark.dataholder import ObjectIdList
-from raydp.spark.spark_cluster import save_to_ray, SparkCluster, _global_data_holder
-from raydp.spark.utils import create_dataset_from_objects
+from raydp.spark.spark_cluster import save_to_ray, SparkCluster
+from raydp.spark.tf_dataset import create_dataset_from_objects
 
-from typing import Dict, List
-
+from typing import Dict
 
 parser = argparse.ArgumentParser(description="A simple example for spark on ray")
 parser.add_argument("--redis-address", type=str, dest="redis_address",
@@ -23,16 +22,6 @@ parser.add_argument("--redis-password", type=str, dest="redis_password",
 
 parser.add_argument("--spark-home", type=str, required=True, dest="spark_home",
                     help="The spark home directory")
-
-parser.add_argument("--num-workers", type=int, dest="num_workers",
-                    help="The number of standalone workers to start up, "
-                         "this will be same as num-executors if it is not set")
-parser.add_argument("--worker-cores", type=int, dest="worker_cores",
-                    help="The number of cores for each of standalone worker, "
-                         "this will be same as executor-cores if it is not set")
-parser.add_argument("--worker-memory", type=float, dest="worker_memory",
-                    help="The size of memory(GB) for each of standalone worker, "
-                         "this will be same as executor-memory if it is not set")
 
 parser.add_argument("--num-executors", type=int, required=True, dest="num_executors",
                     help="The number of executors for this application")
@@ -58,22 +47,10 @@ else:
     ray.init()
 
 # -------------------- setup spark -------------------------
-
-# set up master node
+# We can't hide the creation of SparkCluster easily because of we need to stop the cluster
+# manually. However, this can be improved after we support startup spark natively.
 spark_cluster = SparkCluster(spark_home=args.spark_home)
-
-num_workers = args.num_workers if args.num_workers else args.num_executors
-worker_cores = args.worker_cores if args.worker_cores else args.executor_cores
-worker_memory = args.worker_memory if args.worker_memory else args.executor_memory
-worker_resources = {"num_cpus": worker_cores,
-                    "memory": int(worker_memory * GB)}
-
-
-# add spark worker, using the same resource requirements as executor
-for _ in range(num_workers):
-    spark_cluster.add_worker(worker_resources)
-
-# get SparkSession from spark cluster
+# get SparkSession
 spark = spark_cluster.get_spark_session(
     app_name="A simple example for spark on ray",
     num_executors=args.num_executors,
@@ -90,6 +67,7 @@ df = df.withColumn("z", df.x * 3 + df.y * 4 + rand() + 5)  # ad z column
 df = df.select(df.x, df.y, df.z)
 
 # save DataFrame to ray
+# TODO: hide this
 ray_objects: ObjectIdList = save_to_ray(df)
 
 
@@ -108,8 +86,7 @@ def data_creator(config: Dict):
     train_dataset = create_dataset_from_objects(
                         objs=ray_objects,
                         features_columns=["x", "y"],
-                        label_column="z",
-                        data_holder_mapping=_global_data_holder).repeat().batch(1000)
+                        label_column="z").repeat().batch(1000)
     test_dataset = None
     return train_dataset, test_dataset
 
@@ -129,6 +106,6 @@ print(model.get_weights())
 tf_trainer.shutdown()
 
 spark.stop()
-
 spark_cluster.stop()
+
 ray.shutdown()

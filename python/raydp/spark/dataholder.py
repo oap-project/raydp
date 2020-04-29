@@ -219,13 +219,22 @@ class ObjectIdList:
        3. object_id_list.resolve()  # Resolve the ObjectIdItem and can't add data again after resolve.
        4. object_id_list[0].get() # get the underlying data which should be a pandas.DataFrame
     """
-    def __init__(self, fetch_indexes: List[Tuple[str, int]]):
+    def __init__(self,
+                 total_size: int,
+                 fetch_indexes: List[Tuple[str, int]],
+                 data_holder_mapping: Dict[str, DataHolderActorHandlerWrapper]):
+        self._total_size = total_size
+        self._data_holder_mapping = data_holder_mapping
         self._fetch_indexes: List[Tuple[str, int]] = []
         self._data: List[ObjectIdItem] = []
         self._batch_mode = False
         self._resolved = False
+
         self.append_batch(fetch_indexes)
-        self._data_holder_mapping = None
+
+    @property
+    def total_size(self):
+        return self._total_size
 
     def append(self, node_label: str, fetch_index) -> None:
         assert not self._resolved
@@ -237,18 +246,17 @@ class ObjectIdList:
         assert not self._resolved
         [self.append(label, index) for label, index in fetch_indexes]
 
-    def resolve(self,
-                data_holder_mapping: Dict[str, DataHolderActorHandlerWrapper],
-                batch: bool) -> None:
+    def resolve(self, batch: bool) -> None:
         if self._resolved:
             return
 
         if not batch:
             for i in range(len(self._data)):
                 label = self._fetch_indexes[i][0]
-                self._data[i]._set_data_holder(label, data_holder_mapping[label])
+                holder = self._data_holder_mapping.get(label, None)
+                assert holder, f"Can't find the DataHolder for the label: {label}"
+                self._data[i]._set_data_holder(label, holder)
         else:
-            self._data_holder_mapping = data_holder_mapping
             grouped = defaultdict(lambda: [])
             location_mapping = defaultdict(lambda: [])
             resolved = {}
@@ -257,8 +265,8 @@ class ObjectIdList:
                 location_mapping[label].append(i)
 
             for label in grouped:
-                holder = data_holder_mapping.get(label, None)
-                assert holder
+                holder = self._data_holder_mapping.get(label, None)
+                assert holder, f"Can't find the DataHolder for the label: {label}"
                 object_id_bytes = ray.get(holder.get_objects.remote(grouped[label]))
                 try:
                     object_ids = [rpickle.loads(obj) for obj in object_id_bytes]
@@ -313,7 +321,7 @@ class ObjectIdList:
         return self._data.__iter__()
 
     def __reduce__(self):
-        return self.__class__, (self._fetch_indexes,)
+        return self.__class__, (self._total_size, self._fetch_indexes, self._data_holder_mapping)
 
     def __del__(self):
         if ray.is_initialized():
