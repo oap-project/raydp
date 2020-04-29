@@ -31,7 +31,11 @@ class Cluster(ABC):
 
         :param resources_requirement: The resource requirements for the worker service.
         """
-        self._set_up_worker(resources_requirement, kwargs)
+        try:
+            self._set_up_worker(resources_requirement, kwargs)
+        except:
+            self.stop()
+            raise
 
     @abstractmethod
     def _set_up_worker(self,
