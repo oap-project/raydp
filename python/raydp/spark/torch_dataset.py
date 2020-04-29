@@ -82,11 +82,12 @@ class RayDataset(torch.utils.data.IterableDataset):
     def _custom_deserialize(cls,
                             objs: ObjectIdList,
                             features_columns: List[str],
-                            label_column: str):
-        obj = cls(None, features_columns, label_column)
+                            label_column: str,
+                            feature_shapes: List[Any]):
+        obj = cls(None, features_columns, label_column, feature_shapes)
         obj._objs = objs
         return obj
 
     def __reduce__(self):
         return (RayDataset._custom_deserialize,
-                (self._objs, self._feature_columns, self._label_column))
+                (self._objs, self._feature_columns, self._label_column, self._feature_shapes))
