@@ -6,13 +6,13 @@ from raydp.spark.spark_cluster import save_to_ray
 
 import torch
 
-from typing import List, Optional
+from typing import List, Union
 
 
 # TODO: support shards
 class RayDataset(torch.utils.data.IterableDataset):
     def __init__(self,
-                 df: Optional[SparkDF, KoalasDF],
+                 df: Union[SparkDF, KoalasDF],
                  features_columns: List[str],
                  label_column: str):
         super(RayDataset, self).__init__()

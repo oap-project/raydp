@@ -90,7 +90,7 @@ class SparkCluster(Cluster):
 
     def _set_up_worker(self, resources: Dict[str, float], kwargs: Dict[str, str]):
         if self._master is None:
-            self._set_up_master(self.master_resources, None)
+            self._set_up_master(self._master_resources, None)
 
         # set up workers
         total_alive_nodes = ClusterResources.total_alive_nodes()
@@ -216,9 +216,9 @@ def save_to_ray(df: Any) -> ObjectIdList:
     def save(batch_iter):
         if not ray.is_initialized():
             redis_config = {}
-            broadcased = _global_broadcasted["redis"].value
-            redis_config["address"] = broadcased["address"]
-            redis_config["password"] = broadcased["password"]
+            broadcasted = _global_broadcasted["redis"].value
+            redis_config["address"] = broadcasted["address"]
+            redis_config["password"] = broadcasted["password"]
 
             local_address = get_node_address()
 

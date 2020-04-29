@@ -34,9 +34,8 @@ class Cluster(ABC):
         try:
             self._set_up_worker(resources_requirement, kwargs)
         except:
-            raise
-        finally:
             self.stop()
+            raise
 
     @abstractmethod
     def _set_up_worker(self,

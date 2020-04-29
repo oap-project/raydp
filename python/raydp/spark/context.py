@@ -45,7 +45,7 @@ class spark_context(ContextDecorator):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self._spark_session is not None:
-            self._spark_session.close()
+            self._spark_session.stop()
             self._spark_session = None
         if self._spark_cluster is not None:
             self._spark_cluster.stop()

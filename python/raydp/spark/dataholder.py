@@ -19,6 +19,20 @@ class DataHolder:
         self._data_reference_counter: Dict[int, int] = {}
         self._fetch_index: int = 0
 
+    def _pin_object(self, object_id: ray.ObjectID, fetch_index: int):
+        """
+        TODO: add support object owner transfer in ray
+        Pin the object in data holder, this should be fixed when we support transfer object
+        owner in ray.
+        :param object_id: the original object id
+        :param fetch_index: the fetch index that can fetch the corrending data
+        """
+        data = ray.get(object_id)
+        new_object_id = ray.put(data)
+        ray.internal.free(object_id)
+        self._data[fetch_index] = new_object_id
+        self._data_in_bytes[fetch_index] = rpickle.dumps(new_object_id)
+
     def register_object_id(self, id: bytes) -> int:
         """
         Register one object id to hold.
@@ -27,8 +41,7 @@ class DataHolder:
         """
         fetch_index = self._fetch_index
         self._fetch_index += 1
-        self._data[fetch_index] = rpickle.loads(id)
-        self._data_in_bytes[fetch_index] = id
+        self._pin_object(rpickle.loads(id), fetch_index)
         self._data_reference_counter[fetch_index] = 0
         return fetch_index
 
@@ -206,7 +219,7 @@ class ObjectIdItem:
 
     def __del__(self):
         if ray.is_initialized():
-            self.free()
+            self.free(True)
 
 
 class ObjectIdList:
