@@ -69,7 +69,7 @@ class RayDataset(torch.utils.data.IterableDataset):
             for i, shape in enumerate(self._feature_shapes):
                 feature_tensors.append(torch.tensor(current_feature[i]).view(*tuple(shape)))
             self._index += 1
-            return tuple(feature_tensors), label
+            return (*feature_tensors, label)
         else:
             feature = torch.tensor(self._feature_df[self._index]).to(torch.float)
             self._index += 1
