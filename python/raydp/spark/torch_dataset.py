@@ -1,24 +1,32 @@
-from databricks.koalas import DataFrame as KoalasDF
-from pyspark.sql import DataFrame as SparkDF
+from collections.abc import Iterable
 
 from raydp.spark.dataholder import ObjectIdList
 from raydp.spark.spark_cluster import save_to_ray
 
 import torch
 
-from typing import Any, List, Union
+from typing import Any, List
 
 
 # TODO: support shards
 class RayDataset(torch.utils.data.IterableDataset):
     def __init__(self,
-                 df: Union[SparkDF, KoalasDF],
-                 features_columns: List[str],
+                 df: Any,
+                 feature_columns: List[str],
                  label_column: str,
                  feature_shapes: List[Any] = None):
+        """
+        :param df: Spark DataFrame or Koalas.DataFrame
+        :param feature_columns: the feature columns in df
+        :param label_column: the label column in df
+        :param feature_shapes: the each feature shape that need to return when loading this
+               dataset. If it is not None, it's size must match the size of feature_columns.
+               If it is None, we guess all are scalar value and return all as a tensor when
+               loading this dataset.
+        """
         super(RayDataset, self).__init__()
         self._objs: ObjectIdList = None
-        self._feature_columns = features_columns
+        self._feature_columns = feature_columns
         self._label_column = label_column
         self._feature_shapes = feature_shapes
         self._df_index = 0
@@ -29,6 +37,9 @@ class RayDataset(torch.utils.data.IterableDataset):
         if self._feature_shapes:
             assert len(self._feature_columns) == len(self._feature_shapes),\
                 "The feature_shapes size must match the feature_columns"
+            for i in range(len(self._feature_shapes)):
+                if not isinstance(self._feature_shapes[i], Iterable):
+                    self._feature_shapes[i] = [self._feature_shapes[i]]
 
         if df is not None:
             self._objs = save_to_ray(df)
@@ -51,7 +62,6 @@ class RayDataset(torch.utils.data.IterableDataset):
 
     def __next__(self):
         # TODO: should this too slowly?
-
         if self._index >= len(self._feature_df):
             self._df_index += 1
             if self._df_index >= len(self._objs):
@@ -63,15 +73,15 @@ class RayDataset(torch.utils.data.IterableDataset):
                 self._index = 0
 
         label = torch.tensor(self._label_df[self._index]).view(1).to(torch.float)
+        current_feature = self._feature_df[self._index]
         if self._feature_shapes:
             feature_tensors = []
-            current_feature = self._feature_df[self._index]
             for i, shape in enumerate(self._feature_shapes):
-                feature_tensors.append(torch.tensor(current_feature[i]).view(*tuple(shape)))
+                feature_tensors.append(torch.as_tensor(current_feature[i]).view(*shape))
             self._index += 1
             return (*feature_tensors, label)
         else:
-            feature = torch.tensor(self._feature_df[self._index]).to(torch.float)
+            feature = torch.as_tensor(current_feature)
             self._index += 1
             return feature, label
 
@@ -81,12 +91,12 @@ class RayDataset(torch.utils.data.IterableDataset):
     @classmethod
     def _custom_deserialize(cls,
                             objs: ObjectIdList,
-                            features_columns: List[str],
+                            feature_columns: List[str],
                             label_column: str,
                             feature_shapes: List[Any]):
-        obj = cls(None, features_columns, label_column, feature_shapes)
-        obj._objs = objs
-        return obj
+        dataset = cls(None, feature_columns, label_column, feature_shapes)
+        dataset._objs = objs
+        return dataset
 
     def __reduce__(self):
         return (RayDataset._custom_deserialize,

@@ -65,7 +65,7 @@ def preprocess_data():
     df["x"] = df["id"] + 100
     df["y"] = df["id"] + 1000
     df["z"] = df["x"] * 3 + df["y"] * 4 + 5
-    return RayDataset(df, features_columns=["x", "y"], label_column="z")
+    return RayDataset(df, feature_columns=["x", "y"], label_column="z")
 
 
 train_dataset = preprocess_data()
