@@ -35,3 +35,20 @@ def register_exit_handler(func):
     signal.signal(signal.SIGTERM, func)
     signal.signal(signal.SIGINT, func)
 
+
+def random_split(df, weights, seed=None):
+    """
+    Random split the koalas.DataFrame into given part
+    :param df: the koalas.DataFrame
+    :param weights: list of doubles as weights with which to split the df.
+                    Weights will be normalized if they don't sum up to 1.0.
+    :param seed: The seed for sampling.
+    """
+    import databricks.koalas as ks
+    # convert to Spark DataFrame
+    sdf = df.to_spark()
+    splits = sdf.randomSplit(weights, seed)
+    # convert bach to koalas DataFrame
+    return [ks.DataFrame(split) for split in splits]
+
+

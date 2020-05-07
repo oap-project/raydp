@@ -113,6 +113,9 @@ class TorchEstimator:
     def load(self, checkpoint):
         self._trainer.load(checkpoint)
 
+    def shutdown(self):
+        self._trainer.shutdown()
+
 
 class RayDataset(torch.utils.data.IterableDataset):
     def __init__(self,
