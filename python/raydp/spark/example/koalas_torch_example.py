@@ -73,8 +73,12 @@ train_df, test_df = random_split(df, [0.7, 0.3])
 model = torch.nn.Sequential(torch.nn.Linear(2, 1))
 # create the optimizer
 optimizer = torch.optim.Adam(model.parameters())
+optimizer.state_dict()
 # create the loss
 loss = torch.nn.MSELoss()
+# create lr_scheduler
+lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+    optimizer, milestones=[150, 250, 350], gamma=0.1)
 
 # create the estimator
 estimator = TorchEstimator(num_workers=2,

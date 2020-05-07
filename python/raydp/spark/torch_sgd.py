@@ -4,6 +4,7 @@ import inspect
 
 import pandas
 
+from ray.util.sgd.utils import AverageMeterCollection
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
 
 from raydp.spark.dataholder import ObjectIdList
@@ -11,7 +12,7 @@ from raydp.spark.spark_cluster import save_to_ray
 
 import torch
 
-from typing import Any, Callable, List, Union
+from typing import Any, Callable, List, Optional, Union
 
 
 class TorchEstimator:
@@ -20,8 +21,10 @@ class TorchEstimator:
                  model: Union[torch.nn.Module, Callable] = None,
                  optimizer: Union[torch.optim.Optimizer, Callable] = None,
                  loss: Union[torch.nn._Loss, Callable] = None,
+                 lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+                 scheduler_step_freq="batch",
                  feature_columns: List[str] = None,
-                 feature_shapes: List[Any] = None,
+                 feature_shapes: Optional[List[Any]] = None,
                  label_column: str = None,
                  batch_sizes: int = None,
                  num_epochs: int = None,
@@ -30,6 +33,8 @@ class TorchEstimator:
         self._model = model
         self._optimizer = optimizer
         self._loss = loss
+        self._lr_scheduler = lr_scheduler
+        self._scheduler_step_freq = scheduler_step_freq
         self._feature_columns = feature_columns
         self._feature_shapes = feature_shapes
         self._label_column = label_column
@@ -43,13 +48,13 @@ class TorchEstimator:
     def _create_trainer(self):
         def model_creator(config):
             if callable(self._model):
-                return self._model()
+                return self._model(config)
             else:
                 return self._model
 
-        def optimizer_creator(models, config):
+        def optimizer_creator(model, config):
             if callable(self._optimizer):
-                return self._optimizer()
+                return self._optimizer(model, config)
             else:
                 return self._optimizer
 
@@ -58,7 +63,7 @@ class TorchEstimator:
                     self._loss, torch.nn.modules.loss._Loss):
                 return self._loss
             elif callable(self._loss):
-                return self._loss()
+                return self._loss(config)
             else:
                 return self._loss
 
@@ -66,12 +71,23 @@ class TorchEstimator:
             dataloader = torch.utils.data.DataLoader(self._data_set, self._batch_sizes)
             return dataloader, None
 
+        def scheduler_creator(optimizer, config):
+            if callable(self._lr_scheduler):
+                self._lr_scheduler(optimizer, config)
+            else:
+                return self._lr_scheduler
+
+        lr_scheduler_creator = scheduler_creator if self._lr_scheduler is not None else None
+
         self._trainer = TorchTrainer(model_creator=model_creator,
                                      data_creator=data_creator,
                                      optimizer_creator=optimizer_creator,
                                      loss_creator=loss_creator,
+                                     scheduler_creator=lr_scheduler_creator,
+                                     scheduler_step_freq=self._scheduler_step_freq,
                                      num_workers=self._num_workers,
                                      add_dist_sampler=False,
+                                     use_tqdm=True,
                                      **self._extra_config)
 
     def fit(self, df):
@@ -81,7 +97,10 @@ class TorchEstimator:
             self._create_trainer()
             assert self._trainer is not None
             for i in self._num_epochs:
-                self._trainer.train()
+                info = dict()
+                info["epoch_idx"] = i
+                info["num_epochs"] = self._num_epochs
+                self._trainer.train(info=info)
         else:
             raise Exception("You call fit twice.")
 
@@ -91,17 +110,26 @@ class TorchEstimator:
             pdf, self._feature_columns, self._feature_shapes, self._label_column)
         dataloader = torch.utils.data.DataLoader(dataset, self._batch_sizes)
         model = self.get_model()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for data in dataloader:
-                features, labels = data
-                outputs = model(features)
-                total += labels.size(0)
-                correct += (outputs == labels).sum().item()
+        model.eval()
+        metric_meters = AverageMeterCollection()
 
-        print('Accuracy of the network on the evaluation data: %d %%' % (
-            100 * correct / total))
+        with torch.no_grad():
+            for batch_idx, batch in enumerate(dataloader):
+                batch_info = {"batch_idx": batch_idx}
+                # unpack features into list to support multiple inputs model
+                *features, target = batch
+                output = self.model(*features)
+                loss = self.criterion(output, target)
+                _, predicted = torch.max(output.data, 1)
+                num_correct = (predicted == target).sum().item()
+                num_samples = target.size(0)
+                metrics = {
+                    "val_loss": loss.item(),
+                    "val_accuracy": num_correct / num_samples,
+                    "num_samples": num_samples}
+                metric_meters.update(metrics)
+
+        return metric_meters.summary()
 
     def get_model(self):
         assert self._trainer is None, "Must call fit first"
