@@ -8,7 +8,7 @@ import ray
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
 
 from raydp.spark.context import spark_context
-from raydp.spark.torch_dataset import RayDataset
+from raydp.spark.torch_sgd import RayDataset
 
 import torch
 
