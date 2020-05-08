@@ -96,9 +96,9 @@ class TorchEstimator:
         def model_creator(config):
             if isinstance(self._model, torch.nn.Module):
                 # it is the instance of torch.nn.Module
-                return self._model(config)
+                self._model
             elif callable(self._model):
-                return self._model
+                return self._model(config)
             else:
                 raise Exception(
                     "Unsupported parameter, we only support torch.nn.Model instance "
