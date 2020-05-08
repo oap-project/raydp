@@ -257,6 +257,7 @@ class TorchEstimator:
 
     def shutdown(self):
         if self._trainer is not None:
+            del self._data_set
             self._trainer.shutdown()
             self._trainer = None
 
@@ -345,15 +346,15 @@ class RayDataset(torch.utils.data.IterableDataset):
     def _custom_deserialize(cls,
                             objs: ObjectIdList,
                             feature_columns: List[str],
-                            label_column: str,
-                            feature_shapes: List[Any]):
-        dataset = cls(None, feature_columns, label_column, feature_shapes)
+                            feature_shapes: List[Any],
+                            label_column: str):
+        dataset = cls(None, feature_columns, feature_shapes, label_column)
         dataset._objs = objs
         return dataset
 
     def __reduce__(self):
         return (RayDataset._custom_deserialize,
-                (self._objs, self._feature_columns, self._label_column, self._feature_shapes))
+                (self._objs, self._feature_columns, self._feature_shapes, self._label_column))
 
 
 class PandasDataset(torch.utils.data.Dataset):
