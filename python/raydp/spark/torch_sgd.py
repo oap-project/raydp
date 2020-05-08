@@ -189,7 +189,7 @@ class TorchEstimator:
                 df, self._feature_columns, self._feature_shapes, self._label_column)
             self._create_trainer()
             assert self._trainer is not None
-            for i in len(self._num_epochs):
+            for i in range(self._num_epochs):
                 info = dict()
                 info["epoch_idx"] = i
                 info["num_epochs"] = self._num_epochs
