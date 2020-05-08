@@ -322,7 +322,8 @@ class _Dataset:
             self._label_type = torch.float
 
     def _get_next(self, index, feature_df, label_df):
-        label = torch.as_tensor(label_df[index], dtype=self._label_type).view(1)
+        # copy the scalar value
+        label = torch.tensor(label_df[index], dtype=self._label_type).view(1)
         current_feature = feature_df[index]
         if self._feature_shapes:
             feature_tensors = []
@@ -394,7 +395,9 @@ class RayDataset(IterableDataset, _Dataset):
                 self._label_df = df[self._label_column].values
                 self._index = 0
 
-        return self._get_next(self._index, self._feature_df, self._label_df)
+        index = self._index
+        self._index += 1
+        return self._get_next(index, self._feature_df, self._label_df)
 
     def __len__(self):
         return self._objs.total_size
@@ -445,4 +448,3 @@ class PandasDataset(Dataset, _Dataset):
 
     def __len__(self):
         return len(self._label_df)
-
