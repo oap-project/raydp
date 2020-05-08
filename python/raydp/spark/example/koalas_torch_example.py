@@ -76,15 +76,17 @@ optimizer = torch.optim.Adam(model.parameters())
 # create the loss
 loss = torch.nn.MSELoss()
 # create lr_scheduler
-lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    optimizer, milestones=[150, 250, 350], gamma=0.1)
+def lr_scheduler_creator(optimizer, config):
+    return torch.optim.lr_scheduler.MultiStepLR(
+        optimizer, milestones=[150, 250, 350], gamma=0.1)
+
 
 # create the estimator
 estimator = TorchEstimator(num_workers=2,
                            model=model,
                            optimizer=optimizer,
                            loss=loss,
-                           lr_scheduler=lr_scheduler,
+                           lr_scheduler_creator=lr_scheduler_creator,
                            feature_columns=["x", "y"],
                            label_column="z",
                            batch_sizes=1000,
