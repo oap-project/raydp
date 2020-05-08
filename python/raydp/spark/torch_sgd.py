@@ -11,16 +11,27 @@ from raydp.spark.dataholder import ObjectIdList
 from raydp.spark.spark_cluster import save_to_ray
 
 import torch
+from torch.nn.modules.loss import _Loss as TLoss
 
 from typing import Any, Callable, List, Optional, Union
 
 
 class TorchEstimator:
+    """
+    A scikit-learn like API to distributed training torch model. In the backend it leverage
+    the ray.sgd.TorchTrainer.
+
+    The working flows:
+        1 create the estimator instance
+        2 fit on Spark DataFrame or koalas.DataFrame
+        3 evaluate on Spark DataFrame or koalas.DataFrame
+        4 get the model
+    """
     def __init__(self,
                  num_workers: int = None,
                  model: Union[torch.nn.Module, Callable] = None,
                  optimizer: Union[torch.optim.Optimizer, Callable] = None,
-                 loss: Union[torch.nn._Loss, Callable] = None,
+                 loss: Union[TLoss, Callable] = None,
                  lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
                  scheduler_step_freq="batch",
                  feature_columns: List[str] = None,
@@ -29,6 +40,30 @@ class TorchEstimator:
                  batch_sizes: int = None,
                  num_epochs: int = None,
                  **extra_config):
+        """
+        :param num_workers: the number of workers to do the distributed training
+        :param model: the torch model instance or a function(dict -> Model) to create a model
+        :param optimizer: the optimizer instance or a function((models, dict) -> optimizer) to
+               create the optimizer in the torch.sgd.TorchTrainer
+        :param loss: the loss instance or loss class or a function(dict -> loss) to create the
+               loss in the torch.sgd.TorchTrainer
+        :param lr_scheduler: the torch lr scheduler instance or a
+               function((optimizer, config) -> lr_scheduler) to create the lr scheduler in the
+               torch.sgd.TorchTrainer
+        :param scheduler_step_freq: "batch", "epoch", or None. This will
+               determine when ``scheduler.step`` is called. If "batch",
+               ``step`` will be called after every optimizer step. If "epoch",
+               ``step`` will be called after one pass of the DataLoader.
+        :param feature_columns: the feature columns when fit on Spark DataFrame or koalas.DataFrame
+        :param feature_shapes: the feature shapes matching the feature columns. All feature will
+               be treated as a scalar value and packet into one torch.Tensor if this is not
+               provided. Otherwise, each feature column will be one torch.Tensor and with the
+               provided shapes.
+        :param label_column: the label column when fit on Spark DataFrame or koalas.DataFrame
+        :param batch_sizes: the training batch size
+        :param num_epochs: the total number of epochs will be train
+        :param extra_config: the extra config will be set to torch.sgd.TorchTrainer
+        """
         self._num_workers = num_workers
         self._model = model
         self._optimizer = optimizer
@@ -59,8 +94,7 @@ class TorchEstimator:
                 return self._optimizer
 
         def loss_creator(config):
-            if inspect.isclass(self._loss) and issubclass(
-                    self._loss, torch.nn.modules.loss._Loss):
+            if inspect.isclass(self._loss) and issubclass(self._loss, TLoss):
                 return self._loss
             elif callable(self._loss):
                 return self._loss(config)
