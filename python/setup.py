@@ -7,6 +7,7 @@ install_requires = [
     "pyarrow >= 0.10",
     "pyspark >= 3.0.0.dev2",
     "ray",
+    "tqdm"
 ]
 
 setup(
