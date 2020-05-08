@@ -215,10 +215,10 @@ class TorchEstimator:
 
         if inspect.isclass(self._loss) and issubclass(self._loss, TLoss):
             # it is the loss class
-            criterion = self._loss
+            criterion = self._loss()
         elif isinstance(self._loss, TLoss):
             # it is the loss instance
-            criterion = self._loss()
+            criterion = self._loss
         elif callable(self._loss):
             # it ts the loss create function
             criterion = self._loss({})
