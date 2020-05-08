@@ -5,10 +5,10 @@ import databricks.koalas as ks
 import os
 
 import ray
-from ray.util.sgd.torch.torch_trainer import TorchTrainer
 
-from raydp.spark.context import spark_context
-from raydp.spark.torch_dataset import RayDataset
+import raydp.spark.context as context
+from raydp.spark.torch_sgd import TorchEstimator
+from raydp.spark.utils import random_split
 
 import torch
 
@@ -57,51 +57,51 @@ num_executors = args.num_executors
 executor_cores = args.executor_cores
 executor_memory = int(args.executor_memory * GB)
 
+context.init_spark(app_name, num_executors, executor_cores, executor_memory)
 
-@spark_context(app_name, num_executors, executor_cores, executor_memory)
-def preprocess_data():
-    # calculate z = 3 * x + 4 * y + 5
-    df: ks.DataFrame = ks.range(0, 100000)
-    df["x"] = df["id"] + 100
-    df["y"] = df["id"] + 1000
-    df["z"] = df["x"] * 3 + df["y"] * 4 + 5
-    return RayDataset(df, feature_columns=["x", "y"], label_column="z")
+# calculate z = 3 * x + 4 * y + 5
+df: ks.DataFrame = ks.range(0, 100000)
+df["x"] = df["id"] + 100
+df["y"] = df["id"] + 1000
+df["z"] = df["x"] * 3 + df["y"] * 4 + 5
+df = df.astype("float")
 
-
-train_dataset = preprocess_data()
-
+train_df, test_df = random_split(df, [0.7, 0.3])
 
 # ---------------- ray sgd -------------------------
-def create_mode(config: Dict):
-    model = torch.nn.Sequential(
-        torch.nn.Linear(2, 1)
-    )
-    return model
 
+# create the model
+model = torch.nn.Sequential(torch.nn.Linear(2, 1))
+# create the optimizer
+optimizer = torch.optim.Adam(model.parameters())
+# create the loss
+loss = torch.nn.MSELoss()
+# create lr_scheduler
+def lr_scheduler_creator(optimizer, config):
+    return torch.optim.lr_scheduler.MultiStepLR(
+        optimizer, milestones=[150, 250, 350], gamma=0.1)
 
-def data_creator(config: Dict):
-    dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=1000)
-    return dataloader, None
+# create the estimator
+estimator = TorchEstimator(num_workers=2,
+                           model=model,
+                           optimizer=optimizer,
+                           loss=loss,
+                           lr_scheduler_creator=lr_scheduler_creator,
+                           feature_columns=["x", "y"],
+                           label_column="z",
+                           batch_size=1000,
+                           num_epochs=10)
 
+# train the model
+estimator.fit(train_df)
+# evaluate the model
+estimator.evaluate(test_df)
 
-def optimizer_creator(model, config):
-    return torch.optim.Adam(model.parameters())
-
-
-trainer = TorchTrainer(model_creator=create_mode,
-                       data_creator=data_creator,
-                       optimizer_creator=optimizer_creator,
-                       loss_creator=torch.nn.MSELoss,
-                       num_workers=2,
-                       add_dist_sampler=False)
-
-for i in range(100):
-    stats = trainer.train()
-    print(f"Step: {i}, stats: {stats}")
-
-model = trainer.get_model()
+# get the model
+model = estimator.get_model()
 print(list(model.parameters()))
 
-trainer.shutdown()
+estimator.shutdown()
+context.stop_spark()
 
 ray.shutdown()

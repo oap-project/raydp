@@ -6,7 +6,7 @@ install_requires = [
     "psutil",
     "pyarrow >= 0.10",
     "pyspark >= 3.0.0.dev2",
-    "ray",
+    "ray"
 ]
 
 setup(
