@@ -125,7 +125,7 @@ class TorchEstimator:
                                      **self._extra_config)
 
     def fit(self, df):
-        if self._trainer is not None:
+        if self._trainer is None:
             self._data_set = RayDataset(
                 df, self._feature_columns, self._feature_shapes, self._label_column)
             self._create_trainer()
@@ -139,6 +139,8 @@ class TorchEstimator:
             raise Exception("You call fit twice.")
 
     def evaluate(self, df):
+        if self._trainer is None:
+            raise Exception("Must call fit first")
         pdf = df.toPandas()
         dataset = PandasDataset(
             pdf, self._feature_columns, self._feature_shapes, self._label_column)
@@ -170,13 +172,17 @@ class TorchEstimator:
         return self._trainer.get_model()
 
     def save(self, checkpoint):
+        assert self._trainer is None, "Must call fit first"
         self._trainer.save(checkpoint)
 
     def load(self, checkpoint):
+        assert self._trainer is None, "Must call fit first"
         self._trainer.load(checkpoint)
 
     def shutdown(self):
-        self._trainer.shutdown()
+        if self._trainer is not None:
+            self._trainer.shutdown()
+            self._trainer = None
 
 
 class RayDataset(torch.utils.data.IterableDataset):
