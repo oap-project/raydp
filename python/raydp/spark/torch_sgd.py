@@ -308,11 +308,11 @@ class _Dataset:
             assert len(self._feature_columns) == len(self._feature_types), \
                 "The feature_types size must match the feature_columns"
             for i in range(len(self._feature_types)):
-                if not isinstance(self._feature_shapes[i], torch.dtype):
-                    raise Exception("All value in feature_types should be torch.dtype instance")
+                assert all(isinstance(dtype, torch.dtype) for dtype in self._feature_types),\
+                    "All value in feature_types should be torch.dtype instance"
 
         if not self._feature_shapes and self._feature_types:
-            assert all(dt == self._feature_types[0] for dt in self._feature_types),\
+            assert all(dtype == self._feature_types[0] for dtype in self._feature_types),\
                 "All dtypes should be same when feature_shapes doesn't provide"
 
         if not self._feature_types:
