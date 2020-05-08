@@ -101,9 +101,12 @@ class TorchEstimator:
         self._num_epochs = num_epochs
         self._extra_config = extra_config
         if self._extra_config:
-            extra_config.update({"batch_size": self._batch_size})
+            if "config" in self._extra_config:
+                self._extra_config["config"].update({"batch_size": self._batch_size})
+            else:
+                self._extra_config["config"] = {"batch_size": self._batch_size}
         else:
-            self._extra_config = {"batch_size": self._batch_size}
+            self._extra_config = {"config": {"batch_size": self._batch_size}}
         self._data_set = None
 
         self._trainer = None
@@ -168,7 +171,8 @@ class TorchEstimator:
                     ", subclass instance or a function(dict -> loss)")
 
         def data_creator(config):
-            dataloader = torch.utils.data.DataLoader(self._data_set)
+            batch_size = config["batch_size"]
+            dataloader = torch.utils.data.DataLoader(self._data_set, batch_size)
             return dataloader, None
 
         def scheduler_creator(optimizers, config):
@@ -208,6 +212,17 @@ class TorchEstimator:
         dataset = PandasDataset(
             pdf, self._feature_columns, self._feature_shapes, self._label_column)
         dataloader = torch.utils.data.DataLoader(dataset, self._batch_size)
+
+        if inspect.isclass(self._loss) and issubclass(self._loss, TLoss):
+            # it is the loss class
+            criterion = self._loss
+        elif isinstance(self._loss, TLoss):
+            # it is the loss instance
+            criterion = self._loss()
+        elif callable(self._loss):
+            # it ts the loss create function
+            criterion = self._loss({})
+
         model = self.get_model()
         model.eval()
         metric_meters = AverageMeterCollection()
@@ -217,8 +232,8 @@ class TorchEstimator:
                 batch_info = {"batch_idx": batch_idx}
                 # unpack features into list to support multiple inputs model
                 *features, target = batch
-                output = self.model(*features)
-                loss = self.criterion(output, target)
+                output = model(*features)
+                loss = criterion(output, target)
                 _, predicted = torch.max(output.data, 1)
                 num_correct = (predicted == target).sum().item()
                 num_samples = target.size(0)
