@@ -27,6 +27,31 @@ class TorchEstimator:
         2 fit on Spark DataFrame or koalas.DataFrame
         3 evaluate on Spark DataFrame or koalas.DataFrame
         4 get the model
+
+    Note:
+        You should pass the callable function if you want to train multiple modules. eg:
+        .. code-block:: python
+
+           def model_creator(config):
+               ...
+               return model1, model2
+
+           def optimizer_creator(models, config):
+               ...
+               return opt1, opt2
+
+           def scheduler_creator(optimizers, config):
+               ...
+               return scheduler
+
+           estimator = TorchEstimator(num_workers=2,
+                                      model=model_creator,
+                                      optimizer=optimizer_creator,
+                                      loss=torch.nn.MSELoss,
+                                      lr_scheduler=scheduler_creator)
+           estimator.fit(train_df)
+           estimator.evaluate(test_df)
+
     """
     def __init__(self,
                  num_workers: int = 1,
@@ -43,13 +68,13 @@ class TorchEstimator:
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
-        :param model: the torch model instance or a function(dict -> Model) to create a model
+        :param model: the torch model instance or a function(dict -> Models) to create a model
         :param optimizer: the optimizer instance or a function((models, dict) -> optimizer) to
                create the optimizer in the torch.sgd.TorchTrainer
         :param loss: the loss instance or loss class or a function(dict -> loss) to create the
                loss in the torch.sgd.TorchTrainer
         :param lr_scheduler: the torch lr scheduler instance or a
-               function((optimizer, config) -> lr_scheduler) to create the lr scheduler in the
+               function((optimizers, config) -> lr_scheduler) to create the lr scheduler in the
                torch.sgd.TorchTrainer
         :param scheduler_step_freq: "batch", "epoch", or None. This will
                determine when ``scheduler.step`` is called. If "batch",
@@ -96,7 +121,7 @@ class TorchEstimator:
         def model_creator(config):
             if isinstance(self._model, torch.nn.Module):
                 # it is the instance of torch.nn.Module
-                self._model
+                return self._model
             elif callable(self._model):
                 return self._model(config)
             else:
@@ -104,12 +129,18 @@ class TorchEstimator:
                     "Unsupported parameter, we only support torch.nn.Model instance "
                     "or a function(dict -> model)")
 
-        def optimizer_creator(model, config):
+        def optimizer_creator(models, config):
             if isinstance(self._optimizer, torch.optim.Optimizer):
                 # it is the instance of torch.optim.Optimizer subclass instance
+                if not isinstance(models, torch.nn.Module):
+                    raise Exception(
+                        "You should pass optimizers with a function((models, dict) -> optimizers) "
+                        "when train with multiple models.")
+                for p1, p2 in zip(models.parameters(), self._optimizer.param_groups["params"]):
+                    assert p1 is p2
                 return self._optimizer
             elif callable(self._optimizer):
-                return self._optimizer(model, config)
+                return self._optimizer(models, config)
             else:
                 raise Exception(
                     "Unsupported parameter, we only support torch.optim.Optimizer subclass "
@@ -134,16 +165,27 @@ class TorchEstimator:
             dataloader = torch.utils.data.DataLoader(self._data_set, self._batch_sizes)
             return dataloader, None
 
-        def scheduler_creator(optimizer, config):
+        def scheduler_creator(optimizers, config):
             if isinstance(self._lr_scheduler, TLRScheduler):
                 # it is the instance
+                if not isinstance(optimizers, torch.optim.Optimizer):
+                    raise Exception(
+                        "You should pass lr_scheduler with a "
+                        "function((optimizer, dict) -> lr_scheduler) when train with multiple "
+                        "optimizers")
+                if self._lr_scheduler.optimizer is not optimizers:
+                    raise Exception(
+                        f"The optimizer in lr_scheduler does not match with the provided optimizer"
+                        f". lr_scheduler.optimizer id: {id(self._lr_scheduler.optimizer)}, "
+                        f"provided optimizer id: {id(optimizers)}. Maybe fix this with a callable "
+                        "lr scheduler creation function.")
                 return self._lr_scheduler
             elif callable(self._lr_scheduler):
-                self._lr_scheduler(optimizer, config)
+                self._lr_scheduler(optimizers, config)
             else:
                 raise Exception(
                     "Unsupported parameter, we only support torch.optim.lr_scheduler._LRScheduler "
-                    "subclass instance or a function((optimizer, dict) -> lr_scheduler)")
+                    "subclass instance or a function((optimizers, dict) -> lr_scheduler)")
 
         lr_scheduler_creator = scheduler_creator if self._lr_scheduler is not None else None
 
