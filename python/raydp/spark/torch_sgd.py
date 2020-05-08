@@ -113,7 +113,7 @@ class TorchEstimator:
         assert self._optimizer is not None, "Optimizer must be provided"
         assert self._loss is not None, "Loss must be provided"
 
-        if self._feature_shapes:
+        if self._feature_shapes is not None:
             assert len(self._feature_columns) == len(self._feature_shapes), \
                 "The feature_shapes size must match the feature_columns"
 
@@ -136,7 +136,7 @@ class TorchEstimator:
                     raise Exception(
                         "You should pass optimizers with a function((models, dict) -> optimizers) "
                         "when train with multiple models.")
-                for p1, p2 in zip(models.parameters(), self._optimizer.param_groups["params"]):
+                for p1, p2 in zip(models.parameters(), self._optimizer.param_groups[0]["params"]):
                     assert p1 is p2
                 return self._optimizer
             elif callable(self._optimizer):
