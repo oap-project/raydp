@@ -12,6 +12,7 @@ from raydp.spark.spark_cluster import save_to_ray
 
 import torch
 from torch.nn.modules.loss import _Loss as TLoss
+from torch.optim.lr_scheduler import _LRScheduler as TLRScheduler
 
 from typing import Any, Callable, List, Optional, Union
 
@@ -28,11 +29,11 @@ class TorchEstimator:
         4 get the model
     """
     def __init__(self,
-                 num_workers: int = None,
+                 num_workers: int = 1,
                  model: Union[torch.nn.Module, Callable] = None,
                  optimizer: Union[torch.optim.Optimizer, Callable] = None,
                  loss: Union[TLoss, Callable] = None,
-                 lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+                 lr_scheduler: Union[TLRScheduler, Callable] = None,
                  scheduler_step_freq="batch",
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
@@ -80,36 +81,69 @@ class TorchEstimator:
 
         self._trainer = None
 
+        self._check()
+
+    def _check(self):
+        assert self._model is not None, "Model must be provided"
+        assert self._optimizer is not None, "Optimizer must be provided"
+        assert self._loss is not None, "Loss must be provided"
+
+        if self._feature_shapes:
+            assert len(self._feature_columns) == len(self._feature_shapes), \
+                "The feature_shapes size must match the feature_columns"
+
     def _create_trainer(self):
         def model_creator(config):
-            if callable(self._model):
+            if isinstance(self._model, torch.nn.Module):
+                # it is the instance of torch.nn.Module
                 return self._model(config)
-            else:
+            elif callable(self._model):
                 return self._model
+            else:
+                raise Exception(
+                    "Unsupported parameter, we only support torch.nn.Model instance "
+                    "or a function(dict -> model)")
 
         def optimizer_creator(model, config):
-            if callable(self._optimizer):
+            if isinstance(self._optimizer, torch.optim.Optimizer):
+                # it is the instance of torch.optim.Optimizer subclass instance
+                return self._optimizer
+            elif callable(self._optimizer):
                 return self._optimizer(model, config)
             else:
-                return self._optimizer
+                raise Exception(
+                    "Unsupported parameter, we only support torch.optim.Optimizer subclass "
+                    "instance or a function((models, dict) -> optimizer)")
 
         def loss_creator(config):
             if inspect.isclass(self._loss) and issubclass(self._loss, TLoss):
+                # it is the loss class
+                return self._loss
+            elif isinstance(self._loss, TLoss):
+                # it is the loss instance
                 return self._loss
             elif callable(self._loss):
+                # it ts the loss create function
                 return self._loss(config)
             else:
-                return self._loss
+                raise Exception(
+                    "Unsupported parameter, we only support torch.nn.modules.loss._Loss subclass "
+                    ", subclass instance or a function(dict -> loss)")
 
         def data_creator(config):
             dataloader = torch.utils.data.DataLoader(self._data_set, self._batch_sizes)
             return dataloader, None
 
         def scheduler_creator(optimizer, config):
-            if callable(self._lr_scheduler):
+            if isinstance(self._lr_scheduler, TLRScheduler):
+                # it is the instance
+                return self._lr_scheduler
+            elif callable(self._lr_scheduler):
                 self._lr_scheduler(optimizer, config)
             else:
-                return self._lr_scheduler
+                raise Exception(
+                    "Unsupported parameter, we only support torch.optim.lr_scheduler._LRScheduler "
+                    "subclass instance or a function((optimizer, dict) -> lr_scheduler)")
 
         lr_scheduler_creator = scheduler_creator if self._lr_scheduler is not None else None
 
