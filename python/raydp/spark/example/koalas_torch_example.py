@@ -64,6 +64,7 @@ df: ks.DataFrame = ks.range(0, 100000)
 df["x"] = df["id"] + 100
 df["y"] = df["id"] + 1000
 df["z"] = df["x"] * 3 + df["y"] * 4 + 5
+df = df.astype("float")
 
 train_df, test_df = random_split(df, [0.7, 0.3])
 
@@ -80,7 +81,6 @@ def lr_scheduler_creator(optimizer, config):
     return torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=[150, 250, 350], gamma=0.1)
 
-
 # create the estimator
 estimator = TorchEstimator(num_workers=2,
                            model=model,
@@ -89,7 +89,7 @@ estimator = TorchEstimator(num_workers=2,
                            lr_scheduler_creator=lr_scheduler_creator,
                            feature_columns=["x", "y"],
                            label_column="z",
-                           batch_sizes=1000,
+                           batch_size=1000,
                            num_epochs=10)
 
 # train the model

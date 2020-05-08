@@ -62,7 +62,7 @@ class TorchEstimator:
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
                  label_column: str = None,
-                 batch_sizes: int = None,
+                 batch_size: int = None,
                  num_epochs: int = None,
                  **extra_config):
         """
@@ -84,7 +84,7 @@ class TorchEstimator:
                provided. Otherwise, each feature column will be one torch.Tensor and with the
                provided shapes.
         :param label_column: the label column when fit on Spark DataFrame or koalas.DataFrame
-        :param batch_sizes: the training batch size
+        :param batch_size: the training batch size
         :param num_epochs: the total number of epochs will be train
         :param extra_config: the extra config will be set to torch.sgd.TorchTrainer
         """
@@ -97,9 +97,13 @@ class TorchEstimator:
         self._feature_columns = feature_columns
         self._feature_shapes = feature_shapes
         self._label_column = label_column
-        self._batch_sizes = batch_sizes
+        self._batch_size = batch_size
         self._num_epochs = num_epochs
         self._extra_config = extra_config
+        if self._extra_config:
+            extra_config.update({"batch_size": self._batch_size})
+        else:
+            self._extra_config = {"batch_size": self._batch_size}
         self._data_set = None
 
         self._trainer = None
@@ -164,7 +168,7 @@ class TorchEstimator:
                     ", subclass instance or a function(dict -> loss)")
 
         def data_creator(config):
-            dataloader = torch.utils.data.DataLoader(self._data_set, self._batch_sizes)
+            dataloader = torch.utils.data.DataLoader(self._data_set)
             return dataloader, None
 
         def scheduler_creator(optimizers, config):
@@ -180,7 +184,6 @@ class TorchEstimator:
                                      scheduler_step_freq=self._scheduler_step_freq,
                                      num_workers=self._num_workers,
                                      add_dist_sampler=False,
-                                     use_tqdm=True,
                                      **self._extra_config)
 
     def fit(self, df):
@@ -193,7 +196,8 @@ class TorchEstimator:
                 info = dict()
                 info["epoch_idx"] = i
                 info["num_epochs"] = self._num_epochs
-                self._trainer.train(info=info)
+                stats = self._trainer.train(info=info)
+                print(f"Epoch-{i}: {stats}")
         else:
             raise Exception("You call fit twice.")
 
@@ -203,7 +207,7 @@ class TorchEstimator:
         pdf = df.toPandas()
         dataset = PandasDataset(
             pdf, self._feature_columns, self._feature_shapes, self._label_column)
-        dataloader = torch.utils.data.DataLoader(dataset, self._batch_sizes)
+        dataloader = torch.utils.data.DataLoader(dataset, self._batch_size)
         model = self.get_model()
         model.eval()
         metric_meters = AverageMeterCollection()
@@ -227,15 +231,15 @@ class TorchEstimator:
         return metric_meters.summary()
 
     def get_model(self):
-        assert self._trainer is None, "Must call fit first"
+        assert self._trainer is not None, "Must call fit first"
         return self._trainer.get_model()
 
     def save(self, checkpoint):
-        assert self._trainer is None, "Must call fit first"
+        assert self._trainer is not None, "Must call fit first"
         self._trainer.save(checkpoint)
 
     def load(self, checkpoint):
-        assert self._trainer is None, "Must call fit first"
+        assert self._trainer is not None, "Must call fit first"
         self._trainer.load(checkpoint)
 
     def shutdown(self):
@@ -380,4 +384,7 @@ class PandasDataset(torch.utils.data.Dataset):
         else:
             feature = torch.as_tensor(current_feature)
             return feature, label
+
+    def __len__(self):
+        return len(self._label_df)
 
