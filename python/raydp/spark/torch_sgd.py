@@ -322,7 +322,7 @@ class _Dataset:
             self._label_type = torch.float
 
     def _get_next(self, index, feature_df, label_df):
-        label = torch.as_tensor(label_df[index], dtype=self._label_type).view(1)
+        label = torch.as_tensor(label_df[index], dtype=self._label_type)
         current_feature = feature_df[index]
         if self._feature_shapes:
             feature_tensors = []
