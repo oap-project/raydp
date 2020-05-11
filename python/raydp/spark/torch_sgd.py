@@ -88,12 +88,14 @@ class TorchEstimator:
                provided shapes (None means scalar tensor.).
                .. code-block:: python
 
+                   feature_columns = ["a", "b", "c"]
+
                    # All feature will be treated as a scalar value and packet into one torch.Tensor
-                   feature_shapes = None
+                   feature_shapes = None # torch.Size([3])
 
                    # reshape to given type
-                   feature_shapes = [5, 1, 1] # torch.Size([5]), torch.Size([1]), torch.Size([1])
-                   feature_shapes = [5, None, None] # torch.Size([5]), torch.Size(), torch.Size()
+                   feature_shapes = [5, 1, 1] # (torch.Size([5]), torch.Size([1]), torch.Size([1]))
+                   feature_shapes = [5, None, None] # (torch.Size([5]), torch.Size(), torch.Size())
 
         :param feature_types: the feature types matching the feature columns. All feature will be
                cast into torch.float by default. Otherwise, cast into the provided type.
