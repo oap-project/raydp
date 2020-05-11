@@ -85,7 +85,18 @@ class TorchEstimator:
         :param feature_shapes: the feature shapes matching the feature columns. All feature will
                be treated as a scalar value and packet into one torch.Tensor if this is not
                provided. Otherwise, each feature column will be one torch.Tensor and with the
-               provided shapes.
+               provided shapes (0 means scalar tensor.).
+               .. code-block:: python
+
+                   feature_columns = ["a", "b", "c"]
+
+                   # All feature will be treated as a scalar value and packet into one torch.Tensor
+                   feature_shapes = None # torch.Size([3])
+
+                   # reshape to given type
+                   feature_shapes = [5, 1, 1] # (torch.Size([5]), torch.Size([1]), torch.Size([1]))
+                   feature_shapes = [5, 0, 0] # (torch.Size([5]), torch.Size(), torch.Size())
+
         :param feature_types: the feature types matching the feature columns. All feature will be
                cast into torch.float by default. Otherwise, cast into the provided type.
         :param label_column: the label column when fit on Spark DataFrame or koalas.DataFrame
@@ -322,13 +333,15 @@ class _Dataset:
             self._label_type = torch.float
 
     def _get_next(self, index, feature_df, label_df):
-        label = torch.as_tensor(label_df[index], dtype=self._label_type).view(1)
+        label = torch.as_tensor(label_df[index], dtype=self._label_type)
         current_feature = feature_df[index]
         if self._feature_shapes:
             feature_tensors = []
             for i, (shape, dtype) in enumerate(zip(self._feature_shapes, self._feature_types)):
-                feature_tensors.append(
-                    torch.as_tensor(current_feature[i], dtype=dtype).view(*shape))
+                t = torch.as_tensor(current_feature[i], dtype=dtype)
+                if shape != [0]:
+                    t = t.view(*shape)
+                feature_tensors.append(t)
             return (*feature_tensors, label)
         else:
             feature = torch.as_tensor(current_feature, dtype=self._feature_types[0])
