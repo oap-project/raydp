@@ -85,7 +85,7 @@ class TorchEstimator:
         :param feature_shapes: the feature shapes matching the feature columns. All feature will
                be treated as a scalar value and packet into one torch.Tensor if this is not
                provided. Otherwise, each feature column will be one torch.Tensor and with the
-               provided shapes (None means scalar tensor.).
+               provided shapes (0 means scalar tensor.).
                .. code-block:: python
 
                    feature_columns = ["a", "b", "c"]
@@ -95,7 +95,7 @@ class TorchEstimator:
 
                    # reshape to given type
                    feature_shapes = [5, 1, 1] # (torch.Size([5]), torch.Size([1]), torch.Size([1]))
-                   feature_shapes = [5, None, None] # (torch.Size([5]), torch.Size(), torch.Size())
+                   feature_shapes = [5, 0, 0] # (torch.Size([5]), torch.Size(), torch.Size())
 
         :param feature_types: the feature types matching the feature columns. All feature will be
                cast into torch.float by default. Otherwise, cast into the provided type.
@@ -312,8 +312,7 @@ class _Dataset:
             assert len(self._feature_columns) == len(self._feature_shapes), \
                 "The feature_shapes size must match the feature_columns"
             for i in range(len(self._feature_shapes)):
-                if (self._feature_shapes[i] is not None
-                        and not isinstance(self._feature_shapes[i], Iterable)):
+                if not isinstance(self._feature_shapes[i], Iterable):
                     self._feature_shapes[i] = [self._feature_shapes[i]]
 
         if self._feature_types:
@@ -340,7 +339,7 @@ class _Dataset:
             feature_tensors = []
             for i, (shape, dtype) in enumerate(zip(self._feature_shapes, self._feature_types)):
                 t = torch.as_tensor(current_feature[i], dtype=dtype)
-                if shape:
+                if shape != [0]:
                     t = t.view(*shape)
                 feature_tensors.append(t)
             return (*feature_tensors, label)
