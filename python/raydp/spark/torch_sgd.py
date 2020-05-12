@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 
 import inspect
+import io
 
 import pandas
 
@@ -142,10 +143,18 @@ class TorchEstimator:
                 "The feature_shapes size must match the feature_columns"
 
     def _create_trainer(self):
+        model = self._model
+        if isinstance(self._model, torch.nn.Module):
+            # use torch.save instead of pickle
+            buffer = io.BytesIO()
+            torch.save(model, buffer)
+            model = buffer.getvalue()
+
         def model_creator(config):
-            if isinstance(self._model, torch.nn.Module):
+            if isinstance(model, bytes):
                 # it is the instance of torch.nn.Module
-                return self._model
+                buffer = io.BytesIO(model)
+                return torch.load(buffer)
             elif callable(self._model):
                 return self._model(config)
             else:
