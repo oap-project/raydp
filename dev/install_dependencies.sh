@@ -6,4 +6,6 @@ pushd spark-3.0.0-preview2-bin-hadoop2.7/python/
 pip install .
 popd
 
-pip install ray pandas pyarrow pytest
+pip install koalas numpy pandas pyarrow pytest ray typing
+pip install torch==1.5.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+
