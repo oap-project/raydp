@@ -13,7 +13,8 @@ setup(
     name="raydp",
     version="0.1",
     description="RayDP: Distributed Data Processing on Ray",
-    packages=find_packages(where="."),
+    packages=find_packages(where="python"),
+    package_dir={"": "python"},
     install_requires=install_requires
 )
 

@@ -8,6 +8,7 @@ from ray.util.sgd.utils import AverageMeterCollection
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
 
 from raydp.spark.dataholder import ObjectIdList
+from raydp.spark.estimator import EstimatorInterface
 from raydp.spark.spark_cluster import save_to_ray
 
 import torch
@@ -17,7 +18,7 @@ from torch.utils.data import Dataset, IterableDataset
 from typing import Any, Callable, List, Optional, Union
 
 
-class TorchEstimator:
+class TorchEstimator(EstimatorInterface):
     """
     A scikit-learn like API to distributed training torch model. In the backend it leverage
     the ray.sgd.TorchTrainer.
