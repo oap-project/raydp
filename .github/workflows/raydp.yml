@@ -1,0 +1,51 @@
+name: RayDP Test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-18.04
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python 3.7
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.7
+
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v1
+        with:
+          java-version: '8.0.232'
+          java-package: jdk
+          architecture: x64
+
+      - name: Cache dependencies
+        id: cache-denpendencies
+        uses: actions/cache@v1
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-cache
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Generate dependencies
+        if: steps.cache-denpendencies.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install wheel
+          ./dev/install_dependencies.sh
+
+      - name: Build
+        run: |
+          pip install -e .
+
+      - name: Test
+        run: |
+          pytest ./python/
