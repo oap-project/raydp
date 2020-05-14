@@ -6,6 +6,10 @@ if [ $1 == "true" ]; then
   reinstall=true
 fi
 
+if ! [ -d ~/spark ]; then
+  mkdir ~/spark
+fi
+
 if ${reinstall}; then
   if [ -d ~/spark/spark-3.0.0-preview2-bin-hadoop2.7 ]; then
     rm -rf ~/spark/spark-3.0.0-preview2-bin-hadoop2.7
