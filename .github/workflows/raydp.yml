@@ -46,7 +46,7 @@ jobs:
         id: cache-spark
         uses: actions/cache@v1
         with:
-          path: ~
+          path: ~/spark/
           key: ${{ runner.os }}-cache-spark
           restore-keys: |
             ${{ runner.os }}-spark-

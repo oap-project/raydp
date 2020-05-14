@@ -221,6 +221,10 @@ class BlockSetSampler(DistributedSampler):
             indices.append([((index << BLOCK_SIZE_BIT) | i) for i in range(size)])
         self._selected_indices = indices
 
+    @property
+    def block_indices(self):
+        return self._block_indices
+
     def __iter__(self):
         self.dataset._resolve_with_indices(self._block_indices)
         # deterministically shuffle based on epoch

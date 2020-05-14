@@ -1,0 +1,49 @@
+from raydp.spark.torch.dataset import BLOCK_SIZE_BIT, BlockSetSampler, RayDataset
+
+
+class DummyRayDataset(RayDataset):
+    def __init__(self, data):
+        self.data = data
+
+    def _resolve_with_indices(self, indices):
+        pass
+
+    def __getitem__(self, index):
+        block_index = index >> BLOCK_SIZE_BIT
+        block_inner_index = (block_index << BLOCK_SIZE_BIT) ^ index
+        if block_index != self._previous_block_index:
+            self._previous_block_index = block_index
+            df = self._block_set[block_index]
+            self._feature_df = df[self._feature_columns].values
+            self._label_df = df[self._label_column].values
+        return self._get_next(block_inner_index, self._feature_df, self._label_df)
+
+    def __len__(self):
+        """Get the total size"""
+        return sum([len(d) for d in self.data])
+
+    def block_sizes(self):
+        """Get the block sizes"""
+        return [len(d) for d in self.data]
+
+
+def test_blockset_sampler():
+    tmp = range(0, 20)
+    data = [tmp[0: 5], tmp[5, 10], tmp[10: 15], tmp[15: 20]]
+    dataset = DummyRayDataset(data)
+    assert len(dataset) == 20
+    assert dataset.block_sizes() == [5, 5, 5, 5]
+
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=False)
+    assert sampler.block_indices == 2
+    assert len(sampler) == 10
+    block_index = 0
+    results = [((block_index << BLOCK_SIZE_BIT) | i) for i in range(5)]
+    block_index = 2
+    results += [((block_index << BLOCK_SIZE_BIT) | i) for i in range(5)]
+    assert results == list(iter(sampler))
+
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=True)
+    assert sampler.block_indices == 2
+    assert len(sampler) == 10
+    assert results == sorted(list(iter(sampler)))
