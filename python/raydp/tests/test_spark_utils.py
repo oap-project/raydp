@@ -5,6 +5,8 @@ import pytest
 
 import raydp.spark.utils as utils
 
+import sys
+
 
 def test_df_type_check(spark_session):
     spark_df = spark_session.range(0, 10)
@@ -50,3 +52,7 @@ def test_random_split(spark_session):
     assert isinstance(splits[0], ks.DataFrame)
     assert isinstance(splits[1], ks.DataFrame)
     assert len(splits) == 2
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-v", __file__]))

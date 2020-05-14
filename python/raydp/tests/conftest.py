@@ -12,7 +12,7 @@ def quiet_logger():
     koalas_logger.setLevel(logging.WARNING)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def spark_session(request):
     spark = SparkSession.builder.master("local[2]").appName("RayDP test").getOrCreate()
     request.addfinalizer(lambda: spark.stop())

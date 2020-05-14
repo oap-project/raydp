@@ -191,9 +191,9 @@ class BlockSetSampler(DistributedSampler):
             if tmp < self.num_samples:
                 selected.append((i, block_size))
                 current_size = tmp
-            elif tmp > self.num_samples:
+            elif tmp >= self.num_samples:
                 selected.append((i, (self.num_samples - current_size)))
-                current_size = self.total_size
+                current_size = self.num_samples
             return current_size
 
         total_size = 0
@@ -212,7 +212,7 @@ class BlockSetSampler(DistributedSampler):
         assert total_size == self.num_samples
 
         block_indices, selected_size = list(zip(*selected_indices))
-        self._block_indices = block_indices
+        self._block_indices = list(block_indices)
 
         indices = []
         global BLOCK_SIZE_BIT

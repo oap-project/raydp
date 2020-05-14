@@ -1,5 +1,8 @@
 from raydp.spark.torch.dataset import BLOCK_SIZE_BIT, BlockSetSampler, RayDataset
 
+import pytest
+import sys
+
 
 class DummyRayDataset(RayDataset):
     def __init__(self, data):
@@ -35,7 +38,7 @@ def test_balanced_blockset_sampler():
     assert dataset.block_sizes() == [5, 5, 5, 5]
 
     sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=False)
-    assert sampler.block_indices == 2
+    assert sampler.block_indices == [0, 2]
     assert len(sampler) == 10
     block_index = 0
     results = [((block_index << BLOCK_SIZE_BIT) | i) for i in range(5)]
@@ -44,7 +47,7 @@ def test_balanced_blockset_sampler():
     assert results == list(iter(sampler))
 
     sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=True)
-    assert sampler.block_indices == 2
+    assert len(sampler.block_indices) == 2
     assert len(sampler) == 10
     assert results != list(iter(sampler))
     sorted_sampler_result = sorted(list(iter(sampler)))
@@ -65,31 +68,38 @@ def test_balanced_blockset_sampler():
 
 def test_unbalanced_blockset_sampler():
     tmp = range(0, 15)
-    data = [tmp[0: 4], tmp[:, 10], tmp[10: 15]]
+    data = [tmp[0: 4], tmp[4: 12], tmp[12: 15]]
     dataset = DummyRayDataset(data)
     assert len(dataset) == 15
-    assert dataset.block_sizes() == [4, 6, 5]
+    assert dataset.block_sizes() == [4, 8, 3]
 
     sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=False)
-    assert sampler.block_indices == 2
+    assert sampler.block_indices == [0, 2, 1]
     assert len(sampler) == 8
     block_index = 0
     results = [((block_index << BLOCK_SIZE_BIT) | i) for i in range(4)]
+    block_index = 2
+    results += [((block_index << BLOCK_SIZE_BIT) | i) for i in range(3)]
     block_index = 1
-    results += [((block_index << BLOCK_SIZE_BIT) | i) for i in range(4)]
+    results += [((block_index << BLOCK_SIZE_BIT) | i) for i in range(1)]
+
+    assert results == list(iter(sampler))
 
     sampler = BlockSetSampler(dataset, num_replicas=2, rank=1, shuffle=False)
-    assert sampler.block_indices == 2
+    assert sampler.block_indices == [1]
     assert len(sampler) == 8
     block_index = 1
-    results = [((block_index << BLOCK_SIZE_BIT) | i) for i in range(6)]
-    block_index = 2
-    results += [((block_index << BLOCK_SIZE_BIT) | i) for i in range(2)]
+    results = [((block_index << BLOCK_SIZE_BIT) | i) for i in range(8)]
+
+    assert results == list(iter(sampler))
 
     sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=True)
-    assert sampler.block_indices == 2
     assert len(sampler) == 8
 
     sampler = BlockSetSampler(dataset, num_replicas=2, rank=1, shuffle=True)
-    assert sampler.block_indices == 2
     assert len(sampler) == 8
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-v", __file__]))
+
