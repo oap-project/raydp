@@ -29,7 +29,7 @@ class DummyRayDataset(RayDataset):
 
 def test_balanced_blockset_sampler():
     tmp = range(0, 20)
-    data = [tmp[0: 5], tmp[5, 10], tmp[10: 15], tmp[15: 20]]
+    data = [tmp[0: 5], tmp[5: 10], tmp[10: 15], tmp[15: 20]]
     dataset = DummyRayDataset(data)
     assert len(dataset) == 20
     assert dataset.block_sizes() == [5, 5, 5, 5]
@@ -65,7 +65,7 @@ def test_balanced_blockset_sampler():
 
 def test_unbalanced_blockset_sampler():
     tmp = range(0, 15)
-    data = [tmp[0: 4], tmp[4, 10], tmp[10: 15]]
+    data = [tmp[0: 4], tmp[:, 10], tmp[10: 15]]
     dataset = DummyRayDataset(data)
     assert len(dataset) == 15
     assert dataset.block_sizes() == [4, 6, 5]
