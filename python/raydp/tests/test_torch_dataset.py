@@ -27,7 +27,7 @@ class DummyRayDataset(RayDataset):
         return [len(d) for d in self.data]
 
 
-def test_blockset_sampler():
+def test_balanced_blockset_sampler():
     tmp = range(0, 20)
     data = [tmp[0: 5], tmp[5, 10], tmp[10: 15], tmp[15: 20]]
     dataset = DummyRayDataset(data)
@@ -46,4 +46,50 @@ def test_blockset_sampler():
     sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=True)
     assert sampler.block_indices == 2
     assert len(sampler) == 10
-    assert results == sorted(list(iter(sampler)))
+    assert results != list(iter(sampler))
+    sorted_sampler_result = sorted(list(iter(sampler)))
+
+    def check(results):
+        block_index = results[0] >> BLOCK_SIZE_BIT
+        previous = 0
+        for item in results:
+            index = item >> BLOCK_SIZE_BIT
+            inner_index = (index << BLOCK_SIZE_BIT) ^ item
+            assert index == block_index
+            assert inner_index == previous
+            previous += 1
+
+    check(sorted_sampler_result[0: 5])
+    check(sorted_sampler_result[5: 10])
+
+
+def test_unbalanced_blockset_sampler():
+    tmp = range(0, 15)
+    data = [tmp[0: 4], tmp[4, 10], tmp[10: 15]]
+    dataset = DummyRayDataset(data)
+    assert len(dataset) == 15
+    assert dataset.block_sizes() == [4, 6, 5]
+
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=False)
+    assert sampler.block_indices == 2
+    assert len(sampler) == 8
+    block_index = 0
+    results = [((block_index << BLOCK_SIZE_BIT) | i) for i in range(4)]
+    block_index = 1
+    results += [((block_index << BLOCK_SIZE_BIT) | i) for i in range(4)]
+
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=1, shuffle=False)
+    assert sampler.block_indices == 2
+    assert len(sampler) == 8
+    block_index = 1
+    results = [((block_index << BLOCK_SIZE_BIT) | i) for i in range(6)]
+    block_index = 2
+    results += [((block_index << BLOCK_SIZE_BIT) | i) for i in range(2)]
+
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=True)
+    assert sampler.block_indices == 2
+    assert len(sampler) == 8
+
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=1, shuffle=True)
+    assert sampler.block_indices == 2
+    assert len(sampler) == 8
