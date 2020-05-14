@@ -1,12 +1,13 @@
-from raydp.services import WorkerService
-from raydp.spark.utils import register_exit_handler
-from typing import Any, Dict
-
-import os
 import logging
-import ray
+import os
 import subprocess
 import tempfile
+from typing import Any, Dict
+
+import ray
+
+from raydp.services import WorkerService
+from raydp.spark.utils import register_exit_handler
 
 
 class SparkWorkerService(WorkerService):

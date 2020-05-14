@@ -1,29 +1,25 @@
 import copy
-import numpy as np
+from typing import Any, Dict
 
+import numpy as np
+import pandas as pd
 import pyspark
+import ray
+import ray.cloudpickle as rpickle
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf, PandasUDFType
 from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
 
-import ray
-import ray.cloudpickle as rpickle
-
-import pandas as pd
-
-from typing import Any, Dict, List, Optional
-
 from raydp.cluster import Cluster
 from raydp.ray_cluster_resources import ClusterResources
-from raydp.spark.dataholder import DataHolder, DataHolderActorHandlerWrapper, ObjectIdList
-from raydp.spark.utils import get_node_address
+from raydp.spark.block_holder import BlockHolder, BlockHolderActorHandlerWrapper, BlockSet
 from raydp.spark.spark_master_service import SparkMasterService
 from raydp.spark.spark_worker_service import SparkWorkerService
-
+from raydp.spark.utils import get_node_address, convert_to_spark
 
 _global_broadcasted = {}
 # TODO: better way to stop and clean data holder
-_global_data_holder: Dict[str, DataHolderActorHandlerWrapper] = {}
+_global_block_holder: Dict[str, BlockHolderActorHandlerWrapper] = {}
 
 
 default_config = {
@@ -117,10 +113,10 @@ class SparkCluster(Cluster):
         error_msg = ray.get(worker.start_up.remote())
         if not error_msg:
             self._node_selected.add(choosed)
-            if choosed not in _global_data_holder:
-                # set up data holder if has not set up
-                data_holder = DataHolder.remote()
-                _global_data_holder[choosed] = DataHolderActorHandlerWrapper(data_holder)
+            if choosed not in _global_block_holder:
+                # set up block holder if has not set up
+                block_holder = BlockHolder.remote()
+                _global_block_holder[choosed] = BlockHolderActorHandlerWrapper(block_holder)
 
             self._workers.append(worker)
             self._num_nodes += 1
@@ -194,18 +190,8 @@ class SparkCluster(Cluster):
             self._stopped = True
 
 
-def save_to_ray(df: Any) -> ObjectIdList:
-    if not isinstance(df, pyspark.sql.DataFrame):
-        try:
-            import databricks.koalas as ks
-            if isinstance(df, ks.DataFrame):
-                df = df.to_spark()
-            else:
-                raise Exception(f"The type: {type(df)} is not supported, only support "
-                                "pyspark.sql.DataFram and databricks.koalas.DataFrame")
-        except:
-            raise Exception(f"The type: {type(df)} is not supported, only support "
-                            "pyspark.sql.DataFram and databricks.koalas.DataFrame")
+def save_to_ray(df: Any) -> BlockSet:
+    df, _ = convert_to_spark(df)
 
     return_type = StructType()
     return_type.add(StructField("node_label", StringType(), True))
@@ -227,22 +213,22 @@ def save_to_ray(df: Any) -> ObjectIdList:
                      redis_password=redis_config["password"])
 
         node_label = f"node:{ray.services.get_node_ip_address()}"
-        data_handler = _global_data_holder[node_label]
+        block_holder = _global_block_holder[node_label]
         for pdf in batch_iter:
             obj = ray.put(pdf)
             # TODO: register object in batch
-            fetch_index = ray.get(data_handler.register_object_id.remote(rpickle.dumps(obj)))
+            fetch_index = ray.get(block_holder.register_object_id.remote(rpickle.dumps(obj)))
             yield pd.DataFrame({"node_label": [node_label],
                                 "fetch_index": [fetch_index],
                                 "size": len(pdf)})
 
     results = df.mapInPandas(save).collect()
     fetch_indexes = []
-    data_holder_mapping = {}
-    total_size = 0
+    block_holder_mapping = {}
+    block_sizes = []
     for row in results:
-        total_size += row["size"]
         fetch_indexes.append((row["node_label"], row["fetch_index"]))
-        if row["node_label"] not in data_holder_mapping:
-            data_holder_mapping[row["node_label"]] = _global_data_holder[row["node_label"]]
-    return ObjectIdList(total_size, fetch_indexes, data_holder_mapping)
+        block_sizes.append(row["size"])
+        if row["node_label"] not in block_holder_mapping:
+            block_holder_mapping[row["node_label"]] = _global_block_holder[row["node_label"]]
+    return BlockSet(fetch_indexes, block_sizes, block_holder_mapping)

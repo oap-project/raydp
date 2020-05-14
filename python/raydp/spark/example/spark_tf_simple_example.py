@@ -1,16 +1,14 @@
 import argparse
+from typing import Dict
 
 import pyspark
-from pyspark.sql.functions import rand
-
 import ray
+from pyspark.sql.functions import rand
 from ray.util.sgd.tf.tf_trainer import TFTrainer
 
-from raydp.spark.dataholder import ObjectIdList
+from raydp.spark.block_holder import ObjectIdList
 from raydp.spark.spark_cluster import save_to_ray, SparkCluster
-from raydp.spark.tf_dataset import create_dataset_from_objects
-
-from typing import Dict
+from raydp.spark.tf.tf_dataset import create_dataset_from_objects
 
 parser = argparse.ArgumentParser(description="A simple example for spark on ray")
 parser.add_argument("--redis-address", type=str, dest="redis_address",

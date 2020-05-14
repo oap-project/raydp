@@ -1,8 +1,8 @@
-from typing import Any, Dict, List
+from typing import Dict, List
 
 import ray
-from ray.ray_constants import MEMORY_RESOURCE_UNIT_BYTES
 import time
+from ray.ray_constants import MEMORY_RESOURCE_UNIT_BYTES
 
 
 class ClusterResources:
