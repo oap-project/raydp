@@ -56,8 +56,11 @@ jobs:
         run: |
           ./dev/install_spark.sh true
 
-      - name: Install Spark
+      - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
+          pip install wheel
+          ./dev/install_dependencies.sh
           ./dev/install_spark.sh
 
       - name: Build
