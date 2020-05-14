@@ -244,7 +244,7 @@ class BlockSet:
        4. block_set[0].get() # get the underlying data which should be a pandas.DataFrame
     """
     def __init__(self,
-                 fetch_indexes: List[(str, int)],
+                 fetch_indexes: List[Tuple[str, int]],
                  block_sizes: List[int],
                  block_holder_mapping: Dict[str, BlockHolderActorHandlerWrapper]):
         self._fetch_indexes: List[Tuple[str, int]] = []
