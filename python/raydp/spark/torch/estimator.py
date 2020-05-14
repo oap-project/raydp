@@ -1,19 +1,13 @@
-from collections.abc import Iterable
-
 import inspect
-
-import pandas
 
 from ray.util.sgd.utils import AverageMeterCollection
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
 
-from raydp.spark.dataholder import ObjectIdList
 from raydp.spark.estimator import EstimatorInterface
-from raydp.spark.spark_cluster import save_to_ray
+from raydp.spark.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
 
 import torch
 from torch.nn.modules.loss import _Loss as TLoss
-from torch.utils.data import Dataset, IterableDataset
 
 from typing import Any, Callable, List, Optional, Union
 
@@ -192,7 +186,10 @@ class TorchEstimator(EstimatorInterface):
 
         def data_creator(config):
             batch_size = config["batch_size"]
-            dataloader = torch.utils.data.DataLoader(self._data_set, batch_size)
+            sampler = BlockSetSampler(self._data_set)
+            dataloader = torch.utils.data.DataLoader(self._data_set,
+                                                     batch_size=batch_size,
+                                                     sampler=sampler)
             return dataloader, None
 
         def scheduler_creator(optimizers, config):
@@ -211,6 +208,7 @@ class TorchEstimator(EstimatorInterface):
                                      **self._extra_config)
 
     def fit(self, df):
+        super(TorchEstimator, self).fit(df)
         if self._trainer is None:
             self._data_set = RayDataset(df, self._feature_columns, self._feature_shapes,
                                         self._feature_types, self._label_column, self._label_type)
@@ -225,13 +223,14 @@ class TorchEstimator(EstimatorInterface):
         else:
             raise Exception("You call fit twice.")
 
-    def evaluate(self, df):
+    def evaluate(self, df, ):
+        super(TorchEstimator, self).fit(df)
         if self._trainer is None:
             raise Exception("Must call fit first")
         pdf = df.toPandas()
         dataset = PandasDataset(pdf, self._feature_columns, self._feature_shapes,
                                 self._feature_types, self._label_column, self._label_type)
-        dataloader = torch.utils.data.DataLoader(dataset, self._batch_size)
+        dataloader = torch.utils.data.DataLoader(dataset, self._batch_size, shuffle=True)
 
         if inspect.isclass(self._loss) and issubclass(self._loss, TLoss):
             # it is the loss class
@@ -282,182 +281,3 @@ class TorchEstimator(EstimatorInterface):
             del self._data_set
             self._trainer.shutdown()
             self._trainer = None
-
-
-class _Dataset:
-    def __init__(self,
-                 feature_columns: List[str] = None,
-                 feature_shapes: Optional[List[Any]] = None,
-                 feature_types: Optional[List[torch.dtype]] = None,
-                 label_column: str = None,
-                 label_type: Optional[torch.dtype] = None):
-        """
-        :param feature_columns: the feature columns in df
-        :param feature_shapes: the each feature shape that need to return when loading this
-               dataset. If it is not None, it's size must match the size of feature_columns.
-               If it is None, we guess all are scalar value and return all as a tensor when
-               loading this dataset.
-        :param feature_types: the feature types. All will be casted into torch.float by default
-        :param label_column: the label column in df
-        :param label_type: the label type. It will be casted into torch.float by default.
-        """
-        super(_Dataset, self).__init__()
-        self._feature_columns = feature_columns
-        self._feature_shapes = feature_shapes
-        self._feature_types = feature_types
-        self._label_column = label_column
-        self._label_type = label_type
-
-    def _check(self):
-        if self._feature_shapes:
-            assert len(self._feature_columns) == len(self._feature_shapes), \
-                "The feature_shapes size must match the feature_columns"
-            for i in range(len(self._feature_shapes)):
-                if not isinstance(self._feature_shapes[i], Iterable):
-                    self._feature_shapes[i] = [self._feature_shapes[i]]
-
-        if self._feature_types:
-            assert len(self._feature_columns) == len(self._feature_types), \
-                "The feature_types size must match the feature_columns"
-            for i in range(len(self._feature_types)):
-                assert all(isinstance(dtype, torch.dtype) for dtype in self._feature_types),\
-                    "All value in feature_types should be torch.dtype instance"
-
-        if not self._feature_shapes and self._feature_types:
-            assert all(dtype == self._feature_types[0] for dtype in self._feature_types),\
-                "All dtypes should be same when feature_shapes doesn't provide"
-
-        if not self._feature_types:
-            self._feature_types = [torch.float] * len(self._feature_columns)
-
-        if not self._label_type:
-            self._label_type = torch.float
-
-    def _get_next(self, index, feature_df, label_df):
-        label = torch.as_tensor(label_df[index], dtype=self._label_type)
-        current_feature = feature_df[index]
-        if self._feature_shapes:
-            feature_tensors = []
-            for i, (shape, dtype) in enumerate(zip(self._feature_shapes, self._feature_types)):
-                t = torch.as_tensor(current_feature[i], dtype=dtype)
-                if shape != [0]:
-                    t = t.view(*shape)
-                feature_tensors.append(t)
-            return (*feature_tensors, label)
-        else:
-            feature = torch.as_tensor(current_feature, dtype=self._feature_types[0])
-            return feature, label
-
-
-class RayDataset(IterableDataset, _Dataset):
-    """
-    Store Spark DataFrame or koalas.DataFrame into ray object store and wrap into a torch
-    Dataset which could be used by torch DataLoader.
-
-    TODO: support shards.
-    """
-    def __init__(self,
-                 df: Any = None,
-                 feature_columns: List[str] = None,
-                 feature_shapes: Optional[List[Any]] = None,
-                 feature_types: Optional[List[torch.dtype]] = None,
-                 label_column: str = None,
-                 label_type: Optional[torch.dtype] = None):
-        """
-        :param df: Spark DataFrame or Koalas.DataFrame
-        """
-        super(RayDataset, self).__init__()
-        super(IterableDataset, self).__init__(feature_columns, feature_shapes,
-                                              feature_types, label_column, label_type)
-        self._objs: ObjectIdList = None
-        self._df_index = 0
-        self._index = 0
-        self._feature_df = None
-        self._label_df = None
-
-        self._check()
-
-        if df is not None:
-            self._objs = save_to_ray(df)
-
-    def _reset(self):
-        self._df_index = 0
-        self._index = 0
-        df = self._objs[self._df_index]
-        self._feature_df = df[self._feature_columns].values
-        self._label_df = df[self._label_column].values
-
-    def __iter__(self):
-        worker_info = torch.utils.data.get_worker_info()
-        if worker_info:
-            # TODO: add support
-            raise Exception("Multiple processes loading is not supported")
-        self._objs.resolve(True)
-        self._reset()
-        return self
-
-    def __next__(self):
-        # TODO: should this too slowly?
-        if self._index >= len(self._feature_df):
-            self._df_index += 1
-            if self._df_index >= len(self._objs):
-                raise StopIteration()
-            else:
-                df = self._objs[self._df_index]
-                self._feature_df = df[self._feature_columns].values
-                self._label_df = df[self._label_column].values
-                self._index = 0
-
-        index = self._index
-        self._index += 1
-        return self._get_next(index, self._feature_df, self._label_df)
-
-    def __len__(self):
-        return self._objs.total_size
-
-    @classmethod
-    def _custom_deserialize(cls,
-                            objs: ObjectIdList,
-                            feature_columns: List[str],
-                            feature_shapes: List[Any],
-                            feature_types: List[torch.dtype],
-                            label_column: str,
-                            label_type: torch.dtype):
-        dataset = cls(
-            None, feature_columns, feature_shapes, feature_types, label_column, label_type)
-        dataset._objs = objs
-        return dataset
-
-    def __reduce__(self):
-        return (RayDataset._custom_deserialize,
-                (self._objs, self._feature_columns, self._feature_shapes, self._feature_types,
-                 self._label_column, self._label_type))
-
-
-class PandasDataset(Dataset, _Dataset):
-    """
-    A pandas dataset which support feature columns with different shapes.
-    """
-    def __init__(self,
-                 df: pandas.DataFrame = None,
-                 feature_columns: List[str] = None,
-                 feature_shapes: Optional[List[Any]] = None,
-                 feature_types: Optional[List[torch.dtype]] = None,
-                 label_column: str = None,
-                 label_type: Optional[torch.dtype] = None):
-        """
-        :param df: pandas DataFrame
-        """
-        super(PandasDataset, self).__init__()
-        super(Dataset, self).__init__(feature_columns, feature_shapes,
-                                      feature_types, label_column, label_type)
-        self._feature_df = df[feature_columns].values
-        self._label_df = df[label_column].values
-
-        self._check()
-
-    def __getitem__(self, index):
-        return self._get_next(index, self._feature_df, self._label_df)
-
-    def __len__(self):
-        return len(self._label_df)
