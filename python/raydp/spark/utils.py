@@ -1,6 +1,7 @@
+import signal
+
 import atexit
 import psutil
-import signal
 
 
 def get_node_address() -> str:

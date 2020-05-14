@@ -1,25 +1,21 @@
 import copy
-import numpy as np
+from typing import Any, Dict
 
+import numpy as np
+import pandas as pd
 import pyspark
+import ray
+import ray.cloudpickle as rpickle
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf, PandasUDFType
 from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
 
-import ray
-import ray.cloudpickle as rpickle
-
-import pandas as pd
-
-from typing import Any, Dict, List, Optional
-
 from raydp.cluster import Cluster
 from raydp.ray_cluster_resources import ClusterResources
 from raydp.spark.block_holder import BlockHolder, BlockHolderActorHandlerWrapper, BlockSet
-from raydp.spark.utils import get_node_address, convert_to_spark
 from raydp.spark.spark_master_service import SparkMasterService
 from raydp.spark.spark_worker_service import SparkWorkerService
-
+from raydp.spark.utils import get_node_address, convert_to_spark
 
 _global_broadcasted = {}
 # TODO: better way to stop and clean data holder

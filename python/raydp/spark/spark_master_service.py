@@ -1,12 +1,13 @@
-from raydp.services import MasterService
-from raydp.spark.utils import register_exit_handler
-from typing import Any, Dict
-
 import logging
 import os
-import ray
 import subprocess
 import tempfile
+from typing import Any, Dict
+
+import ray
+
+from raydp.services import MasterService
+from raydp.spark.utils import register_exit_handler
 
 
 class SparkMasterService(MasterService):

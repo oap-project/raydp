@@ -1,7 +1,8 @@
-from raydp.spark.block_holder import BlockSet
-from typing import Dict, List
+from typing import List
 
 import tensorflow as tf
+
+from raydp.spark.block_holder import BlockSet
 
 
 # TODO: wrap into Dataset class

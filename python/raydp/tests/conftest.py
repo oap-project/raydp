@@ -1,7 +1,7 @@
 import logging
 
-from pyspark.sql import SparkSession
 import pytest
+from pyspark.sql import SparkSession
 
 
 def quiet_logger():

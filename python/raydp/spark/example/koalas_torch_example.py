@@ -1,16 +1,13 @@
 import argparse
-
-import databricks.koalas as ks
-
 import os
 
+import databricks.koalas as ks
 import ray
+import torch
 
 import raydp.spark.context as context
 from raydp.spark.torch.estimator import TorchEstimator
 from raydp.spark.utils import random_split
-
-import torch
 
 parser = argparse.ArgumentParser(description="A simple example for spark on ray")
 parser.add_argument("--redis-address", type=str, dest="redis_address",

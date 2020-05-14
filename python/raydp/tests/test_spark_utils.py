@@ -1,11 +1,9 @@
 import databricks.koalas as ks
-
 import pyspark
 import pytest
+import sys
 
 import raydp.spark.utils as utils
-
-import sys
 
 
 def test_df_type_check(spark_session):

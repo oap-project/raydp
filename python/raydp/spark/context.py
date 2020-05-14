@@ -1,11 +1,9 @@
-from contextlib import ContextDecorator
-
 import os
-
-from raydp.spark.spark_cluster import SparkCluster
-
+from contextlib import ContextDecorator
 from threading import RLock
 from typing import Dict
+
+from raydp.spark.spark_cluster import SparkCluster
 
 _spark_context_lock = RLock()
 _global_spark_context = None

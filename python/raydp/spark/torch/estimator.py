@@ -1,15 +1,13 @@
 import inspect
+from typing import Any, Callable, List, Optional, Union
 
-from ray.util.sgd.utils import AverageMeterCollection
+import torch
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
+from ray.util.sgd.utils import AverageMeterCollection
+from torch.nn.modules.loss import _Loss as TLoss
 
 from raydp.spark.estimator import EstimatorInterface
 from raydp.spark.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
-
-import torch
-from torch.nn.modules.loss import _Loss as TLoss
-
-from typing import Any, Callable, List, Optional, Union
 
 
 class TorchEstimator(EstimatorInterface):
