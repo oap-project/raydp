@@ -62,6 +62,7 @@ class TorchEstimator(EstimatorInterface):
                  label_type: Optional[torch.dtype] = None,
                  batch_size: int = None,
                  num_epochs: int = None,
+                 shuffle: bool = True,
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
@@ -98,6 +99,7 @@ class TorchEstimator(EstimatorInterface):
         :param label_type: the label type, this will be cast into torch.float by default
         :param batch_size: the training batch size
         :param num_epochs: the total number of epochs will be train
+        :param shuffle: whether shuffle the data
         :param extra_config: the extra config will be set to torch.sgd.TorchTrainer
         """
         self._num_workers = num_workers
@@ -113,14 +115,18 @@ class TorchEstimator(EstimatorInterface):
         self._label_type = label_type
         self._batch_size = batch_size
         self._num_epochs = num_epochs
+        self._shuffle = shuffle
         self._extra_config = extra_config
+
+        config = {"batch_size": self._batch_size, "shuffle": self._shuffle}
         if self._extra_config:
             if "config" in self._extra_config:
-                self._extra_config["config"].update({"batch_size": self._batch_size})
+                self._extra_config["config"].update(config)
             else:
-                self._extra_config["config"] = {"batch_size": self._batch_size}
+                self._extra_config["config"] = config
         else:
-            self._extra_config = {"config": {"batch_size": self._batch_size}}
+            self._extra_config = {"config": config}
+
         self._data_set = None
 
         self._trainer = None
@@ -186,7 +192,8 @@ class TorchEstimator(EstimatorInterface):
 
         def data_creator(config):
             batch_size = config["batch_size"]
-            sampler = BlockSetSampler(self._data_set)
+            shuffle = config["shuffle"]
+            sampler = BlockSetSampler(self._data_set, shuffle=shuffle)
             dataloader = torch.utils.data.DataLoader(self._data_set,
                                                      batch_size=batch_size,
                                                      sampler=sampler)
@@ -230,7 +237,7 @@ class TorchEstimator(EstimatorInterface):
         pdf = df.toPandas()
         dataset = PandasDataset(pdf, self._feature_columns, self._feature_shapes,
                                 self._feature_types, self._label_column, self._label_type)
-        dataloader = torch.utils.data.DataLoader(dataset, self._batch_size, shuffle=True)
+        dataloader = torch.utils.data.DataLoader(dataset, self._batch_size, shuffle=self._shuffle)
 
         if inspect.isclass(self._loss) and issubclass(self._loss, TLoss):
             # it is the loss class

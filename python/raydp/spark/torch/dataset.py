@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 
 import math
+import numpy as np
 import pandas
 
 from raydp.spark.block_holder import BlockSet
@@ -10,6 +11,10 @@ import torch
 from torch.utils.data import Dataset, DistributedSampler
 
 from typing import Any, List, Optional
+
+# we use 4 bytes for block size, this means each block can contain
+# 4294967296 records
+BLOCK_SIZE_BIT = 32
 
 
 class _Dataset(Dataset):
@@ -113,8 +118,9 @@ class RayDataset(_Dataset):
             # TODO: add support
             raise Exception("Multiple processes loading is not supported")
 
-        block_index = index >> 32
-        block_inner_index = (block_index << 32) ^ index
+        global BLOCK_SIZE_BIT
+        block_index = index >> BLOCK_SIZE_BIT
+        block_inner_index = (block_index << BLOCK_SIZE_BIT) ^ index
         if block_index != self._previous_block_index:
             self._previous_block_index = block_index
             df = self._block_set[block_index]
@@ -150,11 +156,17 @@ class RayDataset(_Dataset):
 
 
 class BlockSetSampler(DistributedSampler):
+    """
+    A distributed sampler for BlockSet.
+
+    We will shuffle the blocks order and then shuffle the block inner if shuffle is set to True.
+    """
     def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True):
         assert isinstance(dataset, RayDataset)
         super(BlockSetSampler, self).__init__(dataset, num_replicas, rank, shuffle)
 
         self._block_indices = None
+        self._selected_indices = None
         self._split_blocks()
 
     def _split_blocks(self):
@@ -198,22 +210,32 @@ class BlockSetSampler(DistributedSampler):
             step += self.num_replicas
 
         assert total_size == self.num_samples
-        self.dataset._resolve_with_indices(list(zip(*selected_indices))[0])
-        self._block_indices = selected_indices
 
-    def __iter__(self):
-        # deterministically shuffle based on epoch
-        g = torch.Generator()
-        g.manual_seed(self.epoch)
-        if self.shuffle:
-            block_indices = torch.randperm(len(self._block_indices), generator=g).tolist()
-        else:
-            block_indices = list(range(len(self._block_indices)))
+        block_indices, selected_size = list(zip(*selected_indices))
+        self._block_indices = block_indices
 
         indices = []
-        for index, size in block_indices:
-            inner_indices = torch.randperm(size, generator=g).tolist()
-            indices += [((index << 32) | i) for i in inner_indices]
+        global BLOCK_SIZE_BIT
+        for index, size in selected_indices:
+            # we use 4 Bytes for the block inner index
+            indices.append([((index << BLOCK_SIZE_BIT) | i) for i in range(size)])
+        self._selected_indices = indices
+
+    def __iter__(self):
+        self.dataset._resolve_with_indices(self._block_indices)
+        # deterministically shuffle based on epoch
+        np.random.seed(self.epoch)
+        block_indices = list(range(len(self._block_indices)))
+        if self.shuffle:
+            np.random.shuffle(block_indices)
+
+        indices = []
+        for index in block_indices:
+            tmp = self._selected_indices[index]
+            tmp = np.copy(tmp)
+            if self.shuffle:
+                np.random.shuffle(tmp)
+            indices += tmp.tolist()
 
         return iter(indices)
 

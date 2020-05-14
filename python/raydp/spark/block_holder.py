@@ -279,13 +279,15 @@ class BlockSet:
         assert not self._resolved
         [self.append(label, index) for label, index in fetch_indexes]
 
-    def resolve(self, indices: List[int], batch: bool) -> NoReturn:
+    def resolve(self, indices: List[int], batch: bool = True) -> NoReturn:
         """
         Resolve the given indices blocks in this block set.
         :param indices: the block indices
         :param batch: whether resolve in batch mode
         """
         if self._resolved:
+            # TODO: should we support resolve with different indices?
+            assert self._resolved_indices == indices
             return
 
         resolved = []
