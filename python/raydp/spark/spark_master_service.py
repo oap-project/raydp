@@ -7,7 +7,7 @@ from typing import Any, Dict
 import ray
 
 from raydp.services import MasterService
-from raydp.spark.utils import register_exit_handler
+from raydp.spark.utils import register_signal_handler
 
 
 class SparkMasterService(MasterService):
@@ -72,7 +72,7 @@ class SparkMasterService(MasterService):
         else:
             self._start_up = True
             # register stop when the worker exist
-            register_exit_handler(self.stop)
+            register_signal_handler(self.stop)
             return None
 
     def get_master_url(self) -> str:

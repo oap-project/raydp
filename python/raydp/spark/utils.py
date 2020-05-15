@@ -1,6 +1,6 @@
 import signal
+import threading
 
-import atexit
 import psutil
 
 
@@ -31,10 +31,31 @@ def get_node_address() -> str:
     raise Exception("can't find any ray process")
 
 
-def register_exit_handler(func):
-    atexit.register(func)
-    signal.signal(signal.SIGTERM, func)
-    signal.signal(signal.SIGINT, func)
+def register_signal_handler(func):
+    # can't set signal in child threads
+    if not isinstance(threading.current_thread(), threading._MainThread):
+        return
+
+    previous_term_handler = signal.getsignal(signal.SIGTERM)
+    if not callable(previous_term_handler):
+        previous_term_handler = None
+
+    def term_handler(signum, frame):
+        func()
+        if previous_term_handler is not None:
+            previous_term_handler(signum, frame)
+
+    signal.signal(signal.SIGTERM, term_handler)
+
+    previous_int_handler = signal.getsignal(signal.SIGINT)
+    if not callable(previous_int_handler):
+        previous_int_handler = None
+
+    def int_handler(signum, frame):
+        func()
+        if previous_int_handler is not None:
+            previous_int_handler(signum, frame)
+    signal.signal(signal.SIGINT, int_handler)
 
 
 def random_split(df, weights, seed=None):
