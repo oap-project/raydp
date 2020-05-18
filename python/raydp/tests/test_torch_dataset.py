@@ -37,7 +37,7 @@ def test_balanced_blockset_sampler():
     assert len(dataset) == 20
     assert dataset.block_sizes() == [5, 5, 5, 5]
 
-    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=False)
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=False, init_lazy=False)
     assert sampler.block_indices == [0, 2]
     assert len(sampler) == 10
     block_index = 0
@@ -46,7 +46,7 @@ def test_balanced_blockset_sampler():
     results += [((block_index << BLOCK_SIZE_BIT) | i) for i in range(5)]
     assert results == list(iter(sampler))
 
-    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=True)
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=True, init_lazy=False)
     assert len(sampler.block_indices) == 2
     assert len(sampler) == 10
     assert results != list(iter(sampler))
@@ -73,7 +73,7 @@ def test_unbalanced_blockset_sampler():
     assert len(dataset) == 15
     assert dataset.block_sizes() == [4, 8, 3]
 
-    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=False)
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=False, init_lazy=False)
     assert sampler.block_indices == [0, 2, 1]
     assert len(sampler) == 8
     block_index = 0
@@ -85,7 +85,7 @@ def test_unbalanced_blockset_sampler():
 
     assert results == list(iter(sampler))
 
-    sampler = BlockSetSampler(dataset, num_replicas=2, rank=1, shuffle=False)
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=1, shuffle=False, init_lazy=False)
     assert sampler.block_indices == [1]
     assert len(sampler) == 8
     block_index = 1
@@ -93,10 +93,10 @@ def test_unbalanced_blockset_sampler():
 
     assert results == list(iter(sampler))
 
-    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=True)
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=True, init_lazy=False)
     assert len(sampler) == 8
 
-    sampler = BlockSetSampler(dataset, num_replicas=2, rank=1, shuffle=True)
+    sampler = BlockSetSampler(dataset, num_replicas=2, rank=1, shuffle=True, init_lazy=False)
     assert len(sampler) == 8
 
 

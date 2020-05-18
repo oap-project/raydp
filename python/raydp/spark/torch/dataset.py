@@ -98,7 +98,7 @@ class RayDataset(_Dataset):
         super(RayDataset, self).__init__(feature_columns, feature_shapes,
                                          feature_types, label_column, label_type)
         self._block_set: BlockSet = None
-        self._previous_block_index = 0
+        self._previous_block_index = -1
         self._feature_df = None
         self._label_df = None
 
@@ -159,13 +159,26 @@ class BlockSetSampler(DistributedSampler):
 
     We will shuffle the blocks order and then shuffle the block inner if shuffle is set to True.
     """
-    def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True):
+    def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, init_lazy=True):
         assert isinstance(dataset, RayDataset)
-        super(BlockSetSampler, self).__init__(dataset, num_replicas, rank, shuffle)
+        self._args = (dataset, num_replicas, rank, shuffle)
+        self._inited = False
 
         self._block_indices = None
         self._selected_indices = None
-        self._split_blocks()
+
+        if not init_lazy:
+            self._init_lazy()
+
+    def _init_lazy(self):
+        """
+        This is a workaround because of ray sgd call initialize the data creator before of
+        setup distributed components.
+        """
+        if not self._inited:
+            super(BlockSetSampler, self).__init__(*self._args)
+            self._split_blocks()
+            self._inited = True
 
     def _split_blocks(self):
         num_blocks = int(math.ceil(len(self.dataset.block_sizes()) * 1.0 / self.num_replicas))
@@ -209,21 +222,22 @@ class BlockSetSampler(DistributedSampler):
 
         assert total_size == self.num_samples
 
-        block_indices, selected_size = list(zip(*selected_indices))
-        self._block_indices = list(block_indices)
-
-        indices = []
+        block_indices = []
+        packed_selected_indices = []
         global BLOCK_SIZE_BIT
         for index, size in selected_indices:
+            block_indices.append(index)
             # we use 4 Bytes for the block inner index
-            indices.append([((index << BLOCK_SIZE_BIT) | i) for i in range(size)])
-        self._selected_indices = indices
+            packed_selected_indices.append([((index << BLOCK_SIZE_BIT) | i) for i in range(size)])
+        self._block_indices = block_indices
+        self._selected_indices = packed_selected_indices
 
     @property
     def block_indices(self):
         return self._block_indices
 
     def __iter__(self):
+        self._init_lazy()
         self.dataset._resolve_with_indices(self._block_indices)
         # deterministically shuffle based on epoch
         np.random.seed(self.epoch)
@@ -259,9 +273,8 @@ class PandasDataset(_Dataset):
         """
         :param df: pandas DataFrame
         """
-        super(PandasDataset, self).__init__()
-        super(Dataset, self).__init__(feature_columns, feature_shapes,
-                                      feature_types, label_column, label_type)
+        super(PandasDataset, self).__init__(feature_columns, feature_shapes,
+                                            feature_types, label_column, label_type)
         self._feature_df = df[feature_columns].values
         self._label_df = df[label_column].values
 
