@@ -81,7 +81,7 @@ class BlockHolder:
 
     def remove_object_ids(self, fetch_indexes: List[int], destroy: bool = False) -> NoReturn:
         for fetch_index in fetch_indexes:
-            self.remote_object_id(fetch_index, destroy)
+            self.remove_object_ids(fetch_index, destroy)
 
     def destroy_object_id(self, fetch_index) -> NoReturn:
         """
