@@ -98,7 +98,7 @@ class RayDataset(_Dataset):
         super(RayDataset, self).__init__(feature_columns, feature_shapes,
                                          feature_types, label_column, label_type)
         self._block_set: BlockSet = None
-        self._previous_block_index = 0
+        self._previous_block_index = -1
         self._feature_df = None
         self._label_df = None
 
@@ -161,10 +161,7 @@ class BlockSetSampler(DistributedSampler):
     """
     def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, init_lazy=True):
         assert isinstance(dataset, RayDataset)
-        self._dataset = dataset
-        self._num_replicas = num_replicas
-        self._rank = rank
-        self._shuffle = shuffle
+        self._args = (dataset, num_replicas, rank, shuffle)
         self._inited = False
 
         self._block_indices = None
@@ -179,8 +176,7 @@ class BlockSetSampler(DistributedSampler):
         setup distributed components.
         """
         if not self._inited:
-            super(BlockSetSampler, self).__init__(
-                self._dataset, self._num_replicas, self._rank, self._shuffle)
+            super(BlockSetSampler, self).__init__(*self._args)
             self._split_blocks()
             self._inited = True
 
@@ -206,7 +202,7 @@ class BlockSetSampler(DistributedSampler):
             if tmp < self.num_samples:
                 selected.append((i, block_size))
                 current_size = tmp
-            elif tmp >= self.num_samples:
+            elif tmp > self.num_samples:
                 selected.append((i, (self.num_samples - current_size)))
                 current_size = self.num_samples
             return current_size
@@ -226,15 +222,15 @@ class BlockSetSampler(DistributedSampler):
 
         assert total_size == self.num_samples
 
-        block_indices, selected_size = list(zip(*selected_indices))
-        self._block_indices = list(block_indices)
-
-        indices = []
+        block_indices = []
+        packed_selected_indices = []
         global BLOCK_SIZE_BIT
         for index, size in selected_indices:
+            block_indices.append(index)
             # we use 4 Bytes for the block inner index
-            indices.append([((index << BLOCK_SIZE_BIT) | i) for i in range(size)])
-        self._selected_indices = indices
+            packed_selected_indices.append([((index << BLOCK_SIZE_BIT) | i) for i in range(size)])
+        self._block_indices = block_indices
+        self._selected_indices = packed_selected_indices
 
     @property
     def block_indices(self):

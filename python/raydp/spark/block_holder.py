@@ -253,8 +253,7 @@ class BlockSet:
         self._batch_mode = False
 
         self._resolved = False
-        self._resolved_indices = None
-        self._resolved_blocks = None
+        self._resolved_indices: List[int] = None
 
         self.append_batch(fetch_indexes)
 
@@ -265,6 +264,11 @@ class BlockSet:
     @property
     def block_sizes(self) -> List[int]:
         return self._block_sizes
+
+    @property
+    def resolved_indices(self):
+        assert self._resolved
+        return self.resolved_indices
 
     def append(self, node_label: str, fetch_index) -> NoReturn:
         assert not self._resolved
@@ -287,7 +291,6 @@ class BlockSet:
             assert self._resolved_indices == indices
             return
 
-        resolved = []
         if indices is None:
             indices = range(len(self._blocks))
 
@@ -296,9 +299,8 @@ class BlockSet:
                 label = self._fetch_indexes[i][0]
                 holder = self._block_holder_mapping.get(label, None)
                 assert holder, f"Can't find the DataHolder for the label: {label}"
-                block = self._data[i]
+                block = self._blocks[i]
                 block._set_block_holder(holder)
-                resolved.append(block)
         else:
             self._batch_mode = True
 
@@ -330,11 +332,8 @@ class BlockSet:
                 indexes = label_to_indexes[label]
                 [self._blocks[i]._set_data(data) for i, data in zip(indexes, data)]
 
-            resolved = [self._blocks[i] for i in indices]
-
         self._resolved = True
         self._resolved_indices = indices
-        self._resolved_blocks = resolved
 
     def clean(self, destroy: bool = False) -> NoReturn:
         if not self._resolved:
@@ -350,28 +349,22 @@ class BlockSet:
                 if holder:
                     ray.get(holder.remove_object_ids.remote(grouped[label], destroy))
         else:
-            [item.free(destroy) for item in self._resolved_blocks]
+            [self._blocks[item].free(destroy) for item in self.resolved_indices]
 
         self._fetch_indexes: List[Tuple[str, int]] = []
         self._blocks: List[Block] = []
         self._batch_mode = False
         self._resolved = False
         self._resolved_indices = None
-        self._resolved_blocks = None
         self._block_holder_mapping = None
 
     def __getitem__(self, item) -> Block:
         assert self._resolved
-        return self._resolved_blocks[item]
+        return self._blocks[item]
 
     def __len__(self):
         """This return the block sizes in this block set"""
         return len(self._blocks)
-
-    def __iter__(self):
-        """Iterate on the blocks"""
-        assert self._resolved
-        return self._resolved_blocks.__iter__()
 
     def __reduce__(self):
         return (self.__class__,
