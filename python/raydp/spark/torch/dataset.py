@@ -159,13 +159,30 @@ class BlockSetSampler(DistributedSampler):
 
     We will shuffle the blocks order and then shuffle the block inner if shuffle is set to True.
     """
-    def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True):
+    def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, init_lazy=True):
         assert isinstance(dataset, RayDataset)
-        super(BlockSetSampler, self).__init__(dataset, num_replicas, rank, shuffle)
+        self._dataset = dataset
+        self._num_replicas = num_replicas
+        self._rank = rank
+        self._shuffle = shuffle
+        self._inited = False
 
         self._block_indices = None
         self._selected_indices = None
-        self._split_blocks()
+
+        if not init_lazy:
+            self._init_lazy()
+
+    def _init_lazy(self):
+        """
+        This is a workaround because of ray sgd call initialize the data creator before of
+        setup distributed components.
+        """
+        if not self._inited:
+            super(BlockSetSampler, self).__init__(
+                self._dataset, self._num_replicas, self._rank, self._shuffle)
+            self._split_blocks()
+            self._inited = True
 
     def _split_blocks(self):
         num_blocks = int(math.ceil(len(self.dataset.block_sizes()) * 1.0 / self.num_replicas))
@@ -224,6 +241,7 @@ class BlockSetSampler(DistributedSampler):
         return self._block_indices
 
     def __iter__(self):
+        self._init_lazy()
         self.dataset._resolve_with_indices(self._block_indices)
         # deterministically shuffle based on epoch
         np.random.seed(self.epoch)
