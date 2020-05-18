@@ -202,7 +202,7 @@ class BlockSetSampler(DistributedSampler):
             if tmp < self.num_samples:
                 selected.append((i, block_size))
                 current_size = tmp
-            elif tmp > self.num_samples:
+            elif tmp >= self.num_samples:
                 selected.append((i, (self.num_samples - current_size)))
                 current_size = self.num_samples
             return current_size
@@ -273,9 +273,8 @@ class PandasDataset(_Dataset):
         """
         :param df: pandas DataFrame
         """
-        super(PandasDataset, self).__init__()
-        super(Dataset, self).__init__(feature_columns, feature_shapes,
-                                      feature_types, label_column, label_type)
+        super(PandasDataset, self).__init__(feature_columns, feature_shapes,
+                                            feature_types, label_column, label_type)
         self._feature_df = df[feature_columns].values
         self._label_df = df[label_column].values
 
