@@ -140,11 +140,11 @@ class BlockHolderActorHandlerWrapper:
 
 
 class Block:
-    def __init__(self, fetch_index: int):
+    def __init__(self, node_label: str, fetch_index: int):
+        self._node_label = node_label
         self._fetch_index = fetch_index
 
         self._block_holder = None
-        self._node_label = None
 
         self._data = None
         self._object_id = None
@@ -164,7 +164,6 @@ class Block:
         self._data = data
 
     def _set_block_holder(self,
-                          node_label: str,
                           block_holder: BlockHolderActorHandlerWrapper) -> NoReturn:
         """
         Set node_label and the BlockHolder
@@ -174,10 +173,8 @@ class Block:
         This is a lazy loading method. The actual data will only be loaded when get or
         object_id method called.
 
-        :param node_label the fetch_index located in node_label
         :param block_holder the actor handler of the BlockHolder which used to get/free data.
         """
-        self._node_label = node_label
         self._block_holder = block_holder
 
     def _fetch(self) -> NoReturn:
@@ -210,8 +207,9 @@ class Block:
                 ray.get(self._block_holder.remove_object_id.remote(self._fetch_index, destroy))
                 del self._block_holder
                 self._block_holder = None
-                self._node_label = None
 
+            self._node_label = None
+            self._fetch_index = None
             self._data = None
             self._is_valid = False
 
@@ -225,7 +223,7 @@ class Block:
 
     def __reduce__(self):
         assert self._is_valid
-        return self.__class__, (self._fetch_index,)
+        return self.__class__, (self._node_label, self._fetch_index)
 
     def __del__(self):
         if ray.is_initialized():
@@ -270,7 +268,7 @@ class BlockSet:
 
     def append(self, node_label: str, fetch_index) -> NoReturn:
         assert not self._resolved
-        block = Block(fetch_index)
+        block = Block(node_label, fetch_index)
         self._fetch_indexes.append((node_label, fetch_index))
         self._blocks.append(block)
 
@@ -291,7 +289,7 @@ class BlockSet:
 
         resolved = []
         if indices is None:
-            indices = range(len(self._data))
+            indices = range(len(self._blocks))
 
         if not batch:
             for i in indices:
@@ -299,7 +297,7 @@ class BlockSet:
                 holder = self._block_holder_mapping.get(label, None)
                 assert holder, f"Can't find the DataHolder for the label: {label}"
                 block = self._data[i]
-                block._set_block_holder(label, holder)
+                block._set_block_holder(holder)
                 resolved.append(block)
         else:
             self._batch_mode = True
@@ -330,9 +328,9 @@ class BlockSet:
             for label in succeed:
                 data = succeed[label]
                 indexes = label_to_indexes[label]
-                [self._data[i]._set_data(data) for i, data in zip(indexes, data)]
+                [self._blocks[i]._set_data(data) for i, data in zip(indexes, data)]
 
-            resolved = [self._data[i] for i in indices]
+            resolved = [self._blocks[i] for i in indices]
 
         self._resolved = True
         self._resolved_indices = indices
