@@ -1,7 +1,9 @@
 import databricks.koalas as ks
 import pyspark
 import pytest
+import ray
 import sys
+import time
 
 import raydp.spark.utils as utils
 
@@ -50,6 +52,47 @@ def test_random_split(spark_session):
     assert isinstance(splits[0], ks.DataFrame)
     assert isinstance(splits[1], ks.DataFrame)
     assert len(splits) == 2
+
+
+def test_signal_handler(ray_init):
+    @ray.remote
+    class Controller:
+        def __init__(self):
+            self.received = None
+
+        def call(self, value):
+            self.received = value
+
+        def get_value(self):
+            return self.received
+
+    @ray.remote
+    class Executor:
+        def __init__(self):
+            self.controller = None
+
+        def register_controller(self, controller):
+            print("register")
+            self.controller = controller
+
+        def start(self):
+            print("start")
+            utils.register_signal_handler(self.stop)
+
+        def stop(self):
+            print("stop")
+            self.controller.call(1)
+            self.controller = None
+
+    controller = Controller.remote()
+    executor = Executor.remote()
+    ray.get(executor.register_controller.remote(controller))
+    ray.get(executor.start.remote())
+    ray.kill(executor)
+    time.sleep(2)
+    value = ray.get(controller.get_value.remote())
+    assert value == 1
+    del value
 
 
 if __name__ == "__main__":

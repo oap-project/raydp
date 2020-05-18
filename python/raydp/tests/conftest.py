@@ -3,6 +3,8 @@ import logging
 import pytest
 from pyspark.sql import SparkSession
 
+import ray
+
 
 def quiet_logger():
     py4j_logger = logging.getLogger("py4j")
@@ -18,3 +20,9 @@ def spark_session(request):
     request.addfinalizer(lambda: spark.stop())
     quiet_logger()
     return spark
+
+
+@pytest.fixture(scope="function")
+def ray_init(request):
+    ray.init(num_cpus=2)
+    request.addfinalizer(lambda: ray.shutdown())

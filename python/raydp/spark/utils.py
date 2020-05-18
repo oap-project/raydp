@@ -1,6 +1,7 @@
 import signal
 import threading
 
+import atexit
 import psutil
 
 
@@ -32,6 +33,7 @@ def get_node_address() -> str:
 
 
 def register_signal_handler(func):
+    atexit.register(func)
     # can't set signal in child threads
     if not isinstance(threading.current_thread(), threading._MainThread):
         return
