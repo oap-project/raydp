@@ -42,8 +42,15 @@ class _Dataset(Dataset):
         self._feature_tensor = None
         self._label_tensor = None
 
-    def _check(self):
+    def _check_and_convert(self):
+        # convert to list for convenience
+        if not isinstance(self._feature_columns, List):
+            self._feature_columns = [self._feature_columns]
+
         if self._feature_shapes:
+            if not isinstance(self._feature_shapes, list):
+                self._feature_shapes = [self._feature_shapes]
+
             assert len(self._feature_columns) == len(self._feature_shapes), \
                 "The feature_shapes size must match the feature_columns"
             for i in range(len(self._feature_shapes)):
@@ -51,6 +58,9 @@ class _Dataset(Dataset):
                     self._feature_shapes[i] = [self._feature_shapes[i]]
 
         if self._feature_types:
+            if not isinstance(self._feature_types, list):
+                self._feature_types = [self._feature_types]
+
             assert len(self._feature_columns) == len(self._feature_types), \
                 "The feature_types size must match the feature_columns"
             for i in range(len(self._feature_types)):
@@ -67,19 +77,36 @@ class _Dataset(Dataset):
         if not self._label_type:
             self._label_type = torch.float
 
-    def _convert_to_tensor(self, feature_df, label_df):
-        self._label_tensor = torch.as_tensor(label_df, dtype=self._label_type)
+    def _convert_to_tensor(self, df):
         if self._feature_shapes:
             tensors = []
-            for i, (shape, dtype) in enumerate(zip(self._feature_shapes, self._feature_types)):
-                t = torch.as_tensor(feature_df[:, i], dtype=dtype)
+            for col, shape, dtype in zip(self._feature_columns, self._feature_shapes,
+                                         self._feature_types):
+                column = df[col].values
+                if column.dtype == np.object:
+                    if isinstance(column[0], np.ndarray):
+                        column = np.stack(column)
+                    elif isinstance(column[0], (list, tuple)):
+                        column = list(column)
+                    else:
+                        raise Exception(
+                            f"Column {col}'s type: {type(column[0])} is not supported. It must "
+                            "be numpy built in type or numpy object of (ndarray, list, tuple)")
+
+                t = torch.as_tensor(column, dtype=dtype)
                 if shape != [0]:
-                    t = t.view(*shape)
+                    t = t.view(*(-1, *shape))
                 tensors.append(t)
             self._feature_tensor = tensors
         else:
+            feature_columns = (self._feature_columns if
+                               len(self._feature_columns) > 1 else self._feature_columns[0])
+            feature_df = df[feature_columns].values
             t = torch.as_tensor(feature_df, dtype=self._feature_types[0])
             self._feature_tensor = [t]
+
+        label_df = df[self._label_column].values
+        self._label_tensor = torch.as_tensor(label_df, dtype=self._label_type)
 
     def _get_next(self, index):
         label = self._label_tensor[index]
@@ -107,7 +134,7 @@ class RayDataset(_Dataset):
         self._block_set: BlockSet = None
         self._previous_block_index = -1
 
-        self._check()
+        self._check_and_convert()
 
         if df is not None:
             self._block_set = save_to_ray(df)
@@ -127,8 +154,7 @@ class RayDataset(_Dataset):
         if block_index != self._previous_block_index:
             self._previous_block_index = block_index
             df = self._block_set[block_index]
-            self._convert_to_tensor(df[self._feature_columns].values,
-                                    df[self._label_column].values)
+            self._convert_to_tensor(df)
         return self._get_next(block_inner_index)
 
     def __len__(self):
@@ -280,10 +306,10 @@ class PandasDataset(_Dataset):
         """
         super(PandasDataset, self).__init__(feature_columns, feature_shapes,
                                             feature_types, label_column, label_type)
-        self._size = len(df)
-        self._convert_to_tensor(df[feature_columns].values, df[label_column].values)
+        self._check_and_convert()
 
-        self._check()
+        self._size = len(df)
+        self._convert_to_tensor(df)
 
     def __getitem__(self, index):
         return self._get_next(index)
