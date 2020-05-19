@@ -1,7 +1,10 @@
+import numpy as np
+import pandas as pd
 import pytest
 import sys
+import torch
 
-from raydp.spark.torch.dataset import BLOCK_SIZE_BIT, BlockSetSampler, RayDataset
+from raydp.spark.torch.dataset import BLOCK_SIZE_BIT, BlockSetSampler, RayDataset, PandasDataset
 
 
 class DummyRayDataset(RayDataset):
@@ -100,6 +103,78 @@ def test_unbalanced_blockset_sampler():
     assert len(sampler) == 8
 
 
+def test_normal_pandas_dataset():
+    normal_df = pd.DataFrame({"feature": np.arange(2, 7),
+                              "label": range(5)})
+
+    dataset = PandasDataset(normal_df,
+                            feature_columns=["feature"],
+                            label_column="label")
+    assert len(dataset) == 5
+    feature, label = dataset[0]
+    assert feature.item() == 2
+    assert label.item() == 0
+    feature, label = dataset[4]
+    assert feature.item() == 6
+    assert label.item() == 4
+
+    # with given type
+    dataset = PandasDataset(normal_df,
+                            feature_columns=["feature"],
+                            feature_types=[torch.float],
+                            label_column="label",
+                            label_type=torch.int16)
+
+    feature, label = dataset[0]
+    assert feature.dtype == torch.float
+    assert feature.item() == 2.0
+    assert label.dtype == torch.int16
+    assert label.item() == 0
+
+    feature, label = dataset[4]
+    assert feature.dtype == torch.float
+    assert feature.item() == 6
+    assert label.dtype == torch.int16
+    assert label.item() == 4
+
+
+def test_complicated_pandas_dataset():
+    df = pd.DataFrame({"feature1": [[1, 2, 3, 4],
+                                    [2, 3, 4, 5],
+                                    [3, 4, 5, 6]],
+                       "feature2": [6, 7, 8],
+                       "label": range(3)})
+
+    dataset = PandasDataset(df,
+                            feature_columns=["feature1", "feature2"],
+                            feature_shapes=[[2, 2], 0],
+                            label_column="label")
+    assert len(dataset) == 3
+    feature1, feature2, label = dataset[0]
+    assert feature1.shape == torch.Size((2, 2))
+    assert feature1.numpy().tolist() == [[1, 2], [3, 4]]
+    assert feature2.shape == torch.Size([])
+    assert feature2.item() == 6
+    assert label.item() == 0
+
+    df = pd.DataFrame({"feature1": [(1, 2, 3, 4),
+                                    (2, 3, 4, 5),
+                                    (3, 4, 5, 6)],
+                       "feature2": [6, 7, 8],
+                       "label": range(3)})
+
+    dataset = PandasDataset(df,
+                            feature_columns=["feature1", "feature2"],
+                            feature_shapes=[[2, 2], 0],
+                            label_column="label")
+    assert len(dataset) == 3
+    feature1, feature2, label = dataset[0]
+    assert feature1.shape == torch.Size((2, 2))
+    assert feature1.numpy().tolist() == [[1, 2], [3, 4]]
+    assert feature2.shape == torch.Size([])
+    assert feature2.item() == 6
+    assert label.item() == 0
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))
-

@@ -39,8 +39,18 @@ class _Dataset(Dataset):
         self._label_column = label_column
         self._label_type = label_type
 
-    def _check(self):
+        self._feature_tensor = None
+        self._label_tensor = None
+
+    def _check_and_convert(self):
+        # convert to list for convenience
+        if not isinstance(self._feature_columns, List):
+            self._feature_columns = [self._feature_columns]
+
         if self._feature_shapes:
+            if not isinstance(self._feature_shapes, list):
+                self._feature_shapes = [self._feature_shapes]
+
             assert len(self._feature_columns) == len(self._feature_shapes), \
                 "The feature_shapes size must match the feature_columns"
             for i in range(len(self._feature_shapes)):
@@ -48,6 +58,9 @@ class _Dataset(Dataset):
                     self._feature_shapes[i] = [self._feature_shapes[i]]
 
         if self._feature_types:
+            if not isinstance(self._feature_types, list):
+                self._feature_types = [self._feature_types]
+
             assert len(self._feature_columns) == len(self._feature_types), \
                 "The feature_types size must match the feature_columns"
             for i in range(len(self._feature_types)):
@@ -64,20 +77,41 @@ class _Dataset(Dataset):
         if not self._label_type:
             self._label_type = torch.float
 
-    def _get_next(self, index, feature_df, label_df):
-        label = torch.as_tensor(label_df[index], dtype=self._label_type)
-        current_feature = feature_df[index]
+    def _convert_to_tensor(self, df):
         if self._feature_shapes:
-            feature_tensors = []
-            for i, (shape, dtype) in enumerate(zip(self._feature_shapes, self._feature_types)):
-                t = torch.as_tensor(current_feature[i], dtype=dtype)
+            tensors = []
+            for col, shape, dtype in zip(self._feature_columns, self._feature_shapes,
+                                         self._feature_types):
+                column = df[col].values
+                if column.dtype == np.object:
+                    if isinstance(column[0], np.ndarray):
+                        column = np.stack(column)
+                    elif isinstance(column[0], (list, tuple)):
+                        column = list(column)
+                    else:
+                        raise Exception(
+                            f"Column {col}'s type: {type(column[0])} is not supported. It must "
+                            "be numpy built in type or numpy object of (ndarray, list, tuple)")
+
+                t = torch.as_tensor(column, dtype=dtype)
                 if shape != [0]:
-                    t = t.view(*shape)
-                feature_tensors.append(t)
-            return (*feature_tensors, label)
+                    t = t.view(*(-1, *shape))
+                tensors.append(t)
+            self._feature_tensor = tensors
         else:
-            feature = torch.as_tensor(current_feature, dtype=self._feature_types[0])
-            return feature, label
+            feature_columns = (self._feature_columns if
+                               len(self._feature_columns) > 1 else self._feature_columns[0])
+            feature_df = df[feature_columns].values
+            t = torch.as_tensor(feature_df, dtype=self._feature_types[0])
+            self._feature_tensor = [t]
+
+        label_df = df[self._label_column].values
+        self._label_tensor = torch.as_tensor(label_df, dtype=self._label_type)
+
+    def _get_next(self, index):
+        label = self._label_tensor[index]
+        features = [tensor[index] for tensor in self._feature_tensor]
+        return (*features, label)
 
 
 class RayDataset(_Dataset):
@@ -99,10 +133,8 @@ class RayDataset(_Dataset):
                                          feature_types, label_column, label_type)
         self._block_set: BlockSet = None
         self._previous_block_index = -1
-        self._feature_df = None
-        self._label_df = None
 
-        self._check()
+        self._check_and_convert()
 
         if df is not None:
             self._block_set = save_to_ray(df)
@@ -122,9 +154,8 @@ class RayDataset(_Dataset):
         if block_index != self._previous_block_index:
             self._previous_block_index = block_index
             df = self._block_set[block_index]
-            self._feature_df = df[self._feature_columns].values
-            self._label_df = df[self._label_column].values
-        return self._get_next(block_inner_index, self._feature_df, self._label_df)
+            self._convert_to_tensor(df)
+        return self._get_next(block_inner_index)
 
     def __len__(self):
         """Get the total size"""
@@ -275,13 +306,13 @@ class PandasDataset(_Dataset):
         """
         super(PandasDataset, self).__init__(feature_columns, feature_shapes,
                                             feature_types, label_column, label_type)
-        self._feature_df = df[feature_columns].values
-        self._label_df = df[label_column].values
+        self._check_and_convert()
 
-        self._check()
+        self._size = len(df)
+        self._convert_to_tensor(df)
 
     def __getitem__(self, index):
-        return self._get_next(index, self._feature_df, self._label_df)
+        return self._get_next(index)
 
     def __len__(self):
-        return len(self._label_df)
+        return self._size
