@@ -52,7 +52,7 @@ jobs:
             ${{ runner.os }}-spark-
 
       - name: Download Spark
-        if: steps.cache-spark.outputs.cache-hit != 'true'
+        if: steps.cache-spark.outputs.cache-hit == 'true'
         run: |
           ./dev/install_spark.sh true
 
@@ -61,7 +61,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install wheel
           ./dev/install_dependencies.sh
-          ./dev/install_spark.sh
+          ./dev/install_spark.sh false
 
       - name: Build
         run: |
