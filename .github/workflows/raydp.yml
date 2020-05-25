@@ -61,7 +61,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install wheel
           ./dev/install_dependencies.sh
-          ./dev/install_spark.sh
+          ./dev/install_spark.sh false
 
       - name: Build
         run: |
