@@ -52,7 +52,7 @@ jobs:
             ${{ runner.os }}-spark-
 
       - name: Download Spark
-        if: steps.cache-spark.outputs.cache-hit != 'true'
+        if: steps.cache-spark.outputs.cache-hit == 'true'
         run: |
           ./dev/install_spark.sh true
 
