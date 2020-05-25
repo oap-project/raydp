@@ -115,7 +115,7 @@ class SparkCluster(Cluster):
             self._node_selected.add(choosed)
             if choosed not in _global_block_holder:
                 # set up block holder if has not set up
-                block_holder = BlockHolder.remote(resources={choosed: 0.01})
+                block_holder = BlockHolder.options(resources={choosed: 0.01}).remote()
                 _global_block_holder[choosed] = BlockHolderActorHandlerWrapper(block_holder)
 
             self._workers.append(worker)
