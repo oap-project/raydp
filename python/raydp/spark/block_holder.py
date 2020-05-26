@@ -1,9 +1,19 @@
 from collections import defaultdict
 from typing import Dict, List, NoReturn, Optional, Tuple
 
+import time
 import pandas as pd
 import ray
 import ray.cloudpickle as rpickle
+
+
+@ray.remote(num_cpus=0)
+def save(value: List[ray.ObjectID]) -> List[ray.ObjectID]:
+    value = value[0]
+    tmp = ray.get(value)
+    result = ray.put(tmp)
+    ray.internal.free(value)
+    return [result]
 
 
 @ray.remote(num_cpus=0)
@@ -11,12 +21,26 @@ class BlockHolder:
     """
     A block holder alive on each node.
     """
-    def __init__(self):
+    def __init__(self, node_label: str, concurrent_save=10, save_interval=5):
         # hold the ObjectID to increase the ray inner reference counter
         self._data: Dict[int, ray.ObjectID] = {}
-        self._data_in_bytes: Dict[int, bytes] = {}
         self._data_reference_counter: Dict[int, int] = {}
         self._fetch_index: int = 0
+
+        self._save_fn = save.options(resources={node_label: 0.01})
+        self._concurrent_save = concurrent_save
+        self._save_interval = save_interval
+        self._save_pool = []
+        self._save_pool_fetch_index = []
+        self._last_save_time = time.time()
+
+    def _update_remote_save(self):
+        objs = ray.get(self._save_pool)
+        for index, obj in zip(self._save_pool_fetch_index, objs):
+            self._data[index] = obj[0]
+        self._save_pool = []
+        self._save_pool_fetch_index = []
+        self._last_save_time = time.time()
 
     def _pin_object(self, object_id: ray.ObjectID, fetch_index: int):
         """
@@ -24,46 +48,56 @@ class BlockHolder:
         Pin the object in block holder, this should be fixed when we support transfer object
         owner in ray.
         :param object_id: the original object id
-        :param fetch_index: the fetch index that can fetch the corrending data
+        :param fetch_index: the fetch index that can fetch the given data
         """
-        data = ray.get(object_id)
-        new_object_id = ray.put(data)
-        ray.internal.free(object_id)
-        self._data[fetch_index] = new_object_id
-        self._data_in_bytes[fetch_index] = rpickle.dumps(new_object_id)
+        cur_time = time.time()
+        if ((len(self._save_pool) > 0 and len(self._save_pool) == self._concurrent_save)
+                or (self._last_save_time - cur_time) > self._save_interval):
+            self._update_remote_save()
 
-    def register_object_id(self, id: bytes) -> int:
+        remote_id = self._save_fn.remote([object_id])
+        self._save_pool.append(remote_id)
+        self._save_pool_fetch_index.append(fetch_index)
+
+    def register_object_id(self, object_ids: List[ray.ObjectID]) -> List[int]:
         """
-        Register one object id to hold.
-        :param id: serialized ObjectId
-        :return: fetch index that can fetch the serialized ObjectId with get_object
+        Register a list of object id to hold.
+        :param object_ids: list of ray object id
+        :return: fetch indexes that can fetch the given value with get_object
         """
-        fetch_index = self._fetch_index
-        self._fetch_index += 1
-        self._pin_object(rpickle.loads(id), fetch_index)
-        self._data_reference_counter[fetch_index] = 0
-        return fetch_index
+        results = []
+        for object_id in object_ids:
+            fetch_index = self._fetch_index
+            self._fetch_index += 1
+            self._pin_object(object_id, fetch_index)
+            self._data_reference_counter[fetch_index] = 0
+            results.append(fetch_index)
 
-    def register_object_ids(self, ids: List[bytes]) -> List[int]:
-        fetch_indexes = []
-        for id in ids:
-            fetch_indexes.append(self.register_object_id(id))
-        return fetch_indexes
+        if len(results) == 1:
+            results = results[0]
 
-    def get_object(self, fetch_index) -> Optional[bytes]:
+        return results
+
+    def get_object(self, fetch_indexes: List[int]) -> List[Optional[ray.ObjectID]]:
         """
         Get registered ObjectId. This will increase the ObjectId reference counter.
-        :param fetch_index: the fetch index which used to look the mapping ObjectId
-        :return: serialized ObjectId or None if it is not found
+        :param fetch_indexes: the fetch index which used to look the mapping ObjectId
+        :return: ObjectId or None if it is not found
         """
-        if fetch_index not in self._data:
-            return None
-        # increase the reference counter
-        self._data_reference_counter[fetch_index] = self._data_reference_counter[fetch_index] + 1
-        return self._data_in_bytes[fetch_index]
+        results = []
+        for index in fetch_indexes:
+            if index in self._fetch_index:
+                self._update_remote_save()
 
-    def get_objects(self, fetch_indexes: List[int]) -> List[Optional[bytes]]:
-        return [self.get_object(i) for i in fetch_indexes]
+            if index not in self._data:
+                results.append(None)
+            else:
+                # increase the reference counter
+                self._data_reference_counter[index] =\
+                    self._data_reference_counter[index] + 1
+                results.append(self._data[index])
+
+        return results
 
     def remove_object_id(self, fetch_index: int, destroy: bool = False) -> NoReturn:
         """
@@ -71,6 +105,9 @@ class BlockHolder:
         :param fetch_index: the fetch index which used to look the mapping ObjectId
         :param destroy: whether destroy the ObjectId when the reference counter is zero
         """
+        if fetch_index in self._fetch_index:
+            self._update_remote_save()
+
         if fetch_index in self._data:
             assert self._data_reference_counter[fetch_index] > 0
             self._data_reference_counter[fetch_index] =\
@@ -88,6 +125,9 @@ class BlockHolder:
         Destroy the ObjectId directly.
         :param fetch_index: the fetch index which used to look the mapping ObjectId
         """
+        if fetch_index in self._save_pool_fetch_index:
+            self._update_remote_save()
+
         if fetch_index in self._data:
             del self._data[fetch_index]
             del self._data_in_bytes[fetch_index]
@@ -101,6 +141,7 @@ class BlockHolder:
         """
         Clean all data.
         """
+        self._update_remote_save()
         self.destroy_object_ids(list(self._data.keys()))
 
 
@@ -147,7 +188,6 @@ class Block:
         self._block_holder = None
 
         self._data = None
-        self._object_id = None
         self._is_valid = True
 
     def _set_data(self, data: pd.DataFrame) -> NoReturn:
@@ -184,11 +224,11 @@ class Block:
         """
         # fetch ObjectId bytes
         assert self._block_holder, "Actor handler of BlockHolder should be set"
-        obj_bytes = ray.get(self._block_holder.get_object.remote(self._fetch_index))
-        if not obj_bytes:
+        obj = ray.get(self._block_holder.get_object.remote([self._fetch_index]))
+        if obj is None:
             raise Exception(f"ObjectId(locates in: {self._node_label}: "
                             f"{self._fetch_index}) has been freed.")
-        self._data = ray.get(self._object_id)
+        self._data = ray.get(obj[0])
 
     def get(self) -> pd.DataFrame:
         assert self._is_valid
@@ -315,9 +355,8 @@ class BlockSet:
             for label in grouped:
                 holder = self._block_holder_mapping.get(label, None)
                 assert holder, f"Can't find the DataHolder for the label: {label}"
-                object_id_bytes = ray.get(holder.get_objects.remote(grouped[label]))
+                object_ids = ray.get(holder.get_object.remote(grouped[label]))
                 try:
-                    object_ids = [rpickle.loads(obj) for obj in object_id_bytes]
                     data = ray.get(object_ids)
                 except Exception as exp:
                     # deserialize or ray.get failed, we should decrease the reference

@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import pyspark
 import ray
-import ray.cloudpickle as rpickle
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf, PandasUDFType
 from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
@@ -115,7 +114,9 @@ class SparkCluster(Cluster):
             self._node_selected.add(choosed)
             if choosed not in _global_block_holder:
                 # set up block holder if has not set up
-                block_holder = BlockHolder.options(resources={choosed: 0.01}).remote()
+                block_holder = BlockHolder.options(resources={choosed: 0.01})\
+                                          .remote(node_label=choosed,
+                                                  concurrent_save=resources_copy["num_cpus"])
                 _global_block_holder[choosed] = BlockHolderActorHandlerWrapper(block_holder)
 
             self._workers.append(worker)
@@ -214,13 +215,16 @@ def save_to_ray(df: Any) -> BlockSet:
 
         node_label = f"node:{ray.services.get_node_ip_address()}"
         block_holder = _global_block_holder[node_label]
+        object_ids = []
         for pdf in batch_iter:
             obj = ray.put(pdf)
             # TODO: register object in batch
-            fetch_index = ray.get(block_holder.register_object_id.remote(rpickle.dumps(obj)))
-            yield pd.DataFrame({"node_label": [node_label],
-                                "fetch_index": [fetch_index],
-                                "size": len(pdf)})
+            object_ids.append(block_holder.register_object_id.remote([obj]))
+
+        indexes = ray.get(object_ids)
+        return iter([pd.DataFrame({"node_label": [node_label],
+                                   "fetch_index": [fetch_index],
+                                   "size": len(pdf)}) for fetch_index in indexes])
 
     results = df.mapInPandas(save).collect()
     fetch_indexes = []
