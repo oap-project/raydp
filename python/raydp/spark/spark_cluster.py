@@ -216,15 +216,20 @@ def save_to_ray(df: Any) -> BlockSet:
         node_label = f"node:{ray.services.get_node_ip_address()}"
         block_holder = _global_block_holder[node_label]
         object_ids = []
+        block_sizes = []
         for pdf in batch_iter:
             obj = ray.put(pdf)
             # TODO: register object in batch
             object_ids.append(block_holder.register_object_id.remote([obj]))
+            block_sizes.append(len(pdf))
 
         indexes = ray.get(object_ids)
-        return iter([pd.DataFrame({"node_label": [node_label],
-                                   "fetch_index": [fetch_index],
-                                   "size": len(pdf)}) for fetch_index in indexes])
+        result_dfs = []
+        for index, block_size in zip(indexes, block_sizes):
+            result_dfs.append({"node_label": [node_label],
+                               "fetch_index": [index],
+                               "size": [block_size]})
+        return iter(result_dfs)
 
     results = df.mapInPandas(save).collect()
     fetch_indexes = []
