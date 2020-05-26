@@ -273,8 +273,7 @@ class BlockSetSampler(DistributedSampler):
         return self._block_indices
 
     def __iter__(self):
-        self._init_lazy()
-        self.dataset._resolve_with_indices(self._block_indices)
+        self.resolve()
         # deterministically shuffle based on epoch
         np.random.seed(self.epoch)
         block_indices = list(range(len(self._block_indices)))

@@ -180,9 +180,10 @@ class BlockHolderActorHandlerWrapper:
 
 
 class Block:
-    def __init__(self, node_label: str, fetch_index: int):
+    def __init__(self, node_label: str, fetch_index: int, expected_len):
         self._node_label = node_label
         self._fetch_index = fetch_index
+        self._expeced_len = expected_len
 
         self._block_holder = None
 
@@ -200,6 +201,7 @@ class Block:
 
         :param data: the pandas.DataFrame that the ObjectId point to
         """
+        assert len(data) == self._expeced_len
         self._data = data
 
     def _set_block_holder(self,
@@ -228,6 +230,7 @@ class Block:
             raise Exception(f"ObjectId(locates in: {self._node_label}: "
                             f"{self._fetch_index}) has been freed.")
         self._data = ray.get(obj[0])
+        assert len(self._data) == self._expeced_len
 
     def get(self) -> pd.DataFrame:
         assert self._is_valid
@@ -262,7 +265,7 @@ class Block:
 
     def __reduce__(self):
         assert self._is_valid
-        return self.__class__, (self._node_label, self._fetch_index)
+        return self.__class__, (self._node_label, self._fetch_index, self._expeced_len)
 
     def __del__(self):
         if ray.is_initialized():
@@ -294,7 +297,7 @@ class BlockSet:
         self._resolved = False
         self._resolved_indices: List[int] = None
 
-        self.append_batch(fetch_indexes)
+        self.append_batch(fetch_indexes, block_sizes)
 
     @property
     def total_size(self) -> int:
@@ -309,15 +312,18 @@ class BlockSet:
         assert self._resolved
         return self.resolved_indices
 
-    def append(self, node_label: str, fetch_index) -> NoReturn:
+    def append(self, node_label: str, fetch_index, expected_len) -> NoReturn:
         assert not self._resolved
-        block = Block(node_label, fetch_index)
+        block = Block(node_label, fetch_index, expected_len)
         self._fetch_indexes.append((node_label, fetch_index))
         self._blocks.append(block)
 
-    def append_batch(self, fetch_indexes: List[Tuple[str, int]]) -> NoReturn:
+    def append_batch(self,
+                     fetch_indexes: List[Tuple[str, int]],
+                     expected_lens: List[int]) -> NoReturn:
         assert not self._resolved
-        [self.append(label, index) for label, index in fetch_indexes]
+        for i in range(len(fetch_indexes)):
+            self.append(fetch_indexes[i][0], fetch_indexes[i][1], expected_lens[i])
 
     def resolve(self, indices: List[int], batch: bool = True) -> NoReturn:
         """
@@ -368,7 +374,7 @@ class BlockSet:
             for label in succeed:
                 data = succeed[label]
                 indexes = label_to_indexes[label]
-                [self._blocks[i]._set_data(data) for i, data in zip(indexes, data)]
+                [self._blocks[i]._set_data(d) for i, d in zip(indexes, data)]
 
         self._resolved = True
         self._resolved_indices = indices
