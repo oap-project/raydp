@@ -1,7 +1,7 @@
+import time
 from collections import defaultdict
 from typing import Dict, List, NoReturn, Optional, Tuple
 
-import time
 import pandas as pd
 import ray
 import ray.cloudpickle as rpickle

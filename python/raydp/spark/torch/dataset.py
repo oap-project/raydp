@@ -1,7 +1,7 @@
+import math
 from collections.abc import Iterable
 from typing import Any, List, Optional
 
-import math
 import numpy as np
 import pandas
 import torch
@@ -262,6 +262,11 @@ class BlockSetSampler(DistributedSampler):
             packed_selected_indices.append([((index << BLOCK_SIZE_BIT) | i) for i in range(size)])
         self._block_indices = block_indices
         self._selected_indices = packed_selected_indices
+
+    def resolve(self):
+        """Manually trigger the underlying object transfer."""
+        self._init_lazy()
+        self.dataset._resolve_with_indices(self._block_indices)
 
     @property
     def block_indices(self):
