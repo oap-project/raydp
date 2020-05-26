@@ -12,7 +12,6 @@ def save(value: List[ray.ObjectID]) -> List[ray.ObjectID]:
     value = value[0]
     tmp = ray.get(value)
     result = ray.put(tmp)
-    ray.internal.free(value)
     return [result]
 
 
@@ -86,7 +85,7 @@ class BlockHolder:
         """
         results = []
         for index in fetch_indexes:
-            if index in self._fetch_index:
+            if index in self._save_pool_fetch_index:
                 self._update_remote_save()
 
             if index not in self._data:
@@ -105,7 +104,7 @@ class BlockHolder:
         :param fetch_index: the fetch index which used to look the mapping ObjectId
         :param destroy: whether destroy the ObjectId when the reference counter is zero
         """
-        if fetch_index in self._fetch_index:
+        if fetch_index in self._save_pool_fetch_index:
             self._update_remote_save()
 
         if fetch_index in self._data:

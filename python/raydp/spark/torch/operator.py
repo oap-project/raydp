@@ -15,10 +15,11 @@ class TrainingOperatorWithWarmUp(TrainingOperator):
                  use_gpu=False,
                  use_fp16=False,
                  use_tqdm=False):
-        super(TrainingOperator, self).__init__(config, models, optimizers, train_loader,
-                                               validation_loader, world_rank, criterion,
-                                               schedulers, device_ids, use_gpu, use_fp16,
-                                               use_tqdm)
+        super(TrainingOperatorWithWarmUp, self).__init__(
+            config=config, models=models, optimizers=optimizers, train_loader=train_loader,
+            validation_loader=validation_loader, world_rank=world_rank, criterion=criterion,
+            schedulers=schedulers, device_ids=device_ids, use_gpu=use_gpu, use_fp16=use_fp16,
+            use_tqdm=use_tqdm)
 
     def setup(self, config):
         """We trigger the underlying object transfer before training startup"""
