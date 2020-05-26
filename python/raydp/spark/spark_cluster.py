@@ -226,9 +226,10 @@ def save_to_ray(df: Any) -> BlockSet:
         indexes = ray.get(object_ids)
         result_dfs = []
         for index, block_size in zip(indexes, block_sizes):
-            result_dfs.append({"node_label": [node_label],
-                               "fetch_index": [index],
-                               "size": [block_size]})
+            result_dfs.append(
+                pd.DataFrame({"node_label": [node_label],
+                              "fetch_index": [index],
+                              "size": [block_size]}))
         return iter(result_dfs)
 
     results = df.mapInPandas(save).collect()
