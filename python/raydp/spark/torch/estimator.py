@@ -8,6 +8,7 @@ from torch.nn.modules.loss import _Loss as TLoss
 
 from raydp.spark.estimator import EstimatorInterface
 from raydp.spark.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
+from raydp.spark.torch.operator import TrainingOperatorWithWarmUp
 
 
 class TorchEstimator(EstimatorInterface):
@@ -127,7 +128,7 @@ class TorchEstimator(EstimatorInterface):
 
         self._data_set = None
 
-        self._trainer = None
+        self._trainer: TorchTrainer = None
 
         self._check()
 
@@ -200,7 +201,8 @@ class TorchEstimator(EstimatorInterface):
         def scheduler_creator(optimizers, config):
             return self._lr_scheduler_creator(optimizers, config)
 
-        lr_scheduler_creator = scheduler_creator if self._lr_scheduler_creator is not None else None
+        lr_scheduler_creator = (scheduler_creator
+                                if self._lr_scheduler_creator is not None else None)
 
         self._trainer = TorchTrainer(model_creator=model_creator,
                                      data_creator=data_creator,
@@ -210,6 +212,7 @@ class TorchEstimator(EstimatorInterface):
                                      scheduler_step_freq=self._scheduler_step_freq,
                                      num_workers=self._num_workers,
                                      add_dist_sampler=False,
+                                     training_operator_cls=TrainingOperatorWithWarmUp,
                                      **self._extra_config)
 
     def fit(self, df):
