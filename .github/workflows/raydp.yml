@@ -42,26 +42,12 @@ jobs:
           pip install wheel
           ./dev/install_dependencies.sh
 
-      - name: Cache Spark
-        id: cache-spark
-        uses: actions/cache@v1
-        with:
-          path: ~/spark/
-          key: ${{ runner.os }}-cache-spark
-          restore-keys: |
-            ${{ runner.os }}-spark-
-
-      - name: Download Spark
-        if: steps.cache-spark.outputs.cache-hit == 'true'
-        run: |
-          ./dev/install_spark.sh true
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install wheel
           ./dev/install_dependencies.sh
-          ./dev/install_spark.sh false
+          ./dev/install_spark.sh
 
       - name: Build
         run: |
