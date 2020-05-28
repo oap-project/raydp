@@ -221,7 +221,10 @@ class BlockSetSampler(DistributedSampler):
         else:
             total_indices = list(range(len(self.dataset.block_sizes())))
         # add extra samples to make it evenly divisible
-        total_indices += total_indices[:(total_block_size - len(total_indices))]
+        # we should use while here, because the len(total_indices) can be smaller than num_replicas
+        while len(total_indices) != total_block_size:
+            total_indices += total_indices[:(total_block_size - len(total_indices))]
+
         assert len(total_indices) == total_block_size
 
         indices = total_indices[self.rank: total_block_size: self.num_replicas]
@@ -291,6 +294,10 @@ class BlockSetSampler(DistributedSampler):
         return iter(indices)
 
     def __len__(self):
+        # if we use `if sampler` to determine whether the sampler is None,
+        # it will call this method. This can be happened when the BlockSetSampler
+        # used in the evaluation in ray TorchTrainer.
+        self._init_lazy()
         return self.num_samples
 
 

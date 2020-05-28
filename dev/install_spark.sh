@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 
-reinstall=false
-
-if [ $1 == "true" ]; then
-  reinstall=true
-fi
-
 if ! [ -d ~/spark ]; then
   mkdir ~/spark
 fi
@@ -16,13 +10,14 @@ if ${reinstall}; then
   fi
 fi
 
-if ! [ -d ~/spark/spark-3.0.0-preview2-bin-hadoop2.7 ]; then
-  pushd ~/spark/
-  wget -cq https://downloads.apache.org/spark/spark-3.0.0-preview2/spark-3.0.0-preview2-bin-hadoop2.7.tgz
-  tar zxf spark-3.0.0-preview2-bin-hadoop2.7.tgz
-  popd
-fi
+pushd ~/spark/
+pwd
+wget -cq https://downloads.apache.org/spark/spark-3.0.0-preview2/spark-3.0.0-preview2-bin-hadoop2.7.tgz
+tar zxf spark-3.0.0-preview2-bin-hadoop2.7.tgz
 
-pushd ~/spark/spark-3.0.0-preview2-bin-hadoop2.7/python/
-pip install .
+pushd spark-3.0.0-preview2-bin-hadoop2.7/python/
+pwd
+pip install -e .
+popd
+
 popd
