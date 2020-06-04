@@ -62,6 +62,7 @@ class TorchEstimator(EstimatorInterface):
                  batch_size: int = None,
                  num_epochs: int = None,
                  shuffle: bool = True,
+                 num_processes_for_data_loader: int = 2,
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
@@ -99,6 +100,7 @@ class TorchEstimator(EstimatorInterface):
         :param batch_size: the training batch size
         :param num_epochs: the total number of epochs will be train
         :param shuffle: whether shuffle the data
+        :param num_processes_for_data_loader: the number of processes use to speed up data loading
         :param extra_config: the extra config will be set to torch.sgd.TorchTrainer
         """
         self._num_workers = num_workers
@@ -115,6 +117,7 @@ class TorchEstimator(EstimatorInterface):
         self._batch_size = batch_size
         self._num_epochs = num_epochs
         self._shuffle = shuffle
+        self._num_processes_for_data_loader = num_processes_for_data_loader
         self._extra_config = extra_config
 
         config = {"batch_size": self._batch_size, "shuffle": self._shuffle}
@@ -193,9 +196,11 @@ class TorchEstimator(EstimatorInterface):
             batch_size = config["batch_size"]
             shuffle = config["shuffle"]
             sampler = BlockSetSampler(self._data_set, shuffle=shuffle)
-            dataloader = torch.utils.data.DataLoader(self._data_set,
-                                                     batch_size=batch_size,
-                                                     sampler=sampler)
+            dataloader = torch.utils.data.DataLoader(
+                self._data_set,
+                batch_size=batch_size,
+                sampler=sampler,
+                num_workers=self._num_processes_for_data_loader)
             return dataloader, None
 
         def scheduler_creator(optimizers, config):

@@ -1,4 +1,5 @@
 from ray.util.sgd.torch.training_operator import TrainingOperator
+import ray
 
 
 class TrainingOperatorWithWarmUp(TrainingOperator):
@@ -24,4 +25,5 @@ class TrainingOperatorWithWarmUp(TrainingOperator):
     def setup(self, config):
         """We trigger the underlying object transfer before training startup"""
         train_loader = self.train_loader
-        train_loader.sampler.resolve()
+        plasma_store_path = ray.worker.global_worker.node.plasma_store_socket_name
+        train_loader.sampler.resolve(plasma_store_path)
