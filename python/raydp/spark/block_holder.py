@@ -230,8 +230,7 @@ class BlockSet:
 
     def append_batch(self, fetch_indexes: List[Tuple[str, int]]) -> NoReturn:
         assert not self._resolved, "Can not append value after resolved"
-        for i in range(len(fetch_indexes)):
-            self.append(fetch_indexes[i][0])
+        self._fetch_indexes.extend(fetch_indexes)
 
     def _fetch_objects_without_deserialization(self, object_ids, timeout=None) -> NoReturn:
         """
