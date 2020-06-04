@@ -139,7 +139,9 @@ class RayDataset(_Dataset):
         if df is not None:
             self._block_set = save_to_ray(df)
 
-    def _resolve_with_indices(self, indices: List[int], plasma_store_socket_name: str):
+    def _resolve_with_indices(self,
+                              indices: List[int],
+                              plasma_store_socket_name: Optional[str]):
         self._block_set.resolve(indices)
         self._block_set.set_plasma_store_socket_name(plasma_store_socket_name)
 
@@ -262,7 +264,7 @@ class BlockSetSampler(DistributedSampler):
         self._block_indices = block_indices
         self._selected_indices = packed_selected_indices
 
-    def resolve(self, plasma_store_socket_name: str):
+    def resolve(self, plasma_store_socket_name: Optional[str]):
         """Manually trigger the underlying object transfer."""
         self._init_lazy()
         self.dataset._resolve_with_indices(self._block_indices,
@@ -273,7 +275,7 @@ class BlockSetSampler(DistributedSampler):
         return self._block_indices
 
     def __iter__(self):
-        self.resolve()
+        self.resolve(None)
         # deterministically shuffle based on epoch
         np.random.seed(self.epoch)
         block_indices = list(range(len(self._block_indices)))

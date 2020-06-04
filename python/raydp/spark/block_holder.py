@@ -320,8 +320,9 @@ class BlockSet:
         self._resolved = True
         self._resolved_block = resolved_block
 
-    def set_plasma_store_socket_name(self, plasma_store_socket_name: str):
-        self._plasma_store_socket_name = plasma_store_socket_name
+    def set_plasma_store_socket_name(self, plasma_store_socket_name: Optional[str]):
+        if self._plasma_store_socket_name is not None:
+            self._plasma_store_socket_name = plasma_store_socket_name
 
     def clean(self, destroy: bool = False) -> NoReturn:
         if not self._resolved:
@@ -353,9 +354,11 @@ class BlockSet:
         assert self._resolved, "You should resolve the blockset before get item"
         if self._plasma_client is None:
             self._connect_to_plasma()
-        object_ids = self._resolved_block.get(item, None)
-        assert object_ids is not None, f"The {item} block has not been resolved"
-        data = self._plasma_client.get_buffers([object_ids])[0]
+        object_id = self._resolved_block.get(item, None)
+        assert object_id is not None, f"The {item} block has not been resolved"
+        plasma_object_id = plasma.ObjectID(object_id.binary())
+        # this should be really faster becuase of zero copy
+        data = self._plasma_client.get_buffers([plasma_object_id])[0]
         return pickle.loads(data)
 
     def __len__(self):
