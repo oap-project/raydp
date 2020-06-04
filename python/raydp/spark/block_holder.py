@@ -320,7 +320,7 @@ class BlockSet:
         self._resolved_block = resolved_block
 
     def set_plasma_store_socket_name(self, plasma_store_socket_name: Optional[str]):
-        if self._plasma_store_socket_name is not None:
+        if self._plasma_store_socket_name is None:
             self._plasma_store_socket_name = plasma_store_socket_name
 
     def clean(self, destroy: bool = False) -> NoReturn:
