@@ -264,7 +264,7 @@ class BlockSetSampler(DistributedSampler):
         self._block_indices = block_indices
         self._selected_indices = packed_selected_indices
 
-    def resolve(self, plasma_store_socket_name: Optional[str]):
+    def resolve(self, plasma_store_socket_name: Optional[str] = None):
         """Manually trigger the underlying object transfer."""
         self._init_lazy()
         self.dataset._resolve_with_indices(self._block_indices,
@@ -275,7 +275,7 @@ class BlockSetSampler(DistributedSampler):
         return self._block_indices
 
     def __iter__(self):
-        self.resolve(None)
+        self.resolve()
         # deterministically shuffle based on epoch
         np.random.seed(self.epoch)
         block_indices = list(range(len(self._block_indices)))

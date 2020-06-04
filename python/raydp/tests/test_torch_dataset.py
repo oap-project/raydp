@@ -11,7 +11,7 @@ class DummyRayDataset(RayDataset):
     def __init__(self, data):
         self.data = data
 
-    def _resolve_with_indices(self, indices):
+    def _resolve_with_indices(self, indices, plasma_store_socket_name):
         pass
 
     def __getitem__(self, index):
