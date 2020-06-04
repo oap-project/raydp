@@ -200,7 +200,8 @@ class TorchEstimator(EstimatorInterface):
                 self._data_set,
                 batch_size=batch_size,
                 sampler=sampler,
-                num_workers=self._num_processes_for_data_loader)
+                num_workers=self._num_processes_for_data_loader,
+                multiprocessing_context=torch.multiprocessing.get_context("spawn"))
             return dataloader, None
 
         def scheduler_creator(optimizers, config):
