@@ -31,7 +31,7 @@ class TrainingOperatorWithWarmUp(TrainingOperator):
     def train_epoch(self, iterator, info):
         if self.timers is not None:
             iterator = self._profile_data_loader(iterator)
-        super(TrainingOperatorWithWarmUp, self).train_epoch(iterator, info)
+        return super(TrainingOperatorWithWarmUp, self).train_epoch(iterator, info)
 
     def _profile_data_loader(self, iterator):
         outer = self
