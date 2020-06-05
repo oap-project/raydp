@@ -71,7 +71,7 @@ class TorchEstimator(EstimatorInterface):
                  batch_size: int = None,
                  num_epochs: int = None,
                  shuffle: bool = True,
-                 num_processes_for_data_loader: int = 2,
+                 num_processes_for_data_loader: int = 0,
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
@@ -205,13 +205,19 @@ class TorchEstimator(EstimatorInterface):
             batch_size = config["batch_size"]
             shuffle = config["shuffle"]
             sampler = BlockSetSampler(self._data_set, shuffle=shuffle)
+            context = None
+            init_fn = None
+            if self._num_processes_for_data_loader > 0:
+                context = torch.multiprocessing.get_context("spawn")
+                init_fn = worker_init_fn
+
             dataloader = torch.utils.data.DataLoader(
                 self._data_set,
                 batch_size=batch_size,
                 sampler=sampler,
                 num_workers=self._num_processes_for_data_loader,
-                multiprocessing_context=torch.multiprocessing.get_context("spawn"),
-                worker_init_fn=worker_init_fn)
+                multiprocessing_context=context,
+                worker_init_fn=init_fn)
             return dataloader, None
 
         def scheduler_creator(optimizers, config):
@@ -231,7 +237,13 @@ class TorchEstimator(EstimatorInterface):
                                      training_operator_cls=TrainingOperatorWithWarmUp,
                                      **self._extra_config)
 
-    def fit(self, df):
+    def fit(self,
+            df,
+            num_steps=None,
+            profile=False,
+            reduce_results=True,
+            max_retries=3,
+            info=None):
         super(TorchEstimator, self).fit(df)
         if self._trainer is None:
             self._data_set = RayDataset(df, self._feature_columns, self._feature_shapes,
@@ -239,10 +251,12 @@ class TorchEstimator(EstimatorInterface):
             self._create_trainer()
             assert self._trainer is not None
             for i in range(self._num_epochs):
-                info = dict()
-                info["epoch_idx"] = i
-                info["num_epochs"] = self._num_epochs
-                stats = self._trainer.train(info=info)
+                stats = self._trainer.train(
+                    num_steps=num_steps,
+                    profile=profile,
+                    reduce_results=reduce_results,
+                    max_retries=max_retries,
+                    info=info)
                 print(f"Epoch-{i}: {stats}")
         else:
             raise Exception("You call fit twice.")
