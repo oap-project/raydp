@@ -48,7 +48,7 @@ class TrainingOperatorWithWarmUp(TrainingOperator):
 
             def __next__(self):
                 with outer.timers.record("data_load"):
-                    next(self._underlying_iterator)
+                    return next(self._underlying_iterator)
 
             def __len__(self):
                 return len(iterator)
