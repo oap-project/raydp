@@ -139,15 +139,13 @@ class RayDataset(_Dataset):
         if df is not None:
             self._block_set = save_to_ray(df)
 
-    def _resolve_with_indices(self, indices: List[int]):
-        self._block_set.resolve(indices, True)
+    def _resolve_with_indices(self,
+                              indices: List[int],
+                              plasma_store_socket_name: Optional[str]):
+        self._block_set.resolve(indices)
+        self._block_set.set_plasma_store_socket_name(plasma_store_socket_name)
 
     def __getitem__(self, index):
-        worker_info = torch.utils.data.get_worker_info()
-        if worker_info:
-            # TODO: add support
-            raise Exception("Multiple processes loading is not supported")
-
         global BLOCK_SIZE_BIT
         block_index = index >> BLOCK_SIZE_BIT
         block_inner_index = (block_index << BLOCK_SIZE_BIT) ^ index
@@ -266,10 +264,11 @@ class BlockSetSampler(DistributedSampler):
         self._block_indices = block_indices
         self._selected_indices = packed_selected_indices
 
-    def resolve(self):
+    def resolve(self, plasma_store_socket_name: Optional[str] = None):
         """Manually trigger the underlying object transfer."""
         self._init_lazy()
-        self.dataset._resolve_with_indices(self._block_indices)
+        self.dataset._resolve_with_indices(self._block_indices,
+                                           plasma_store_socket_name)
 
     @property
     def block_indices(self):

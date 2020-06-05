@@ -1,6 +1,7 @@
 import inspect
 from typing import Any, Callable, List, Optional, Union
 
+import setproctitle
 import torch
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
 from ray.util.sgd.utils import AverageMeterCollection
@@ -9,6 +10,14 @@ from torch.nn.modules.loss import _Loss as TLoss
 from raydp.spark.estimator import EstimatorInterface
 from raydp.spark.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
 from raydp.spark.torch.operator import TrainingOperatorWithWarmUp
+
+
+def worker_init_fn(work_id):
+    """This must at top level"""
+    worker_info = torch.utils.data.get_worker_info()
+    num_workers = worker_info.num_workers
+    title = f"data_loading_process_{num_workers}_{work_id}"
+    setproctitle.setproctitle(title)
 
 
 class TorchEstimator(EstimatorInterface):
@@ -62,6 +71,7 @@ class TorchEstimator(EstimatorInterface):
                  batch_size: int = None,
                  num_epochs: int = None,
                  shuffle: bool = True,
+                 num_processes_for_data_loader: int = 0,
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
@@ -99,6 +109,7 @@ class TorchEstimator(EstimatorInterface):
         :param batch_size: the training batch size
         :param num_epochs: the total number of epochs will be train
         :param shuffle: whether shuffle the data
+        :param num_processes_for_data_loader: the number of processes use to speed up data loading
         :param extra_config: the extra config will be set to torch.sgd.TorchTrainer
         """
         self._num_workers = num_workers
@@ -115,6 +126,7 @@ class TorchEstimator(EstimatorInterface):
         self._batch_size = batch_size
         self._num_epochs = num_epochs
         self._shuffle = shuffle
+        self._num_processes_for_data_loader = num_processes_for_data_loader
         self._extra_config = extra_config
 
         config = {"batch_size": self._batch_size, "shuffle": self._shuffle}
@@ -193,9 +205,19 @@ class TorchEstimator(EstimatorInterface):
             batch_size = config["batch_size"]
             shuffle = config["shuffle"]
             sampler = BlockSetSampler(self._data_set, shuffle=shuffle)
-            dataloader = torch.utils.data.DataLoader(self._data_set,
-                                                     batch_size=batch_size,
-                                                     sampler=sampler)
+            context = None
+            init_fn = None
+            if self._num_processes_for_data_loader > 0:
+                context = torch.multiprocessing.get_context("spawn")
+                init_fn = worker_init_fn
+
+            dataloader = torch.utils.data.DataLoader(
+                self._data_set,
+                batch_size=batch_size,
+                sampler=sampler,
+                num_workers=self._num_processes_for_data_loader,
+                multiprocessing_context=context,
+                worker_init_fn=init_fn)
             return dataloader, None
 
         def scheduler_creator(optimizers, config):
@@ -215,7 +237,13 @@ class TorchEstimator(EstimatorInterface):
                                      training_operator_cls=TrainingOperatorWithWarmUp,
                                      **self._extra_config)
 
-    def fit(self, df):
+    def fit(self,
+            df,
+            num_steps=None,
+            profile=False,
+            reduce_results=True,
+            max_retries=3,
+            info=None):
         super(TorchEstimator, self).fit(df)
         if self._trainer is None:
             self._data_set = RayDataset(df, self._feature_columns, self._feature_shapes,
@@ -223,10 +251,12 @@ class TorchEstimator(EstimatorInterface):
             self._create_trainer()
             assert self._trainer is not None
             for i in range(self._num_epochs):
-                info = dict()
-                info["epoch_idx"] = i
-                info["num_epochs"] = self._num_epochs
-                stats = self._trainer.train(info=info)
+                stats = self._trainer.train(
+                    num_steps=num_steps,
+                    profile=profile,
+                    reduce_results=reduce_results,
+                    max_retries=max_retries,
+                    info=info)
                 print(f"Epoch-{i}: {stats}")
         else:
             raise Exception("You call fit twice.")

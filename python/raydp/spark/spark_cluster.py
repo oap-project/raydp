@@ -4,7 +4,8 @@ from typing import Any, Dict
 import numpy as np
 import pandas as pd
 import pyspark
-import ray
+import ray  # must import ray before import pickle
+import pickle
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf, PandasUDFType
 from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
@@ -218,7 +219,7 @@ def save_to_ray(df: Any) -> BlockSet:
         object_ids = []
         block_sizes = []
         for pdf in batch_iter:
-            obj = ray.put(pdf)
+            obj = ray.put(pickle.dumps(pdf))
             # TODO: register object in batch
             object_ids.append(block_holder.register_object_id.remote([obj]))
             block_sizes.append(len(pdf))
