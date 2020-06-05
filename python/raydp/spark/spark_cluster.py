@@ -4,8 +4,8 @@ from typing import Any, Dict
 import numpy as np
 import pandas as pd
 import pyspark
+import ray  # must import ray before import pickle
 import pickle
-import ray
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf, PandasUDFType
 from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType

@@ -1,13 +1,14 @@
-import pickle
 import time
 from collections import defaultdict
 from typing import Dict, List, NoReturn, Optional, Tuple
 
 import pandas as pd
 import pyarrow.plasma as plasma
-import ray
+import ray  # must import ray  import pickle
 import ray.cloudpickle as rpickle
 import ray.worker
+
+import pickle
 
 
 @ray.remote(num_cpus=0)

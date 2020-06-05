@@ -1,6 +1,7 @@
 import inspect
 from typing import Any, Callable, List, Optional, Union
 
+import setproctitle
 import torch
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
 from ray.util.sgd.utils import AverageMeterCollection
@@ -9,6 +10,14 @@ from torch.nn.modules.loss import _Loss as TLoss
 from raydp.spark.estimator import EstimatorInterface
 from raydp.spark.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
 from raydp.spark.torch.operator import TrainingOperatorWithWarmUp
+
+
+def worker_init_fn(work_id):
+    """This must at top level"""
+    worker_info = torch.utils.data.get_worker_info()
+    num_workers = worker_info.num_workers
+    title = f"data_loading_process_{num_workers}_{work_id}"
+    setproctitle.setproctitle(title)
 
 
 class TorchEstimator(EstimatorInterface):
@@ -201,7 +210,8 @@ class TorchEstimator(EstimatorInterface):
                 batch_size=batch_size,
                 sampler=sampler,
                 num_workers=self._num_processes_for_data_loader,
-                multiprocessing_context=torch.multiprocessing.get_context("spawn"))
+                multiprocessing_context=torch.multiprocessing.get_context("spawn"),
+                worker_init_fn=worker_init_fn)
             return dataloader, None
 
         def scheduler_creator(optimizers, config):
