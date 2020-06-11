@@ -1,5 +1,7 @@
 from ray.util.sgd.torch.training_operator import TrainingOperator
 import ray
+import torch
+import torch.distributed as dist
 
 
 class TrainingOperatorWithWarmUp(TrainingOperator):
@@ -22,6 +24,8 @@ class TrainingOperatorWithWarmUp(TrainingOperator):
             schedulers=schedulers, device_ids=device_ids, use_gpu=use_gpu, use_fp16=use_fp16,
             use_tqdm=use_tqdm)
 
+        self._epoch = -1
+
     def setup(self, config):
         """We trigger the underlying object transfer before training startup"""
         train_loader = self.train_loader
@@ -29,9 +33,18 @@ class TrainingOperatorWithWarmUp(TrainingOperator):
         train_loader.sampler.resolve(plasma_store_path)
 
     def train_epoch(self, iterator, info):
+        self._epoch += 1
         if self.timers is not None:
             iterator = self._profile_data_loader(iterator)
-        return super(TrainingOperatorWithWarmUp, self).train_epoch(iterator, info)
+
+        session_path = ray.worker.global_worker.node.get_session_dir_path()
+        rank = dist.get_rank()
+        export_file_path = f"{session_path}/epoch_{self._epoch}_rank_{rank}.tracing"
+        with torch.autograd.profiler.profile() as prof:
+            results = super(TrainingOperatorWithWarmUp, self).train_epoch(iterator, info)
+
+        prof.export_chrome_trace(export_file_path)
+        return results
 
     def _profile_data_loader(self, iterator):
         outer = self
