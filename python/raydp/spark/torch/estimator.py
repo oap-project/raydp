@@ -1,16 +1,18 @@
 import inspect
 import os
+import sys
 from typing import Any, Callable, List, Optional, Union
 
+import ray
 import setproctitle
 import torch
-from ray.util.sgd.torch.torch_trainer import TorchTrainer
 from ray.util.sgd.utils import AverageMeterCollection
 from torch.nn.modules.loss import _Loss as TLoss
 
 from raydp.spark.estimator import EstimatorInterface
 from raydp.spark.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
 from raydp.spark.torch.operator import TrainingOperatorWithWarmUp
+from raydp.spark.torch.trainer import TorchTrainerWithResourceSpecification
 
 
 def worker_init_fn(work_id):
@@ -62,6 +64,8 @@ class TorchEstimator(EstimatorInterface):
     """
     def __init__(self,
                  num_workers: int = 1,
+                 num_cpus_per_worker: int = 1,
+                 use_gpu: bool = False,
                  model: Union[torch.nn.Module, Callable] = None,
                  optimizer: Union[torch.optim.Optimizer, Callable] = None,
                  loss: Union[TLoss, Callable] = None,
@@ -117,6 +121,8 @@ class TorchEstimator(EstimatorInterface):
         :param extra_config: the extra config will be set to torch.sgd.TorchTrainer
         """
         self._num_workers = num_workers
+        self._num_cpus_per_worker = num_cpus_per_worker
+        self._use_gpu = use_gpu
         self._model = model
         self._optimizer = optimizer
         self._loss = loss
@@ -144,7 +150,7 @@ class TorchEstimator(EstimatorInterface):
 
         self._data_set = None
 
-        self._trainer: TorchTrainer = None
+        self._trainer = None
 
         self._check()
 
@@ -227,19 +233,33 @@ class TorchEstimator(EstimatorInterface):
         def scheduler_creator(optimizers, config):
             return self._lr_scheduler_creator(optimizers, config)
 
+        def initialization_hook():
+            all_resource_ids = ray.worker.get_resource_ids()
+            cpuids = [i for i, _ in all_resource_ids.get("CPU", [])]
+            assert len(cpuids) >= 1
+            if sys.platform == "linux":
+                os.sched_setaffinity(os.getpid(), cpuids)
+
         lr_scheduler_creator = (scheduler_creator
                                 if self._lr_scheduler_creator is not None else None)
 
-        self._trainer = TorchTrainer(model_creator=model_creator,
-                                     data_creator=data_creator,
-                                     optimizer_creator=optimizer_creator,
-                                     loss_creator=loss_creator,
-                                     scheduler_creator=lr_scheduler_creator,
-                                     scheduler_step_freq=self._scheduler_step_freq,
-                                     num_workers=self._num_workers,
-                                     add_dist_sampler=False,
-                                     training_operator_cls=TrainingOperatorWithWarmUp,
-                                     **self._extra_config)
+        Trainer = ray.remote(num_cpus=self._num_cpus_per_worker,
+                             num_gpus=int(self._use_gpu))(
+            TorchTrainerWithResourceSpecification)
+        self._trainer = Trainer.remote(
+            num_cpus=self._num_cpus_per_worker,
+            use_gpu=self._use_gpu,
+            model_creator=model_creator,
+            data_creator=data_creator,
+            optimizer_creator=optimizer_creator,
+            loss_creator=loss_creator,
+            scheduler_creator=lr_scheduler_creator,
+            scheduler_step_freq=self._scheduler_step_freq,
+            num_workers=self._num_workers,
+            add_dist_sampler=False,
+            training_operator_cls=TrainingOperatorWithWarmUp,
+            initialization_hook=initialization_hook,
+            **self._extra_config)
 
     def fit(self,
             df,
@@ -255,12 +275,12 @@ class TorchEstimator(EstimatorInterface):
             self._create_trainer()
             assert self._trainer is not None
             for i in range(self._num_epochs):
-                stats = self._trainer.train(
+                stats = ray.get(self._trainer.train.remote(
                     num_steps=num_steps,
                     profile=profile,
                     reduce_results=reduce_results,
                     max_retries=max_retries,
-                    info=info)
+                    info=info))
                 print(f"Epoch-{i}: {stats}")
         else:
             raise Exception("You call fit twice.")
@@ -308,18 +328,18 @@ class TorchEstimator(EstimatorInterface):
 
     def get_model(self):
         assert self._trainer is not None, "Must call fit first"
-        return self._trainer.get_model()
+        return ray.get(self._trainer.get_model.remote())
 
     def save(self, checkpoint):
         assert self._trainer is not None, "Must call fit first"
-        self._trainer.save(checkpoint)
+        ray.get(self._trainer.save.remote(checkpoint))
 
     def load(self, checkpoint):
         assert self._trainer is not None, "Must call fit first"
-        self._trainer.load(checkpoint)
+        ray.get(self._trainer.load.remote(checkpoint))
 
     def shutdown(self):
         if self._trainer is not None:
             del self._data_set
-            self._trainer.shutdown()
+            ray.get(self._trainer.shutdown.remote())
             self._trainer = None
