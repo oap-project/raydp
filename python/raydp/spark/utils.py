@@ -1,7 +1,10 @@
-import signal
-
 import atexit
+import os
+import signal
+import sys
+
 import psutil
+import ray
 
 
 def get_node_address() -> str:
@@ -93,3 +96,15 @@ def convert_to_spark(df):
     :return: a pair of (converted df, whether it is spark DataFrame)
     """
     return _df_helper(df, lambda d: (d, True), lambda d: (d.to_spark(), False))
+
+
+def get_cpuids():
+    all_resource_ids = ray.worker.get_resource_ids()
+    cpuids = [i for i, _ in all_resource_ids.get("CPU", [])]
+    return cpuids
+
+
+def set_affinity(pid, cpuids):
+    assert isinstance(cpuids, list), "cpuids must be a list"
+    if sys.platform == "linux" and len(cpuids) > 0:
+        os.sched_setaffinity(pid, cpuids)

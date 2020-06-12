@@ -1,5 +1,6 @@
 import inspect
 import os
+import random
 import sys
 from typing import Any, Callable, List, Optional, Union
 
@@ -13,6 +14,7 @@ from raydp.spark.estimator import EstimatorInterface
 from raydp.spark.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
 from raydp.spark.torch.operator import TrainingOperatorWithWarmUp
 from raydp.spark.torch.trainer import TorchTrainerWithResourceSpecification
+from raydp.spark.utils import get_cpuids, set_affinity
 
 
 def worker_init_fn(work_id):
@@ -24,6 +26,10 @@ def worker_init_fn(work_id):
 
     # limit OMP_NUM_THREADS to 1
     os.environ["OMP_NUM_THREADS"] = "1"
+
+    cpuids = worker_info.dataset.cpuids
+    assigned = random.choice(cpuids)
+    set_affinity(os.getpid(), [assigned])
 
 
 class TorchEstimator(EstimatorInterface):
@@ -214,15 +220,21 @@ class TorchEstimator(EstimatorInterface):
         def data_creator(config):
             batch_size = config["batch_size"]
             shuffle = config["shuffle"]
-            sampler = BlockSetSampler(self._data_set, shuffle=shuffle)
+
             context = None
             init_fn = None
+            data_set = self._data_set
             if self._num_processes_for_data_loader > 0:
                 context = torch.multiprocessing.get_context("spawn")
                 init_fn = worker_init_fn
 
+                # the following is a little hack way to pass the cpuids to data loading worker
+                if sys.platform == "linux":
+                    data_set.cpuids = os.sched_getaffinity(os.getpid())
+
+            sampler = BlockSetSampler(data_set, shuffle=shuffle)
             dataloader = torch.utils.data.DataLoader(
-                self._data_set,
+                data_set,
                 batch_size=batch_size,
                 sampler=sampler,
                 num_workers=self._num_processes_for_data_loader,
@@ -234,11 +246,8 @@ class TorchEstimator(EstimatorInterface):
             return self._lr_scheduler_creator(optimizers, config)
 
         def initialization_hook():
-            all_resource_ids = ray.worker.get_resource_ids()
-            cpuids = [i for i, _ in all_resource_ids.get("CPU", [])]
-            assert len(cpuids) >= 1
-            if sys.platform == "linux":
-                os.sched_setaffinity(os.getpid(), cpuids)
+            cpuids = get_cpuids()
+            set_affinity(os.getpid(), cpuids)
 
         lr_scheduler_creator = (scheduler_creator
                                 if self._lr_scheduler_creator is not None else None)
