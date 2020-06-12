@@ -1,4 +1,5 @@
 import inspect
+import os
 from typing import Any, Callable, List, Optional, Union
 
 import setproctitle
@@ -18,6 +19,9 @@ def worker_init_fn(work_id):
     num_workers = worker_info.num_workers
     title = f"data_loading_process_{num_workers}_{work_id}"
     setproctitle.setproctitle(title)
+
+    # limit OMP_NUM_THREADS to 1
+    os.environ["OMP_NUM_THREADS"] = "1"
 
 
 class TorchEstimator(EstimatorInterface):
