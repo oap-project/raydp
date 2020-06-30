@@ -1,4 +1,4 @@
-package org.apache.spark.scheduler.cluster
+package org.apache.spark.scheduler.cluster.ray
 
 import org.apache.spark.SparkContext
 import org.apache.spark.scheduler.{ExternalClusterManager, SchedulerBackend, TaskScheduler, TaskSchedulerImpl}
@@ -16,7 +16,10 @@ private[spark] class RayClusterManager extends ExternalClusterManager {
       sc: SparkContext,
       masterURL: String,
       scheduler: TaskScheduler): SchedulerBackend = {
-    new RaySchedulerBackend(sc, scheduler.asInstanceOf[TaskSchedulerImpl])
+    new RayCoarseGrainedSchedulerBackend(
+      sc,
+      scheduler.asInstanceOf[TaskSchedulerImpl],
+      masterURL)
   }
 
   override def initialize(scheduler: TaskScheduler, backend: SchedulerBackend): Unit = {
