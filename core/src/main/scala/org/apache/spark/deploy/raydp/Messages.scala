@@ -9,4 +9,8 @@ case class RegisterApplication(appDescription: ApplicationDescription, driver: R
 
 case class RegisteredApplication(appId: String, master: RpcEndpointRef) extends RayDPDeployMessage
 
-case class RegisterExecutor(executorId: Int) extends RayDPDeployMessage
+case class RegisterExecutor(executorId: String) extends RayDPDeployMessage
+
+case class RequestExecutors(appId: String, requestedTotal: Int) extends RayDPDeployMessage
+
+case class KillExecutors(appId: String, executorIds: Seq[String]) extends RayDPDeployMessage

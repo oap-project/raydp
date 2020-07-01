@@ -11,7 +11,7 @@ import org.apache.spark.deploy.raydp.RegisterExecutor
 
 
 class RayCoarseGrainedExecutorBackend(
-    val executorId: Int,
+    val executorId: String,
     val masterURL: String) extends Logging {
 
   init()
@@ -59,7 +59,7 @@ class RayCoarseGrainedExecutorBackend(
   }
 
 
-  def startUp(args: Array[String]): Unit = {
+  def startUp(appId: String, driverUrl: String, cores: Int): Unit = {
     val createFn: (RpcEnv, Arguments, SparkEnv, ResourceProfile) =>
       CoarseGrainedExecutorBackend = {
       case (rpcEnv, arguments, env, resourceProfile) =>

@@ -11,7 +11,7 @@ import java.util.Map;
 
 public class RayProxy {
     public static ActorHandle<RayCoarseGrainedExecutorBackend> createExecutorActor(
-        int executorId,
+        String executorId,
         String masterURL,
         int cores,
         int memoryInMB,
@@ -20,7 +20,7 @@ public class RayProxy {
       ActorCreator<RayCoarseGrainedExecutorBackend> handler = Ray.actor(new RayFunc2() {
         @Override
         public Object apply(Object executorId, Object url) throws Exception {
-          int id = (Integer)executorId;
+          String id = (String)executorId;
           String masterUrl = (String)url;
           return new RayCoarseGrainedExecutorBackend(id, masterUrl);
         }

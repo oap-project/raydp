@@ -3,12 +3,14 @@ package org.apache.spark.deploy.raydp
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
+import io.ray.api.function.{RayFuncVoid3, RayFuncVoid4}
 import org.apache.spark.SparkConf
+import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.RayProxy
 import org.apache.spark.rpc.{RpcAddress, RpcCallContext, RpcEndpointAddress, RpcEndpointRef, RpcEnv, ThreadSafeRpcEndpoint}
 
-import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
+import scala.collection.JavaConverters._
 
 private[deploy] class RayAppMaster(
     override val rpcEnv: RpcEnv,
@@ -42,7 +44,30 @@ private[deploy] class RayAppMaster(
 
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
     case RegisterExecutor(executorId) =>
-      context.reply(appInfo.registerExecutor(executorId))
+      val success = appInfo.registerExecutor(executorId)
+      if (success) {
+        setUpExecutor(executorId)
+      }
+      context.reply(success)
+
+    case RequestExecutors(appId, requestedTotal) =>
+      assert(appInfo != null && appInfo.id == appId)
+      if (requestedTotal > appInfo.currentExecutors()) {
+        (0 until (requestedTotal - appInfo.currentExecutors())).foreach{ _ =>
+          requestNewExecutor()
+        }
+      }
+      context.reply(true)
+
+    case KillExecutors(appId, executorIds) =>
+      assert(appInfo != null && appInfo.id == appId)
+      var success = true
+      for (executorId <- executorIds) {
+        if (!appInfo.kill(executorId)) {
+          success = false
+        }
+      }
+      context.reply(success)
   }
 
   private def createApplication(
@@ -79,14 +104,37 @@ private[deploy] class RayAppMaster(
     }
   }
 
-  private def requestNewExecutor(appInfo: ApplicationInfo): Unit = {
-    val driver = appInfo.driver
-    val driverUrl = RpcEndpointAddress(driver.address, driver.name).toString
+  private def requestNewExecutor(): Unit = {
+    val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
+    val memory = appInfo.desc.memoryPerExecutorMB
+    val executorId = s"${appInfo.getNextExecutorId()}"
+    val handler = RayProxy.createExecutorActor(
+      executorId, masterUrl.toString, cores,
+      memory,
+      appInfo.desc.resourceReqsPerExecutor.asJava,
+      appInfo.desc.command.javaOpts)
+    appInfo.addPendingRegisterExecutor(executorId, handler, cores, memory)
+  }
+
+  private def setUpExecutor(executorId: String): Unit = {
+    val handlerOpt = appInfo.getExecutorHandler(executorId)
+    if (handlerOpt.isEmpty) {
+      logWarning(s"Trying to setup executor: ${executorId} which has been removed")
+    }
+    val driverUrl = appInfo.desc.command.driverUrl
     val cores = appInfo.desc.coresPerExecutor
     val appId = appInfo.id
+    val func = new RayFuncVoid4[RayCoarseGrainedExecutorBackend, String, String, Int] {
+      override def apply(
+          obj: RayCoarseGrainedExecutorBackend,
+          appId: String,
+          driverUrl: String,
+          cores: Int): Unit = {
+        obj.startUp(appId, driverUrl, cores)
+      }
+    }
 
-
-
+    handlerOpt.get.task(func, appId, driverUrl, cores).remote()
   }
 }
 
