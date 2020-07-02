@@ -16,6 +16,9 @@ import org.apache.spark.{RayDPException, SparkConf, SparkContext}
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
 
+/**
+ * A SchedulerBackend that request executor from Ray.
+ */
 class RayCoarseGrainedSchedulerBackend(
     sc: SparkContext,
     scheduler: TaskSchedulerImpl,
@@ -92,6 +95,10 @@ class RayCoarseGrainedSchedulerBackend(
     launcherBackend.setState(SparkAppHandle.State.RUNNING)
   }
 
+  override def stop(): Unit = {
+    stop(SparkAppHandle.State.FINISHED)
+  }
+
   private def transferResourceRequirements(
       requirements: Seq[ResourceRequirement]): HashMap[String, Double] = {
     val results = HashMap[String, Double]()
@@ -134,7 +141,7 @@ class RayCoarseGrainedSchedulerBackend(
     }
 
     def registerToAppMaster(): Unit = {
-      logInfo("Connecting to app master " + masterURL + "...")
+      logInfo("Registering to app master " + masterURL + "...")
       val appMasterRef = rpcEnv.setupEndpointRefByURI(masterURL)
       appMasterRef.send(RegisterApplication(appDesc, self))
     }
@@ -159,7 +166,7 @@ class RayCoarseGrainedSchedulerBackend(
    * Kill the given list of executors through the Master.
    * @return whether the kill request is acknowledged.
    */
-  def killExecutors(executorIds: Seq[String]): Future[Boolean] = {
+  override def doKillExecutors(executorIds: Seq[String]): Future[Boolean] = {
     if (appMasterRef.get != null && appId.get != null) {
       appMasterRef.get.ask[Boolean](KillExecutors(appId.get, executorIds))
     } else {

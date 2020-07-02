@@ -144,5 +144,4 @@ private[deploy] class RayAppMaster(
 
 object RayAppMaster {
   val ENDPOINT_NAME = "raydpAppMaster"
-
 }
