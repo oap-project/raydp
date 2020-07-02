@@ -1,11 +1,12 @@
-package org.apache.spark.scheduler.cluster.ray
+package org.apache.spark.scheduler.cluster.raydp
 
 import org.apache.spark.SparkContext
 import org.apache.spark.scheduler.{ExternalClusterManager, SchedulerBackend, TaskScheduler, TaskSchedulerImpl}
 
 private[spark] class RayClusterManager extends ExternalClusterManager {
+
   override def canCreate(masterURL: String): Boolean = {
-    masterURL == "ray"
+    masterURL.startsWith("ray")
   }
 
   override def createTaskScheduler(sc: SparkContext, masterURL: String): TaskScheduler = {

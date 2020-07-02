@@ -1,4 +1,4 @@
-package org.apache.spark.scheduler.cluster.ray
+package org.apache.spark.scheduler.cluster.raydp
 
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
@@ -25,6 +25,8 @@ class RayCoarseGrainedSchedulerBackend(
     masterURL: String)
   extends CoarseGrainedSchedulerBackend(scheduler, sc.env.rpcEnv) with Logging {
 
+  private val masterSparkUrl = transferToSparkUrl(masterURL).toString
+
   private val appId = new AtomicReference[String]()
   private val appMasterRef = new AtomicReference[RpcEndpointRef]()
   private val stopped = new AtomicBoolean()
@@ -34,6 +36,28 @@ class RayCoarseGrainedSchedulerBackend(
   private val launcherBackend = new LauncherBackend() {
     override protected def conf: SparkConf = sc.conf
     override protected def onStopRequest(): Unit = stop(SparkAppHandle.State.KILLED)
+  }
+
+  def transferToSparkUrl(sparkUrl: String): RpcEndpointAddress = {
+    try {
+      val uri = new java.net.URI(sparkUrl)
+      val host = uri.getHost
+      val port = uri.getPort
+      val name = uri.getUserInfo
+      if (uri.getScheme != "ray" ||
+        host == null ||
+        port < 0 ||
+        name == null ||
+        (uri.getPath != null && !uri.getPath.isEmpty) || // uri.getPath returns "" instead of null
+        uri.getFragment != null ||
+        uri.getQuery != null) {
+        throw new RayDPException("Invalid Ray Master URL: " + sparkUrl)
+      }
+      new RpcEndpointAddress(host, port, name)
+    } catch {
+      case e: java.net.URISyntaxException =>
+        throw new RayDPException("Invalid Ray Master URL: " + sparkUrl, e)
+    }
   }
 
   override def start(): Unit = {
@@ -142,7 +166,7 @@ class RayCoarseGrainedSchedulerBackend(
 
     def registerToAppMaster(): Unit = {
       logInfo("Registering to app master " + masterURL + "...")
-      val appMasterRef = rpcEnv.setupEndpointRefByURI(masterURL)
+      val appMasterRef = rpcEnv.setupEndpointRefByURI(masterSparkUrl)
       appMasterRef.send(RegisterApplication(appDesc, self))
     }
   }
