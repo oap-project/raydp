@@ -3,12 +3,12 @@ package org.apache.spark.deploy.raydp
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
-import io.ray.api.function.{RayFuncVoid3, RayFuncVoid4}
+import io.ray.api.function.RayFuncVoid5
 import org.apache.spark.SparkConf
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.RayProxy
-import org.apache.spark.rpc.{RpcAddress, RpcCallContext, RpcEndpointAddress, RpcEndpointRef, RpcEnv, ThreadSafeRpcEndpoint}
+import org.apache.spark.rpc._
 
 import scala.collection.JavaConverters._
 
@@ -108,11 +108,12 @@ private[deploy] class RayAppMaster(
     val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
     val memory = appInfo.desc.memoryPerExecutorMB
     val executorId = s"${appInfo.getNextExecutorId()}"
+    val javaOpts = appInfo.desc.command.javaOpts.mkString(" ")
     val handler = RayProxy.createExecutorActor(
       executorId, masterUrl.toString, cores,
       memory,
-      appInfo.desc.resourceReqsPerExecutor.asJava,
-      appInfo.desc.command.javaOpts)
+      appInfo.desc.resourceReqsPerExecutor.map(pair => (pair._1, Double.box(pair._2))).asJava,
+      javaOpts)
     appInfo.addPendingRegisterExecutor(executorId, handler, cores, memory)
   }
 
@@ -124,17 +125,19 @@ private[deploy] class RayAppMaster(
     val driverUrl = appInfo.desc.command.driverUrl
     val cores = appInfo.desc.coresPerExecutor
     val appId = appInfo.id
-    val func = new RayFuncVoid4[RayCoarseGrainedExecutorBackend, String, String, Int] {
+    val classPathEntries = appInfo.desc.command.classPathEntries
+    val func = new RayFuncVoid5[RayCoarseGrainedExecutorBackend, String, String, Any, Seq[String]] {
       override def apply(
           obj: RayCoarseGrainedExecutorBackend,
           appId: String,
           driverUrl: String,
-          cores: Int): Unit = {
-        obj.startUp(appId, driverUrl, cores)
+          cores: Any,
+          classPathEntries: Seq[String]): Unit = {
+        obj.startUp(appId, driverUrl, cores.asInstanceOf[Int], classPathEntries)
       }
     }
 
-    handlerOpt.get.task(func, appId, driverUrl, cores).remote()
+    handlerOpt.get.task(func, appId, driverUrl, cores, classPathEntries).remote()
   }
 }
 

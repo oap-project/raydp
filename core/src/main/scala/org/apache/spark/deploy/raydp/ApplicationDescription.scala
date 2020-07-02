@@ -1,7 +1,5 @@
 package org.apache.spark.deploy.raydp
 
-import org.apache.spark.resource.ResourceRequirement
-
 import scala.collection.Map
 
 private[spark] case class Command(

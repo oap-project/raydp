@@ -1,6 +1,6 @@
 package org.apache.spark.deploy.raydp
 
-private[master] object ApplicationState extends Enumeration {
+object ApplicationState extends Enumeration {
 
   type ApplicationState = Value
 
