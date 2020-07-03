@@ -4,7 +4,8 @@ import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
 import io.ray.api.function.RayFuncVoid5
-import org.apache.spark.SparkConf
+import io.ray.runtime.config.RayConfig
+import org.apache.spark.{SecurityManager, SparkConf}
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.RayProxy
@@ -12,12 +13,15 @@ import org.apache.spark.rpc._
 
 import scala.collection.JavaConverters._
 
-private[deploy] class RayAppMaster(
+class RayAppMaster(
     override val rpcEnv: RpcEnv,
     address: RpcAddress,
     val securityMgr: SecurityManager,
     val conf: SparkConf)
-  extends ThreadSafeRpcEndpoint with Logging{
+  extends ThreadSafeRpcEndpoint with Serializable with Logging {
+
+  // register endpoint
+  rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, this)
 
   // For application IDs
   private def createDateFormat = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US)
@@ -142,6 +146,23 @@ private[deploy] class RayAppMaster(
 }
 
 
-object RayAppMaster {
-  val ENDPOINT_NAME = "raydpAppMaster"
+object RayAppMaster extends Serializable {
+  val ENV_NAME = "RAY_RPC_ENV"
+  val ENDPOINT_NAME = "RAY_APP_MASTER"
+
+  def apply(): RayAppMaster = {
+    val conf = new SparkConf()
+    val securityMgr = new SecurityManager(conf)
+    val nodeIp = RayConfig.getInstance().nodeIp
+    val env = RpcEnv.create(
+      RayAppMaster.ENV_NAME,
+      nodeIp,
+      nodeIp,
+      -1,
+      conf,
+      securityMgr,
+      numUsableCores = 0,
+      clientMode = false)
+    new RayAppMaster(env, env.address, securityMgr, conf)
+  }
 }
