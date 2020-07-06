@@ -22,6 +22,7 @@ class RayCoarseGrainedExecutorBackend(
 
   private val temporaryRpcEnvName = "ExecutorTemporaryRpcEnv"
   private var temporaryRpcEnv: Option[RpcEnv] = None
+  private var executorRunningThread: Thread = null
 
   init()
 
@@ -69,11 +70,15 @@ class RayCoarseGrainedExecutorBackend(
         new CoarseGrainedExecutorBackend(rpcEnv, driverUrl, executorId,
           nodeIp, nodeIp, cores, userClassPath, env, None, resourceProfile)
     }
-    run(appId, driverUrl, cores, createFn)
-    System.exit(0)
+    executorRunningThread = new Thread() {
+      override def run(): Unit = {
+        serveAsExecutor(appId, driverUrl, cores, createFn)
+      }
+    }
+    executorRunningThread.start()
   }
 
-  private def run(
+  private def serveAsExecutor(
       appId: String,
       driverUrl: String,
       cores: Int,
