@@ -58,8 +58,11 @@ class RayCoarseGrainedExecutorBackend(
   }
 
   def startUp(
-      appId: String, driverUrl: String, cores: Int, classPathEntries: Seq[String]): Unit = {
-    val userClassPath = classPathEntries.map(new URL(_))
+      appId: String,
+      driverUrl: String,
+      cores: Int,
+      classPathEntries: String): Unit = {
+    val userClassPath = classPathEntries.split(";").map(new URL(_))
     val createFn: (RpcEnv, SparkEnv, ResourceProfile) =>
       CoarseGrainedExecutorBackend = {
       case (rpcEnv, env, resourceProfile) =>
