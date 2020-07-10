@@ -1,5 +1,6 @@
 package org.apache.spark.executor
 
+import java.io.File
 import java.net.URL
 
 import io.ray.runtime.config.RayConfig
@@ -11,7 +12,7 @@ import org.apache.spark.resource.ResourceProfile
 import org.apache.spark.rpc.{RpcEndpointRef, RpcEnv}
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{RetrieveSparkAppConfig, SparkAppConfig}
 import org.apache.spark.util.Utils
-import org.apache.spark.{SecurityManager, SparkConf, SparkEnv}
+import org.apache.spark.{RayDPException, SecurityManager, SparkConf, SparkEnv}
 
 
 class RayCoarseGrainedExecutorBackend(
@@ -23,6 +24,7 @@ class RayCoarseGrainedExecutorBackend(
   private val temporaryRpcEnvName = "ExecutorTemporaryRpcEnv"
   private var temporaryRpcEnv: Option[RpcEnv] = None
   private var executorRunningThread: Thread = null
+  private var workingDir: File = null
 
   init()
 
@@ -63,7 +65,10 @@ class RayCoarseGrainedExecutorBackend(
       driverUrl: String,
       cores: Int,
       classPathEntries: String): Unit = {
-    val userClassPath = classPathEntries.split(";").map(new URL(_))
+    createWorkingDir(appId)
+    setUserDir()
+
+    val userClassPath = classPathEntries.split(";").filter(_.nonEmpty).map(new URL(_))
     val createFn: (RpcEnv, SparkEnv, ResourceProfile) =>
       CoarseGrainedExecutorBackend = {
       case (rpcEnv, env, resourceProfile) =>
@@ -72,10 +77,65 @@ class RayCoarseGrainedExecutorBackend(
     }
     executorRunningThread = new Thread() {
       override def run(): Unit = {
-        serveAsExecutor(appId, driverUrl, cores, createFn)
+        try{
+          serveAsExecutor(appId, driverUrl, cores, createFn)
+        } catch {
+          case e: Exception =>
+            logWarning(e.getMessage)
+            throw e
+        }
       }
     }
     executorRunningThread.start()
+  }
+
+  def createWorkingDir(appId: String): Unit = {
+    val file = new File(RayConfig.getInstance().sessionDir, appId)
+    var remainingTimes = 3
+    var continue = true
+    while (continue && remainingTimes > 0) {
+      try {
+        file.mkdir()
+        continue = !file.exists()
+        remainingTimes -= 1
+        if (remainingTimes > 0) {
+          logError(s"Create ${file.getAbsolutePath} failed, remaining times: ${remainingTimes}")
+        }
+      } catch {
+        case e: SecurityException =>
+          throw e
+      }
+    }
+
+    if (file.exists()) {
+      if (file.isFile) {
+        throw new RayDPException(
+          s"Expect ${file.getAbsolutePath} is a directory, however it is a file")
+      }
+    } else {
+      throw new RayDPException(s"Create ${file.getAbsolutePath} failed after 3 times trying")
+    }
+
+    workingDir = file.getCanonicalFile
+  }
+
+  def setUserDir(): Unit = {
+    assert(workingDir != null && workingDir.isDirectory)
+    val file = new File(workingDir, executorId)
+    if (file.exists()) {
+      throw new RayDPException(
+        s"Create ${executorId} working dir failed because it existed already")
+    }
+    try {
+      file.mkdir()
+    } catch {
+      case e: Exception => throw e
+    }
+
+    if (!file.exists()) {
+      throw new RayDPException(s"Create ${executorId} working dir failed")
+    }
+    System.setProperty("user.dir", file.getAbsolutePath)
   }
 
   private def serveAsExecutor(
