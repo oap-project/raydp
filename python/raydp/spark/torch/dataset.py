@@ -7,8 +7,8 @@ import pandas
 import torch
 from torch.utils.data import Dataset, DistributedSampler
 
-from raydp.spark.block_holder import BlockSet
-from raydp.spark.spark_cluster import save_to_ray
+from raydp.spark.cluster.standalone.block_holder import BlockSet
+from raydp.spark.cluster.standalone.spark_cluster import save_to_ray
 
 # we use 4 bytes for block size, this means each block can contain
 # 4294967296 records

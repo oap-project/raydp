@@ -12,9 +12,9 @@ from pyspark.sql.types import IntegerType, LongType, StringType, StructField, St
 
 from raydp.cluster import Cluster
 from raydp.ray_cluster_resources import ClusterResources
-from raydp.spark.block_holder import BlockHolder, BlockHolderActorHandlerWrapper, BlockSet
-from raydp.spark.spark_master_service import SparkMasterService
-from raydp.spark.spark_worker_service import SparkWorkerService
+from raydp.spark.cluster.standalone.block_holder import BlockHolder, BlockHolderActorHandlerWrapper, BlockSet
+from raydp.spark.cluster.standalone.spark_master_service import SparkMasterService
+from raydp.spark.cluster.standalone.spark_worker_service import SparkWorkerService
 from raydp.spark.utils import get_node_address, convert_to_spark
 
 _global_broadcasted = {}

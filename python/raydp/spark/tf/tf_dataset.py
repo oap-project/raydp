@@ -3,7 +3,7 @@ from typing import List
 import tensorflow as tf
 import ray
 
-from raydp.spark.block_holder import BlockSet
+from raydp.spark.cluster.standalone.block_holder import BlockSet
 
 
 # TODO: wrap into Dataset class
