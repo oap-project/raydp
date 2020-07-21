@@ -37,8 +37,20 @@ class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
     endpoint = rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, new RayAppMasterEndpoint(rpcEnv))
   }
 
-  def getMasterUrl(): String = {
+  /**
+   * Get the app master endpoint URL. The executor will connect to AppMaster by this URL and
+   * tell the AppMaster that it has started up successful.
+   */
+  def getAppMasterEndpointUrl(): String = {
     RpcEndpointAddress(rpcEnv.address, RayAppMaster.ENDPOINT_NAME).toString
+  }
+
+  /**
+   * This is used to represent the Spark on Ray cluster URL.
+   */
+  def getMasterUrl(): String = {
+    val url = RpcEndpointAddress(rpcEnv.address, RayAppMaster.ENDPOINT_NAME).toString
+    url.replace("spark", "ray")
   }
 
   class RayAppMasterEndpoint(override val rpcEnv: RpcEnv) extends ThreadSafeRpcEndpoint {
@@ -128,7 +140,7 @@ class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
       val executorId = s"${appInfo.getNextExecutorId()}"
       val javaOpts = appInfo.desc.command.javaOpts.mkString(" ")
       val handler = RayUtils.createExecutorActor(
-        executorId, getMasterUrl(), cores,
+        executorId, getAppMasterEndpointUrl(), cores,
         memory,
         appInfo.desc.resourceReqsPerExecutor.map(pair => (pair._1, Double.box(pair._2))).asJava,
         javaOpts)

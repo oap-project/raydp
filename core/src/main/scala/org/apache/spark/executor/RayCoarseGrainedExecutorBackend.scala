@@ -17,7 +17,7 @@ import org.apache.spark.{RayDPException, SecurityManager, SparkConf, SparkEnv}
 
 class RayCoarseGrainedExecutorBackend(
     val executorId: String,
-    val masterURL: String) extends Logging {
+    val appMasterURL: String) extends Logging {
 
   val nodeIp = RayConfig.getInstance().nodeIp
 
@@ -36,11 +36,11 @@ class RayCoarseGrainedExecutorBackend(
   }
 
   def registerToAppMaster(): Unit = {
-    var driver: RpcEndpointRef = null
+    var appMaster: RpcEndpointRef = null
     val nTries = 3
-    for (i <- 0 until nTries if driver == null) {
+    for (i <- 0 until nTries if appMaster == null) {
       try {
-        driver = temporaryRpcEnv.get.setupEndpointRefByURI(masterURL)
+        appMaster = temporaryRpcEnv.get.setupEndpointRefByURI(appMasterURL)
       } catch {
         case e: Throwable =>
           if (i == nTries - 1) {
@@ -52,7 +52,7 @@ class RayCoarseGrainedExecutorBackend(
       }
     }
 
-    val registeredResult = driver.askSync[Boolean](RegisterExecutor(executorId))
+    val registeredResult = appMaster.askSync[Boolean](RegisterExecutor(executorId))
     if (registeredResult) {
       logInfo(s"Executor: ${executorId} register to app master success")
     } else {

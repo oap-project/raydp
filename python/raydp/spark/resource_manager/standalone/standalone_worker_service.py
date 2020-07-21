@@ -10,7 +10,7 @@ from raydp.services import WorkerService
 from raydp.spark.utils import register_exit_handler
 
 
-class SparkWorkerService(WorkerService):
+class StandaloneWorkerService(WorkerService):
     def __init__(self,
                  master_url: str,
                  cores: int,

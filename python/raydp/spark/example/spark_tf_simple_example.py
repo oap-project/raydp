@@ -6,8 +6,8 @@ import ray
 from pyspark.sql.functions import rand
 from ray.util.sgd.tf.tf_trainer import TFTrainer
 
-from raydp.spark.cluster.standalone.block_holder import ObjectIdList
-from raydp.spark.cluster.standalone.spark_cluster import save_to_ray, SparkCluster
+from raydp.spark.resource_manager.standalone.block_holder import ObjectIdList
+from raydp.spark.resource_manager.standalone.standalone_cluster import save_to_ray, SparkCluster
 from raydp.spark.tf.tf_dataset import create_dataset_from_objects
 
 parser = argparse.ArgumentParser(description="A simple example for spark on ray")

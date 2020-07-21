@@ -10,11 +10,11 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf, PandasUDFType
 from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
 
-from raydp.cluster import Cluster
+from raydp.services import Cluster
 from raydp.ray_cluster_resources import ClusterResources
-from raydp.spark.cluster.standalone.block_holder import BlockHolder, BlockHolderActorHandlerWrapper, BlockSet
-from raydp.spark.cluster.standalone.spark_master_service import SparkMasterService
-from raydp.spark.cluster.standalone.spark_worker_service import SparkWorkerService
+from raydp.spark.resource_manager.standalone.block_holder import BlockHolder, BlockHolderActorHandlerWrapper, BlockSet
+from raydp.spark.resource_manager.standalone.standalone_master_service import StandaloneMasterService
+from raydp.spark.resource_manager.standalone.standalone_worker_service import StandaloneWorkerService
 from raydp.spark.utils import get_node_address, convert_to_spark
 
 _global_broadcasted = {}
@@ -27,7 +27,7 @@ default_config = {
 }
 
 
-class SparkCluster(Cluster):
+class StandaloneCluster(Cluster):
     def __init__(self,
                  spark_home: str,
                  master_resources: Dict[str, float] = {"num_cpus": 0},
@@ -70,7 +70,7 @@ class SparkCluster(Cluster):
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[str, str]):
         self._resource_check(resources)
         # set up master
-        master_remote = ray.remote(**resources)(SparkMasterService)
+        master_remote = ray.remote(**resources)(StandaloneMasterService)
         self._master = master_remote.remote(
             self._spark_home, self._master_port, self._master_webui_port, self._master_properties)
         # start up master
@@ -101,7 +101,7 @@ class SparkCluster(Cluster):
         port = kwargs.get("port", None)
         webui_port = kwargs.get("webui_port", None)
         properties = kwargs.get("properties", None)
-        worker_remote = ray.remote(**resources_copy)(SparkWorkerService)
+        worker_remote = ray.remote(**resources_copy)(StandaloneWorkerService)
         worker = worker_remote.remote(master_url=self._master_url,
                                       cores=resources_copy["num_cpus"],
                                       memory=resources_copy["memory"],

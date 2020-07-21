@@ -34,13 +34,13 @@ public class RayUtils {
 
   public static ActorHandle<RayCoarseGrainedExecutorBackend> createExecutorActor(
       String executorId,
-      String masterURL,
+      String appMasterURL,
       int cores,
       int memoryInMB,
       Map<String, Double> resources,
       String javaOpts) {
     ActorCreator<RayCoarseGrainedExecutorBackend> creator = Ray.actor(
-            RayCoarseGrainedExecutorBackend::new, executorId, masterURL);
+            RayCoarseGrainedExecutorBackend::new, executorId, appMasterURL);
 
     creator.setJvmOptions(javaOpts);
     creator.setResource("CPU", (double)cores);
