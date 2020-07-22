@@ -25,8 +25,7 @@ else:
 try:
     os.mkdir(TEMP_PATH)
 except:
-    print(f"Temp path for symlink to parent already exists {TEMP_PATH}",
-          file=sys.stderr)
+    print(f"Temp path for symlink to parent already exists {TEMP_PATH}", file=sys.stderr)
     sys.exit(-1)
 
 
@@ -46,7 +45,8 @@ try:
         "psutil",
         "pyarrow >= 0.10",
         "pyspark == 3.0.0",
-        "ray"
+        "ray",
+        "pyjnius"
     ]
 
     with open('../README.md') as f:
@@ -69,5 +69,3 @@ finally:
     else:
         rmtree(os.path.join(TEMP_PATH, "jars"))
     os.rmdir(TEMP_PATH)
-
-

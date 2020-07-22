@@ -5,7 +5,7 @@ import java.util.{Date, Locale}
 
 import io.ray.runtime.config.RayConfig
 import org.apache.spark.internal.Logging
-import org.apache.spark.raydp.RayUtils
+import org.apache.spark.raydp.AppMasterJavaUtils
 import org.apache.spark.rpc._
 import org.apache.spark.{SecurityManager, SparkConf}
 
@@ -51,6 +51,14 @@ class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
   def getMasterUrl(): String = {
     val url = RpcEndpointAddress(rpcEnv.address, RayAppMaster.ENDPOINT_NAME).toString
     url.replace("spark", "ray")
+  }
+
+  def stop(): Unit = {
+    if (rpcEnv != null) {
+      rpcEnv.shutdown()
+      endpoint = null
+      rpcEnv = null
+    }
   }
 
   class RayAppMasterEndpoint(override val rpcEnv: RpcEnv) extends ThreadSafeRpcEndpoint {
@@ -139,7 +147,7 @@ class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
       val memory = appInfo.desc.memoryPerExecutorMB
       val executorId = s"${appInfo.getNextExecutorId()}"
       val javaOpts = appInfo.desc.command.javaOpts.mkString(" ")
-      val handler = RayUtils.createExecutorActor(
+      val handler = AppMasterJavaUtils.createExecutorActor(
         executorId, getAppMasterEndpointUrl(), cores,
         memory,
         appInfo.desc.resourceReqsPerExecutor.map(pair => (pair._1, Double.box(pair._2))).asJava,
@@ -156,7 +164,7 @@ class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
       val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
       val appId = appInfo.id
       val classPathEntries = appInfo.desc.command.classPathEntries.mkString(";")
-      RayUtils.setUpExecutor(handlerOpt.get, appId, driverUrl, cores, classPathEntries)
+      AppMasterJavaUtils.setUpExecutor(handlerOpt.get, appId, driverUrl, cores, classPathEntries)
     }
   }
 }
