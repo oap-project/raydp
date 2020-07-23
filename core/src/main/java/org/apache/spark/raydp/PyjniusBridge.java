@@ -5,11 +5,11 @@ import org.apache.spark.deploy.raydp.RayAppMaster;
 
 public class PyjniusBridge {
     private RayAppMaster instance = null;
-    public void createAppMaster() {
+    public void createAppMaster(String extra_cp) {
         if (instance == null) {
             // init ray, we should set the config by java properties
             Ray.init();
-            instance = new RayAppMaster();
+            instance = new RayAppMaster(extra_cp);
         }
     }
 

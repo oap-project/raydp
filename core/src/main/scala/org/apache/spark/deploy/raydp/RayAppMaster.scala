@@ -1,5 +1,6 @@
 package org.apache.spark.deploy.raydp
 
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
@@ -7,18 +8,24 @@ import io.ray.runtime.config.RayConfig
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.AppMasterJavaUtils
 import org.apache.spark.rpc._
-import org.apache.spark.{SecurityManager, SparkConf}
+import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 
 import scala.collection.JavaConverters._
 
-class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
+class RayAppMaster(host: String,
+                   port: Int,
+                   actor_extra_classpath: String) extends Serializable with Logging {
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
 
   init()
 
   def this() = {
-    this(RayConfig.getInstance().nodeIp, 0)
+    this(RayConfig.getInstance().nodeIp, 0, "")
+  }
+
+  def this(actor_extra_classpath: String) = {
+    this(RayConfig.getInstance().nodeIp, 0, actor_extra_classpath)
   }
 
   def init() = {
@@ -146,13 +153,39 @@ class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
       val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
       val memory = appInfo.desc.memoryPerExecutorMB
       val executorId = s"${appInfo.getNextExecutorId()}"
-      val javaOpts = appInfo.desc.command.javaOpts.mkString(" ")
+      val javaOpts = appendActorClasspath(appInfo.desc.command.javaOpts)
       val handler = AppMasterJavaUtils.createExecutorActor(
         executorId, getAppMasterEndpointUrl(), cores,
         memory,
         appInfo.desc.resourceReqsPerExecutor.map(pair => (pair._1, Double.box(pair._2))).asJava,
         javaOpts)
       appInfo.addPendingRegisterExecutor(executorId, handler, cores, memory)
+    }
+
+    private def appendActorClasspath(javaOpts: Seq[String]): String = {
+      var user_opts = false
+      var i = 0
+      while (user_opts && i < javaOpts.size) {
+        if ("-cp" == javaOpts(i) || "-classpath" == javaOpts(i)) {
+          user_opts = true
+        }
+      }
+
+      val result = if (user_opts) {
+        // user has set '-cp' or '-classpath'
+        i += 1
+        if (i == javaOpts.size) {
+          throw new RayDPException(
+            s"Found ${javaOpts(i-1)} while not classpath url in executor java opts")
+        }
+
+        javaOpts(i) = javaOpts(i) + File.pathSeparator + actor_extra_classpath
+        javaOpts
+      } else {
+        // user has not set, we append the actor extra classpath in the end
+        javaOpts ++ Seq("-cp", actor_extra_classpath)
+      }
+      result.mkString(" ")
     }
 
     private def setUpExecutor(executorId: String): Unit = {
