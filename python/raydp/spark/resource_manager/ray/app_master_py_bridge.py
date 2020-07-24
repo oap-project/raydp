@@ -1,10 +1,18 @@
-from jnius import JavaClass, JavaMethod, MetaJavaClass
+from jnius import autoclass
 
 
-class AppMasterPyBridge(JavaClass, metaclass=MetaJavaClass):
-    __javaclass__ = 'org/apache/spark/raydp/AppMasterJavaBridge'
+class AppMasterPyBridge:
+    def __init__(self, jvm_properties):
+        app_master_cls = autoclass("org.apache.spark.raydp.AppMasterJavaBridge")
+        self._app_master = app_master_cls(jvm_properties)
 
-    createAppMaster = JavaMethod("(Ljava/lang/String;)V")
-    getMasterUrl = JavaMethod("()Ljava/lang/String;")
-    stop = JavaMethod("()V")
+    def create_app_master(self, extra_cp):
+        self._app_master.createAppMaster(extra_cp)
+
+    def get_master_url(self):
+        return self._app_master.getMasterUrl()
+
+    def stop(self):
+        self._app_master.stop()
+
 

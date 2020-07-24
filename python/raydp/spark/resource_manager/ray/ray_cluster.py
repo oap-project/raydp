@@ -2,6 +2,7 @@ import os
 from typing import Dict, Any
 
 import jnius_config
+import json
 import ray
 import ray.services
 from pyspark import find_spark_home
@@ -19,32 +20,35 @@ class RayCluster(Cluster):
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[Any, Any]):
         cp_list = self._prepare_jvm_classpath()
-        self._prepare_jvm_options(cp_list)
+        jvm_properties = self._prepare_jvm_options(cp_list)
         cp_str = os.pathsep.join(cp_list)
         from raydp.spark.resource_manager.ray.app_master_py_bridge import AppMasterPyBridge
-        self._app_master_bridge = AppMasterPyBridge()
-        self._app_master_bridge.createAppMaster(cp_str)
+        self._app_master_bridge = AppMasterPyBridge(jvm_properties)
+        self._app_master_bridge.create_app_master(cp_str)
 
     def _prepare_jvm_options(self, jvm_cp_list):
         # TODO: set app master resource
 
-        jnius_config.add_classpath(".")
-        for cp in jvm_cp_list:
-            jnius_config.add_classpath(cp)
+        jnius_config.add_classpath(".", *jvm_cp_list)
 
         options = {}
 
         node = ray.worker.global_worker.node
+
         options["ray.node-ip"] = node.node_ip_address
         options["ray.redis.address"] = node.redis_address
         options["ray.redis.password"] = node.redis_password
+        options["ray.redis.head-password"] = node.redis_password
+        options["ray.logging.dir"] = node.get_session_dir_path()
         options["ray.session-dir"] = node.get_session_dir_path()
         options["ray.raylet.node-manager-port"] = node.node_manager_port
         options["ray.raylet.socket-name"] = node.raylet_socket_name
         options["ray.object-store.socket-name"] = node.plasma_store_socket_name
 
-        for key, value in options.items():
-            jnius_config.add_options(f"-D{key}={value}")
+        # jnius_config.set_option has some bug, we set this options in java side
+        jvm_properties = json.dumps(options)
+        print(jvm_properties)
+        return jvm_properties
 
     def _prepare_jvm_classpath(self):
         cp_list = []
