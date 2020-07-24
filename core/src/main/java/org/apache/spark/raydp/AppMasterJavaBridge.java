@@ -3,7 +3,7 @@ package org.apache.spark.raydp;
 import io.ray.api.Ray;
 import org.apache.spark.deploy.raydp.RayAppMaster;
 
-public class PyjniusBridge {
+public class AppMasterJavaBridge {
     private RayAppMaster instance = null;
     public void createAppMaster(String extra_cp) {
         if (instance == null) {

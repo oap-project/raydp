@@ -1,28 +1,29 @@
+import os
 from typing import Dict, Any
 
 import jnius_config
 import ray
+import ray.services
 from pyspark import find_spark_home
 from pyspark.sql.session import SparkSession
 
-import os
-
 from raydp.services import Cluster
-from raydp.spark.resource_manager.ray.app_master import AppMaster
 
 
 class RayCluster(Cluster):
     def __init__(self):
         super().__init__(None)
-        self._app_master = None
-        self._set_up_master()
+        self._app_master_bridge = None
+        self._set_up_master(None, None)
         self._spark_session: SparkSession = None
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[Any, Any]):
         cp_list = self._prepare_jvm_classpath()
         self._prepare_jvm_options(cp_list)
         cp_str = os.pathsep.join(cp_list)
-        self._app_master = AppMaster.createAppMaster(cp_str)
+        from raydp.spark.resource_manager.ray.app_master_py_bridge import AppMasterPyBridge
+        self._app_master_bridge = AppMasterPyBridge()
+        self._app_master_bridge.createAppMaster(cp_str)
 
     def _prepare_jvm_options(self, jvm_cp_list):
         # TODO: set app master resource
@@ -37,15 +38,21 @@ class RayCluster(Cluster):
         options["ray.node-ip"] = node.node_ip_address
         options["ray.redis.address"] = node.redis_address
         options["ray.redis.password"] = node.redis_password
+        options["ray.session-dir"] = node.get_session_dir_path()
+        options["ray.raylet.node-manager-port"] = node.node_manager_port
+        options["ray.raylet.socket-name"] = node.raylet_socket_name
+        options["ray.object-store.socket-name"] = node.plasma_store_socket_name
 
         for key, value in options.items():
             jnius_config.add_options(f"-D{key}={value}")
 
     def _prepare_jvm_classpath(self):
         cp_list = []
-        current_path = os.path.abspath(__file__)
+        # find ray jar path
+        cp_list.extend(ray.services.DEFAULT_JAVA_WORKER_CLASSPATH)
         # find RayDP core path
-        raydp_cp = os.path.join(current_path, "../../../../jars/*")
+        current_path = os.path.abspath(__file__)
+        raydp_cp = os.path.abspath(os.path.join(current_path, "../../../../jars/*"))
         cp_list.append(raydp_cp)
         # find pyspark jars path
         spark_home = find_spark_home._find_spark_home()
@@ -57,7 +64,7 @@ class RayCluster(Cluster):
         raise Exception("Unsupported operation")
 
     def get_cluster_url(self) -> str:
-        self._app_master.get_master_url()
+        self._app_master_bridge.get_master_url()
 
     def get_spark_session(self,
                           app_name: str,
@@ -81,6 +88,6 @@ class RayCluster(Cluster):
             self._spark_session.stop()
             self._spark_session = None
 
-        if self._app_master is not None:
-            self._app_master.stop()
-            self._app_master = None
+        if self._app_master_bridge is not None:
+            self._app_master_bridge.stop()
+            self._app_master_bridge = None

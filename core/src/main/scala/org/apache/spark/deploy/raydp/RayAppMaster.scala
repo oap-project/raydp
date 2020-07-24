@@ -163,15 +163,15 @@ class RayAppMaster(host: String,
     }
 
     private def appendActorClasspath(javaOpts: Seq[String]): String = {
-      var user_opts = false
+      var user_set_cp = false
       var i = 0
-      while (user_opts && i < javaOpts.size) {
+      while (user_set_cp && i < javaOpts.size) {
         if ("-cp" == javaOpts(i) || "-classpath" == javaOpts(i)) {
-          user_opts = true
+          user_set_cp = true
         }
       }
 
-      val result = if (user_opts) {
+      val result = if (user_set_cp) {
         // user has set '-cp' or '-classpath'
         i += 1
         if (i == javaOpts.size) {
@@ -179,8 +179,7 @@ class RayAppMaster(host: String,
             s"Found ${javaOpts(i-1)} while not classpath url in executor java opts")
         }
 
-        javaOpts(i) = javaOpts(i) + File.pathSeparator + actor_extra_classpath
-        javaOpts
+        javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actor_extra_classpath)
       } else {
         // user has not set, we append the actor extra classpath in the end
         javaOpts ++ Seq("-cp", actor_extra_classpath)
