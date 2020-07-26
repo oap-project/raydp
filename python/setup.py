@@ -39,7 +39,6 @@ try:
         "pyarrow >= 0.10",
         "pyspark == 3.0.0",
         "ray",
-        "pyjnius"
     ]
 
     with open('../README.md') as f:
