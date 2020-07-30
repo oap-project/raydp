@@ -1,24 +1,31 @@
 package org.apache.spark.deploy.raydp
 
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
 import io.ray.runtime.config.RayConfig
 import org.apache.spark.internal.Logging
-import org.apache.spark.raydp.RayUtils
+import org.apache.spark.raydp.AppMasterJavaUtils
 import org.apache.spark.rpc._
-import org.apache.spark.{SecurityManager, SparkConf}
+import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 
 import scala.collection.JavaConverters._
 
-class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
+class RayAppMaster(host: String,
+                   port: Int,
+                   actor_extra_classpath: String) extends Serializable with Logging {
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
 
   init()
 
   def this() = {
-    this(RayConfig.getInstance().nodeIp, 0)
+    this(RayConfig.getInstance().nodeIp, 0, "")
+  }
+
+  def this(actor_extra_classpath: String) = {
+    this(RayConfig.getInstance().nodeIp, 0, actor_extra_classpath)
   }
 
   def init() = {
@@ -37,8 +44,28 @@ class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
     endpoint = rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, new RayAppMasterEndpoint(rpcEnv))
   }
 
-  def getMasterUrl(): String = {
+  /**
+   * Get the app master endpoint URL. The executor will connect to AppMaster by this URL and
+   * tell the AppMaster that it has started up successful.
+   */
+  def getAppMasterEndpointUrl(): String = {
     RpcEndpointAddress(rpcEnv.address, RayAppMaster.ENDPOINT_NAME).toString
+  }
+
+  /**
+   * This is used to represent the Spark on Ray cluster URL.
+   */
+  def getMasterUrl(): String = {
+    val url = RpcEndpointAddress(rpcEnv.address, RayAppMaster.ENDPOINT_NAME).toString
+    url.replace("spark", "ray")
+  }
+
+  def stop(): Unit = {
+    if (rpcEnv != null) {
+      rpcEnv.shutdown()
+      endpoint = null
+      rpcEnv = null
+    }
   }
 
   class RayAppMasterEndpoint(override val rpcEnv: RpcEnv) extends ThreadSafeRpcEndpoint {
@@ -126,13 +153,38 @@ class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
       val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
       val memory = appInfo.desc.memoryPerExecutorMB
       val executorId = s"${appInfo.getNextExecutorId()}"
-      val javaOpts = appInfo.desc.command.javaOpts.mkString(" ")
-      val handler = RayUtils.createExecutorActor(
-        executorId, getMasterUrl(), cores,
+      val javaOpts = appendActorClasspath(appInfo.desc.command.javaOpts)
+      val handler = AppMasterJavaUtils.createExecutorActor(
+        executorId, getAppMasterEndpointUrl(), cores,
         memory,
         appInfo.desc.resourceReqsPerExecutor.map(pair => (pair._1, Double.box(pair._2))).asJava,
         javaOpts)
       appInfo.addPendingRegisterExecutor(executorId, handler, cores, memory)
+    }
+
+    private def appendActorClasspath(javaOpts: Seq[String]): String = {
+      var user_set_cp = false
+      var i = 0
+      while (user_set_cp && i < javaOpts.size) {
+        if ("-cp" == javaOpts(i) || "-classpath" == javaOpts(i)) {
+          user_set_cp = true
+        }
+      }
+
+      val result = if (user_set_cp) {
+        // user has set '-cp' or '-classpath'
+        i += 1
+        if (i == javaOpts.size) {
+          throw new RayDPException(
+            s"Found ${javaOpts(i-1)} while not classpath url in executor java opts")
+        }
+
+        javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actor_extra_classpath)
+      } else {
+        // user has not set, we append the actor extra classpath in the end
+        javaOpts ++ Seq("-cp", actor_extra_classpath)
+      }
+      result.mkString(" ")
     }
 
     private def setUpExecutor(executorId: String): Unit = {
@@ -144,7 +196,7 @@ class RayAppMaster(host: String, port: Int) extends Serializable with Logging {
       val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
       val appId = appInfo.id
       val classPathEntries = appInfo.desc.command.classPathEntries.mkString(";")
-      RayUtils.setUpExecutor(handlerOpt.get, appId, driverUrl, cores, classPathEntries)
+      AppMasterJavaUtils.setUpExecutor(handlerOpt.get, appId, driverUrl, cores, classPathEntries)
     }
   }
 }

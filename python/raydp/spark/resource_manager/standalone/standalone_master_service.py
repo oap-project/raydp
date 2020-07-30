@@ -10,7 +10,7 @@ from raydp.services import MasterService
 from raydp.spark.utils import register_exit_handler
 
 
-class SparkMasterService(MasterService):
+class StandaloneMasterService(MasterService):
     def __init__(self,
                  spark_home: str,
                  port: Any = None,

@@ -1,0 +1,3 @@
+include README.md
+recursive-include raydp/jars *.jar
+global-exclude *.py[cod] __pycache__ .DS_Store
