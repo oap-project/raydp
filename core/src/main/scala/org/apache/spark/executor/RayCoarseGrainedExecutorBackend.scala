@@ -136,6 +136,7 @@ class RayCoarseGrainedExecutorBackend(
       throw new RayDPException(s"Create ${executorId} working dir failed")
     }
     System.setProperty("user.dir", file.getAbsolutePath)
+    System.setProperty("java.io.tmpdir", file.getAbsolutePath)
   }
 
   private def serveAsExecutor(

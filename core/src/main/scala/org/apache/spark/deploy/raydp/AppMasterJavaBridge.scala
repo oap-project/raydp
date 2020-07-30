@@ -1,30 +1,21 @@
 package org.apache.spark.deploy.raydp
 
-import java.util.{HashMap => JHashMap}
-
-import com.fasterxml.jackson.core.JsonProcessingException
-import com.fasterxml.jackson.core.`type`.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.ray.api.Ray
-
-import scala.collection.JavaConverters._
+import io.ray.runtime.config.RayConfig
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 class AppMasterJavaBridge {
   private var instance: RayAppMaster = null
 
   def setProperties(properties: String): Unit = {
-    val mapper = new ObjectMapper()
-    val typeRef = new TypeReference[JHashMap[String, String]](){}
-    var propertiesMap: JHashMap[String, String] = null
-    try propertiesMap = mapper.readValue(properties, typeRef)
-    catch {
-      case e: JsonProcessingException =>
-        throw new RuntimeException(e)
-    }
-
-    propertiesMap.asScala.foreach { case (key, value) =>
+    implicit val formats = org.json4s.DefaultFormats
+    val parsed = parse(properties).extract[Map[String, String]]
+    parsed.foreach{ case (key, value) =>
       System.setProperty(key, value)
     }
+    // Use the same session dir as the python side
+    RayConfig.getInstance().setSessionDir(System.getProperty("ray.session-dir"))
   }
 
   def startUpAppMaster(extra_cp: String): Unit = {

@@ -11,6 +11,8 @@ import time
 from py4j.java_gateway import JavaGateway, GatewayParameters
 from pyspark import find_spark_home
 
+RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../../../jars/*"))
+
 
 class AppMasterPyBridge:
     def __init__(self, popen_kwargs=None):
@@ -21,12 +23,11 @@ class AppMasterPyBridge:
 
     def _prepare_jvm_classpath(self):
         cp_list = []
-        # find ray jar path
-        cp_list.extend(ray.services.DEFAULT_JAVA_WORKER_CLASSPATH)
         # find RayDP core path
-        current_path = os.path.abspath(__file__)
-        raydp_cp = os.path.abspath(os.path.join(current_path, "../../../../jars/*"))
-        cp_list.append(raydp_cp)
+        cp_list.append(RAYDP_CP)
+        # find ray jar path
+        ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
+        cp_list.append(ray_cp)
         # find pyspark jars path
         spark_home = find_spark_home._find_spark_home()
         spark_jars = os.path.join(spark_home, "jars/*")
@@ -82,7 +83,7 @@ class AppMasterPyBridge:
                 length = info.read(4)
                 if not length:
                     raise EOFError
-                gateway_port =  struct.unpack("!i", length)[0]
+                gateway_port = struct.unpack("!i", length)[0]
 
         finally:
             shutil.rmtree(conn_info_dir)
@@ -100,16 +101,18 @@ class AppMasterPyBridge:
 
         node = ray.worker.global_worker.node
 
+        options["ray.run-mode"] = "CLUSTER"
         options["ray.node-ip"] = node.node_ip_address
         options["ray.redis.address"] = node.redis_address
         options["ray.redis.password"] = node.redis_password
         # options["ray.redis.head-password"] = node.redis_password
-        options["ray.logging.dir"] = node.get_session_dir_path()
+        options["ray.logging.dir"] = node.get_logs_dir_path()
+        options["ray.session-dir"] = node.get_session_dir_path()
         options["ray.raylet.node-manager-port"] = node.node_manager_port
         options["ray.raylet.socket-name"] = node.raylet_socket_name
         options["ray.raylet.config.num_workers_per_process_java"] = "1"
         options["ray.object-store.socket-name"] = node.plasma_store_socket_name
-        options["ray.logging.level"] = "DEBUG"
+        options["ray.logging.level"] = "INFO"
 
         # jnius_config.set_option has some bug, we set this options in java side
         jvm_properties = json.dumps(options)

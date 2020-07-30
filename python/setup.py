@@ -37,7 +37,6 @@ try:
         "pandas",
         "psutil",
         "pyarrow >= 0.10",
-        "pyspark == 3.0.0",
         "ray",
     ]
 

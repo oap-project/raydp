@@ -1,10 +1,10 @@
-
+import glob
 from typing import Dict, Any
 
 from pyspark.sql.session import SparkSession
 
 from raydp.services import Cluster
-from raydp.spark.resource_manager.ray.app_master_py_bridge import AppMasterPyBridge
+from raydp.spark.resource_manager.ray.app_master_py_bridge import AppMasterPyBridge, RAYDP_CP
 
 
 class RayCluster(Cluster):
@@ -15,6 +15,7 @@ class RayCluster(Cluster):
         self._spark_session: SparkSession = None
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[Any, Any]):
+        # TODO: specify the app master resource
         self._app_master_bridge = AppMasterPyBridge()
         self._app_master_bridge.create_app_master()
 
@@ -35,6 +36,7 @@ class RayCluster(Cluster):
         extra_conf["spark.executor.instances"] = str(num_executors)
         extra_conf["spark.executor.cores"] = str(executor_cores)
         extra_conf["spark.executor.memory"] = str(executor_memory)
+        extra_conf["spark.jars"] = ",".join(glob.glob(RAYDP_CP))
         spark_builder = SparkSession.builder
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
