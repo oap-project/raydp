@@ -7,19 +7,30 @@ import tempfile
 from subprocess import Popen, PIPE
 
 import ray
+import ray.services
 import time
 from py4j.java_gateway import JavaGateway, GatewayParameters
 from pyspark import find_spark_home
 
+from raydp.services import ClusterMaster
+
 RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../../../jars/*"))
 
 
-class AppMasterPyBridge:
-    def __init__(self, popen_kwargs=None):
-        self._extra_classpath = os.pathsep.join(self._prepare_jvm_classpath())
-        self._gateway = self._launch_gateway(self._extra_classpath, popen_kwargs)
+class RayClusterMaster(ClusterMaster):
+    def __init__(self):
+        self._gateway = None
+        self._app_master_java_bridge = None
+        self._host = None
+        self._started_up = False
+
+    def start_up(self, popen_kwargs=None) -> str:
+        extra_classpath = os.pathsep.join(self._prepare_jvm_classpath())
+        self._gateway = self._launch_gateway(extra_classpath, popen_kwargs)
         self._app_master_java_bridge = self._gateway.entry_point.getAppMasterBridge()
         self._set_properties()
+        self._host = ray.services.get_node_ip_address()
+        self.create_app_master(extra_classpath)
 
     def _prepare_jvm_classpath(self):
         cp_list = []
@@ -97,6 +108,7 @@ class AppMasterPyBridge:
         return gateway
 
     def _set_properties(self):
+        assert ray.is_initialized()
         options = {}
 
         node = ray.worker.global_worker.node
@@ -118,13 +130,22 @@ class AppMasterPyBridge:
         jvm_properties = json.dumps(options)
         self._app_master_java_bridge.setProperties(jvm_properties)
 
-    def create_app_master(self):
-        self._app_master_java_bridge.startUpAppMaster(self._extra_classpath)
+    def get_host(self) -> str:
+        assert self._started_up
+        return self._host
+
+    def create_app_master(self, extra_classpath: str):
+        assert self._started_up
+        self._app_master_java_bridge.startUpAppMaster(extra_classpath)
 
     def get_master_url(self):
+        assert self._started_up
         return self._app_master_java_bridge.getMasterUrl()
 
     def stop(self):
+        if not self._started_up:
+            return
+
         if self._app_master_java_bridge is not None:
             self._app_master_java_bridge.stop()
             self._app_master_java_bridge = None
@@ -132,3 +153,5 @@ class AppMasterPyBridge:
         if self._gateway is not None:
             self._gateway.shutdown()
             self._gateway = None
+
+        self._started_up = False

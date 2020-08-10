@@ -58,7 +58,7 @@ class Cluster(ABC):
         """
 
 
-class MasterService(ABC):
+class ClusterMaster(ABC):
 
     @abstractmethod
     def start_up(self) -> str:
@@ -80,7 +80,7 @@ class MasterService(ABC):
         pass
 
 
-class WorkerService(ABC):
+class ClusterWorker(ABC):
 
     @abstractmethod
     def start_up(self) -> str:

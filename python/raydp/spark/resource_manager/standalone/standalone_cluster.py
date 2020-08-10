@@ -1,21 +1,24 @@
 import copy
-from typing import Any, Dict
+import pickle
+from collections import defaultdict
+from typing import Any, Dict, Iterator, List, NoReturn, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import pyarrow.plasma as plasma
 import pyspark
-import ray  # must import ray before import pickle
-import pickle
+import ray
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.functions import pandas_udf
 from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
 
-from raydp.services import Cluster
 from raydp.ray_cluster_resources import ClusterResources
-from raydp.spark.resource_manager.standalone.block_holder import BlockHolder, BlockHolderActorHandlerWrapper, BlockSet
-from raydp.spark.resource_manager.standalone.standalone_master_service import StandaloneMasterService
-from raydp.spark.resource_manager.standalone.standalone_worker_service import StandaloneWorkerService
-from raydp.spark.utils import get_node_address, convert_to_spark
+from raydp.spark.resource_manager.exchanger import SharedDataset
+from raydp.spark.resource_manager.spark_cluster import SparkCluster
+from raydp.spark.resource_manager.standalone.block_holder import BlockHolder, BlockHolderActorHandlerWrapper
+from raydp.spark.resource_manager.standalone.standalone_cluster_master import StandaloneMasterService
+from raydp.spark.resource_manager.standalone.standalone_cluster_worker import StandaloneWorkerService
+from raydp.spark.utils import get_node_address
 
 _global_broadcasted = {}
 # TODO: better way to stop and clean data holder
@@ -27,7 +30,7 @@ default_config = {
 }
 
 
-class StandaloneCluster(Cluster):
+class StandaloneCluster(SparkCluster):
     def __init__(self,
                  spark_home: str,
                  master_resources: Dict[str, float] = {"num_cpus": 0},
@@ -168,6 +171,56 @@ class StandaloneCluster(Cluster):
 
         return spark
 
+    def save_to_ray(self, df: pyspark.sql.DataFrame) -> SharedDataset:
+        return_type = StructType()
+        return_type.add(StructField("node_label", StringType(), True))
+        return_type.add(StructField("fetch_index", IntegerType(), False))
+        return_type.add(StructField("size", LongType(), False))
+
+        @pandas_udf(return_type)
+        def save(batch_iter: Iterator[pd.DataFrame]) -> Iterator[pd.DataFrame]:
+            if not ray.is_initialized():
+                redis_config = {}
+                broadcasted = _global_broadcasted["redis"].value
+                redis_config["address"] = broadcasted["address"]
+                redis_config["password"] = broadcasted["password"]
+
+                local_address = get_node_address()
+
+                ray.init(address=redis_config["address"],
+                         node_ip_address=local_address,
+                         redis_password=redis_config["password"])
+
+            node_label = f"node:{ray.services.get_node_ip_address()}"
+            block_holder = _global_block_holder[node_label]
+            object_ids = []
+            sizes = []
+            for pdf in batch_iter:
+                obj = ray.put(pickle.dumps(pdf))
+                # TODO: register object in batch
+                object_ids.append(block_holder.register_object_id.remote([obj]))
+                sizes.append(len(pdf))
+
+            indexes = ray.get(object_ids)
+            result_dfs = []
+            for index, block_size in zip(indexes, sizes):
+                result_dfs.append(
+                    pd.DataFrame({"node_label": [node_label],
+                                  "fetch_index": [index],
+                                  "size": [block_size]}))
+            return iter(result_dfs)
+
+        results = df.mapInPandas(save).collect()
+        fetch_indexes = []
+        block_holder_mapping = {}
+        block_sizes = []
+        for row in results:
+            fetch_indexes.append((row["node_label"], row["fetch_index"]))
+            block_sizes.append(row["size"])
+            if row["node_label"] not in block_holder_mapping:
+                block_holder_mapping[row["node_label"]] = _global_block_holder[row["node_label"]]
+        return StandaloneClusterSharedDataset(fetch_indexes, block_sizes, block_holder_mapping)
+
     def stop(self):
         if not self._stopped:
             # TODO: wrap SparkSession to remove this
@@ -192,54 +245,205 @@ class StandaloneCluster(Cluster):
             self._stopped = True
 
 
-def save_to_ray(df: Any) -> BlockSet:
-    df, _ = convert_to_spark(df)
+class StandaloneClusterSharedDataset(SharedDataset):
+    """
+    A list of fetch index, and each fetch index is wrapper into a Block.
 
-    return_type = StructType()
-    return_type.add(StructField("node_label", StringType(), True))
-    return_type.add(StructField("fetch_index", IntegerType(), False))
-    return_type.add(StructField("size", LongType(), False))
+    The workflow of this class:
+       1. block_set = BlockSet()  # create instance
+       2. block_set.append() or hold_df.append_batch() # add fetch_index data
+       3. block_set.resolve()  # Resolve the BlockSet and can't add data again after resolve.
+       4. block_set[0].get() # get the underlying data which should be a pandas.DataFrame
+    """
+    def __init__(self,
+                 fetch_indexes: List[Tuple[str, int]],
+                 block_sizes: List[int],
+                 block_holder_mapping: Dict[str, BlockHolderActorHandlerWrapper]):
+        assert len(fetch_indexes) == len(block_sizes), \
+            "The length of fetch_indexes and block_sizes should be equalled"
+        self._fetch_indexes: List[Tuple[str, int]] = []
+        self._block_sizes = block_sizes
+        self._total_size = sum(self._block_sizes)
+        self._block_holder_mapping = block_holder_mapping
 
-    @pandas_udf(return_type, PandasUDFType.MAP_ITER)
-    def save(batch_iter):
-        if not ray.is_initialized():
-            redis_config = {}
-            broadcasted = _global_broadcasted["redis"].value
-            redis_config["address"] = broadcasted["address"]
-            redis_config["password"] = broadcasted["password"]
+        self._resolved = False
+        self._resolved_block: Dict[int, ray.ObjectID] = {}
 
-            local_address = get_node_address()
+        self._plasma_store_socket_name = None
+        self._plasma_client = None
 
-            ray.init(address=redis_config["address"],
-                     node_ip_address=local_address,
-                     redis_password=redis_config["password"])
+        self.append_batch(fetch_indexes)
 
-        node_label = f"node:{ray.services.get_node_ip_address()}"
-        block_holder = _global_block_holder[node_label]
-        object_ids = []
-        block_sizes = []
-        for pdf in batch_iter:
-            obj = ray.put(pickle.dumps(pdf))
-            # TODO: register object in batch
-            object_ids.append(block_holder.register_object_id.remote([obj]))
-            block_sizes.append(len(pdf))
+    @property
+    def total_size(self) -> int:
+        return self._total_size
 
-        indexes = ray.get(object_ids)
-        result_dfs = []
-        for index, block_size in zip(indexes, block_sizes):
-            result_dfs.append(
-                pd.DataFrame({"node_label": [node_label],
-                              "fetch_index": [index],
-                              "size": [block_size]}))
-        return iter(result_dfs)
+    @property
+    def block_sizes(self) -> List[int]:
+        return self._block_sizes
 
-    results = df.mapInPandas(save).collect()
-    fetch_indexes = []
-    block_holder_mapping = {}
-    block_sizes = []
-    for row in results:
-        fetch_indexes.append((row["node_label"], row["fetch_index"]))
-        block_sizes.append(row["size"])
-        if row["node_label"] not in block_holder_mapping:
-            block_holder_mapping[row["node_label"]] = _global_block_holder[row["node_label"]]
-    return BlockSet(fetch_indexes, block_sizes, block_holder_mapping)
+    @property
+    def resolved_indices(self):
+        assert self._resolved, "The blockset has not been resolved"
+        return self.resolved_indices
+
+    def append(self, node_label: str, fetch_index) -> NoReturn:
+        assert not self._resolved, "Can not append value after resolved"
+        self._fetch_indexes.append((node_label, fetch_index))
+
+    def append_batch(self, fetch_indexes: List[Tuple[str, int]]) -> NoReturn:
+        assert not self._resolved, "Can not append value after resolved"
+        self._fetch_indexes.extend(fetch_indexes)
+
+    def _fetch_objects_without_deserialization(self, object_ids, timeout=None) -> NoReturn:
+        """
+        This is just fetch object from remote object store to local and without deserialization.
+        :param object_ids: Object ID of the object to get or a list of object IDs to
+            get.
+        :param timeout (Optional[float]): The maximum amount of time in seconds to
+            wait before returning.
+        """
+        is_individual_id = isinstance(object_ids, ray.ObjectID)
+        if is_individual_id:
+            object_ids = [object_ids]
+
+        if not isinstance(object_ids, list):
+            raise ValueError("'object_ids' must either be an object ID "
+                             "or a list of object IDs.")
+
+        worker = ray.worker.global_worker
+        worker.check_connected()
+        timeout_ms = int(timeout * 1000) if timeout else -1
+        worker.core_worker.get_objects(object_ids, worker.current_task_id, timeout_ms)
+
+    def resolve(self, indices: Optional[List[int]]) -> NoReturn:
+        """
+        Resolve the given indices blocks in this block set.
+        :param indices: the block indices
+        """
+        if self._resolved:
+            # TODO: should we support resolve with different indices?
+            resolved_indices = sorted(self._resolved_block.keys())
+            assert resolved_indices == sorted(indices)
+            return
+
+        if indices is None:
+            indices = range(len(self._blocks))
+
+        grouped = defaultdict(lambda: [])
+        label_to_indexes = defaultdict(lambda: [])
+        succeed = {}
+        # group indices by block holder
+        for i in indices:
+            label, index = self._fetch_indexes[i]
+            grouped[label].append(index)
+            label_to_indexes[label].append(i)
+
+        for label in grouped:
+            holder = self._block_holder_mapping.get(label, None)
+            assert holder, f"Can't find the DataHolder for the label: {label}"
+            object_ids = ray.get(holder.get_object.remote(grouped[label]))
+            try:
+                # just trigger object transfer without object deserialization.
+                self._fetch_objects_without_deserialization(object_ids)
+            except Exception as exp:
+                # deserialize or ray.get failed, we should decrease the reference
+                for resolved_label in succeed:
+                    ray.get(holder.remove_object_ids.remote(grouped[resolved_label]))
+                raise exp
+
+            succeed[label] = object_ids
+
+        for label in succeed:
+            data = succeed[label]
+            indexes = label_to_indexes[label]
+            for i, d in zip(indexes, data):
+                self._resolved_block[i] = d
+
+        self._resolved = True
+
+    def set_resolved_block(self, resolved_block: Dict[int, ray.ObjectID]) -> NoReturn:
+        if len(resolved_block) == 0:
+            return
+
+        expected_indexes = sorted(resolved_block.keys())
+        if self._resolved:
+            # TODO: should we support resolve with different indices?
+            resolved_indices = sorted(self._resolved_block.keys())
+            assert resolved_indices == expected_indexes
+            return
+
+        fetch_indexes_len = len(self._fetch_indexes)
+        for i in expected_indexes:
+            if i >= fetch_indexes_len:
+                raise ValueError(
+                    f"The index: {i} is out of range, the blockset size is {fetch_indexes_len}")
+
+        self._resolved = True
+        self._resolved_block = resolved_block
+
+    def set_plasma_store_socket_name(self, plasma_store_socket_name: Optional[str]):
+        if self._plasma_store_socket_name is None:
+            self._plasma_store_socket_name = plasma_store_socket_name
+
+    def clean(self, destroy: bool = False) -> NoReturn:
+        if not self._resolved:
+            return
+        grouped = defaultdict(lambda: [])
+        for i in self._resolved_block:
+            label, index = self._fetch_indexes[i]
+            grouped[label].append(index)
+
+        for label in grouped:
+            holder = self._block_holder_mapping[label]
+            if holder:
+                ray.get(holder.remove_object_ids.remote(grouped[label], destroy))
+
+        self._fetch_indexes: List[Tuple[str, int]] = []
+        self._resolved = False
+        self._resolved_block = {}
+        self._block_holder_mapping = None
+
+    def get_object_id(self, item) -> Optional[ray.ObjectID]:
+        assert self._resolved, "You should resolve the blockset before get item"
+        return self._resolved_block.get(item, None)
+
+    def _connect_to_plasma(self):
+        assert self._plasma_store_socket_name is not None, "You should set the plasma_store_socket_name"
+        self._plasma_client = plasma.connect(self._plasma_store_socket_name)
+
+    def __getitem__(self, item) -> pd.DataFrame:
+        assert self._resolved, "You should resolve the blockset before get item"
+        if self._plasma_client is None:
+            self._connect_to_plasma()
+        object_id = self._resolved_block.get(item, None)
+        assert object_id is not None, f"The {item} block has not been resolved"
+        plasma_object_id = plasma.ObjectID(object_id.binary())
+        # this should be really faster becuase of zero copy
+        data = self._plasma_client.get_buffers([plasma_object_id])[0]
+        return pickle.loads(data)
+
+    def __len__(self):
+        """This return the block sizes in this block set"""
+        return len(self._block_sizes)
+
+    @classmethod
+    def _custom_deserialize(cls,
+                            fetch_indexes: List[Tuple[str, int]],
+                            block_sizes: List[int],
+                            block_holder_mapping: Dict[str, BlockHolderActorHandlerWrapper],
+                            resolved_block: Dict[int, ray.ObjectID],
+                            plasma_store_socket_name: str):
+        instance = cls(fetch_indexes, block_sizes, block_holder_mapping)
+        instance.set_resolved_block(resolved_block)
+        instance.set_plasma_store_socket_name(plasma_store_socket_name)
+        return instance
+
+    def __reduce__(self):
+        return (StandaloneClusterSharedDataset._custom_deserialize,
+                (self._fetch_indexes, self._block_sizes, self._block_holder_mapping,
+                 self._resolved_block, self._plasma_store_socket_name))
+
+    def __del__(self):
+        if ray.is_initialized():
+            self.clean()
