@@ -41,7 +41,7 @@ class SharedDataset(ABC):
         worker.core_worker.get_objects(object_ids, worker.current_task_id, timeout_ms)
 
     @abstractmethod
-    def resolve(self) -> bool:
+    def resolve(self, timeout=None) -> bool:
         pass
 
     @abstractmethod

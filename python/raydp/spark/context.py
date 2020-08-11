@@ -131,4 +131,4 @@ def save_to_ray(df: pyspark.sql.DataFrame) -> SharedDataset:
         global _global_spark_context
         if _global_spark_context is None:
             raise Exception("You should init the Spark context firstly.")
-        _global_spark_context._get_spark_cluster.save_to_ray(df)
+        return _global_spark_context._get_spark_cluster().save_to_ray(df)

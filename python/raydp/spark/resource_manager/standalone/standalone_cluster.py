@@ -294,7 +294,7 @@ class StandaloneClusterSharedDataset(SharedDataset):
     def partition_sizes(self) -> List[int]:
         return self._block_sizes
 
-    def resolve(self) -> bool:
+    def resolve(self, timeout=None) -> bool:
         if self._resolved:
             return True
 
@@ -315,7 +315,7 @@ class StandaloneClusterSharedDataset(SharedDataset):
             object_ids = ray.get(holder.get_object.remote(grouped[label]))
             try:
                 # just trigger object transfer without object deserialization.
-                self._fetch_objects_without_deserialization(object_ids)
+                self._fetch_objects_without_deserialization(object_ids, timeout)
             except Exception as exp:
                 # deserialize or ray.get failed, we should decrease the reference
                 for resolved_label in succeed:

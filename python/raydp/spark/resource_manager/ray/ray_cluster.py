@@ -63,10 +63,10 @@ class RayCluster(SparkCluster):
         object_ids = []
         hosts = []
         sizes = []
-        for object_id, host, size in object_ids_and_hosts:
-            object_ids.append(ray.ObjectID(object_id))
-            hosts.append(host)
-            sizes.append(size)
+        for record in object_ids_and_hosts:
+            object_ids.append(ray.ObjectID(record.objectId()))
+            hosts.append(record.nodeIp())
+            sizes.append(record.numRecords())
 
         return RayClusterSharedDataset(object_ids, hosts, sizes)
 
@@ -118,8 +118,8 @@ class RayClusterSharedDataset(SharedDataset):
     def partition_sizes(self) -> List[int]:
         return self._sizes
 
-    def resolve(self) -> bool:
-        self._fetch_objects_without_deserialization(self._object_ids)
+    def resolve(self, timeout=None) -> bool:
+        self._fetch_objects_without_deserialization(self._object_ids, timeout)
         return True
 
     def subset(self, indexes: List[int]) -> 'SharedDataset':

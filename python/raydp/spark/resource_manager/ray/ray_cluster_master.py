@@ -30,7 +30,8 @@ class RayClusterMaster(ClusterMaster):
         self._app_master_java_bridge = self._gateway.entry_point.getAppMasterBridge()
         self._set_properties()
         self._host = ray.services.get_node_ip_address()
-        self.create_app_master(extra_classpath)
+        self._create_app_master(extra_classpath)
+        self._started_up = True
 
     def _prepare_jvm_classpath(self):
         cp_list = []
@@ -134,8 +135,9 @@ class RayClusterMaster(ClusterMaster):
         assert self._started_up
         return self._host
 
-    def create_app_master(self, extra_classpath: str):
-        assert self._started_up
+    def _create_app_master(self, extra_classpath: str):
+        if self._started_up:
+            return
         self._app_master_java_bridge.startUpAppMaster(extra_classpath)
 
     def get_master_url(self):

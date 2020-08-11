@@ -160,11 +160,11 @@ class RayDataset(_Dataset):
 
     def __len__(self):
         """Get the total size"""
-        return self._resolved_shared_dataset.total_size()
+        return self._unresolved_shared_dataset.total_size()
 
     def block_sizes(self) -> List[int]:
         """Get the block sizes"""
-        return self._resolved_shared_dataset.partition_sizes()
+        return self._unresolved_shared_dataset.partition_sizes()
 
     @classmethod
     def _custom_deserialize(cls,
