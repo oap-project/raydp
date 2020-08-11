@@ -6,9 +6,6 @@ import pyspark
 from raydp.services import Cluster
 from raydp.spark.resource_manager.exchanger import SharedDataset
 
-# This _global_cluster should be set after the cluster has created
-_global_cluster = None
-
 
 class SparkCluster(Cluster):
     """

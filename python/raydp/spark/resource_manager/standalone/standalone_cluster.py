@@ -8,6 +8,7 @@ import pandas as pd
 import pyarrow.plasma as plasma
 import pyspark
 import ray
+from pyarrow.plasma import PlasmaClient
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import pandas_udf
 from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
@@ -138,7 +139,7 @@ class StandaloneCluster(SparkCluster):
                           num_executors: int,
                           executor_cores: int,
                           executor_memory: str,
-                          **kwargs) -> pyspark.sql.SparkSession:
+                          extra_conf: Dict[str, str] = None) -> pyspark.sql.SparkSession:
 
         if self._master is None:
             # this means we will use the executors setting for the workers setting too
@@ -151,7 +152,7 @@ class StandaloneCluster(SparkCluster):
                 self.add_worker(worker_resources)
 
         conf = default_config
-        conf.update(kwargs)
+        conf.update(extra_conf)
 
         builder = SparkSession.builder.appName(app_name).master(self.get_cluster_url())
 
@@ -258,10 +259,11 @@ class StandaloneClusterSharedDataset(SharedDataset):
     def __init__(self,
                  fetch_indexes: List[Tuple[str, int]],
                  block_sizes: List[int],
-                 block_holder_mapping: Dict[str, BlockHolderActorHandlerWrapper]):
+                 block_holder_mapping: Dict[str, BlockHolderActorHandlerWrapper],
+                 plasma_store_socket_name: str = None):
         assert len(fetch_indexes) == len(block_sizes), \
             "The length of fetch_indexes and block_sizes should be equalled"
-        self._fetch_indexes: List[Tuple[str, int]] = []
+        self._fetch_indexes: List[Tuple[str, int]] = fetch_indexes
         self._block_sizes = block_sizes
         self._total_size = sum(self._block_sizes)
         self._block_holder_mapping = block_holder_mapping
@@ -269,72 +271,40 @@ class StandaloneClusterSharedDataset(SharedDataset):
         self._resolved = False
         self._resolved_block: Dict[int, ray.ObjectID] = {}
 
-        self._plasma_store_socket_name = None
-        self._plasma_client = None
+        self._plasma_store_socket_name = plasma_store_socket_name
+        in_ray_worker: bool = ray.is_initialized()
+        self._get_data_func = ray.get
+        if not in_ray_worker:
+            # if the current process is not a Ray worker, the
+            # plasma_store_socket_name must be set
+            assert plasma_store_socket_name is not None, "plasma_store_socket_name must be set"
+            plasma_client: Optional[PlasmaClient] = plasma.connect(plasma_store_socket_name)
 
-        self.append_batch(fetch_indexes)
+            def get_by_plasma(object_id: ray.ObjectID):
+                plasma_object_id = plasma.ObjectID(object_id.binary())
+                # this should be really faster becuase of zero copy
+                data = plasma_client.get_buffers([plasma_object_id])[0]
+                return data
 
-    @property
+            self._get_data_func = get_by_plasma
+
     def total_size(self) -> int:
         return self._total_size
 
-    @property
-    def block_sizes(self) -> List[int]:
+    def partition_sizes(self) -> List[int]:
         return self._block_sizes
 
-    @property
-    def resolved_indices(self):
-        assert self._resolved, "The blockset has not been resolved"
-        return self.resolved_indices
-
-    def append(self, node_label: str, fetch_index) -> NoReturn:
-        assert not self._resolved, "Can not append value after resolved"
-        self._fetch_indexes.append((node_label, fetch_index))
-
-    def append_batch(self, fetch_indexes: List[Tuple[str, int]]) -> NoReturn:
-        assert not self._resolved, "Can not append value after resolved"
-        self._fetch_indexes.extend(fetch_indexes)
-
-    def _fetch_objects_without_deserialization(self, object_ids, timeout=None) -> NoReturn:
-        """
-        This is just fetch object from remote object store to local and without deserialization.
-        :param object_ids: Object ID of the object to get or a list of object IDs to
-            get.
-        :param timeout (Optional[float]): The maximum amount of time in seconds to
-            wait before returning.
-        """
-        is_individual_id = isinstance(object_ids, ray.ObjectID)
-        if is_individual_id:
-            object_ids = [object_ids]
-
-        if not isinstance(object_ids, list):
-            raise ValueError("'object_ids' must either be an object ID "
-                             "or a list of object IDs.")
-
-        worker = ray.worker.global_worker
-        worker.check_connected()
-        timeout_ms = int(timeout * 1000) if timeout else -1
-        worker.core_worker.get_objects(object_ids, worker.current_task_id, timeout_ms)
-
-    def resolve(self, indices: Optional[List[int]]) -> NoReturn:
-        """
-        Resolve the given indices blocks in this block set.
-        :param indices: the block indices
-        """
+    def resolve(self) -> bool:
         if self._resolved:
-            # TODO: should we support resolve with different indices?
-            resolved_indices = sorted(self._resolved_block.keys())
-            assert resolved_indices == sorted(indices)
-            return
+            return True
 
-        if indices is None:
-            indices = range(len(self._blocks))
+        indexes = range(len(self._fetch_indexes))
 
         grouped = defaultdict(lambda: [])
         label_to_indexes = defaultdict(lambda: [])
         succeed = {}
         # group indices by block holder
-        for i in indices:
+        for i in indexes:
             label, index = self._fetch_indexes[i]
             grouped[label].append(index)
             label_to_indexes[label].append(i)
@@ -356,35 +326,34 @@ class StandaloneClusterSharedDataset(SharedDataset):
 
         for label in succeed:
             data = succeed[label]
-            indexes = label_to_indexes[label]
-            for i, d in zip(indexes, data):
+            ins = label_to_indexes[label]
+            for i, d in zip(ins, data):
                 self._resolved_block[i] = d
 
         self._resolved = True
+        return True
 
     def set_resolved_block(self, resolved_block: Dict[int, ray.ObjectID]) -> NoReturn:
-        if len(resolved_block) == 0:
-            return
-
-        expected_indexes = sorted(resolved_block.keys())
         if self._resolved:
-            # TODO: should we support resolve with different indices?
-            resolved_indices = sorted(self._resolved_block.keys())
-            assert resolved_indices == expected_indexes
-            return
-
-        fetch_indexes_len = len(self._fetch_indexes)
-        for i in expected_indexes:
-            if i >= fetch_indexes_len:
-                raise ValueError(
-                    f"The index: {i} is out of range, the blockset size is {fetch_indexes_len}")
-
+            raise Exception("Current dataset has been resolved, you can't set the resolved blocks")
         self._resolved = True
         self._resolved_block = resolved_block
 
+    def subset(self, indexes: List[int]) -> 'SharedDataset':
+        subset_fetch_indexes: List[Tuple[str, int]] = []
+        subset_block_holder_mapping: Dict[str, BlockHolderActorHandlerWrapper] = {}
+        for i in indexes:
+            node_label = self._fetch_indexes[i][0]
+            subset_fetch_indexes.append(self._fetch_indexes[i])
+            if node_label not in subset_block_holder_mapping:
+                subset_block_holder_mapping[node_label] = self._block_holder_mapping[node_label]
+        subset_block_sizes: List[int] = [self._block_sizes[i] for i in indexes]
+        return StandaloneClusterSharedDataset(
+            subset_fetch_indexes, subset_block_sizes, subset_block_holder_mapping,
+            self._plasma_store_socket_name)
+
     def set_plasma_store_socket_name(self, plasma_store_socket_name: Optional[str]):
-        if self._plasma_store_socket_name is None:
-            self._plasma_store_socket_name = plasma_store_socket_name
+        self._plasma_store_socket_name = plasma_store_socket_name
 
     def clean(self, destroy: bool = False) -> NoReturn:
         if not self._resolved:
@@ -404,23 +373,11 @@ class StandaloneClusterSharedDataset(SharedDataset):
         self._resolved_block = {}
         self._block_holder_mapping = None
 
-    def get_object_id(self, item) -> Optional[ray.ObjectID]:
-        assert self._resolved, "You should resolve the blockset before get item"
-        return self._resolved_block.get(item, None)
-
-    def _connect_to_plasma(self):
-        assert self._plasma_store_socket_name is not None, "You should set the plasma_store_socket_name"
-        self._plasma_client = plasma.connect(self._plasma_store_socket_name)
-
     def __getitem__(self, item) -> pd.DataFrame:
-        assert self._resolved, "You should resolve the blockset before get item"
-        if self._plasma_client is None:
-            self._connect_to_plasma()
+        assert self._resolved, "You should resolve the SharedDataset before get item"
         object_id = self._resolved_block.get(item, None)
         assert object_id is not None, f"The {item} block has not been resolved"
-        plasma_object_id = plasma.ObjectID(object_id.binary())
-        # this should be really faster becuase of zero copy
-        data = self._plasma_client.get_buffers([plasma_object_id])[0]
+        data = self._get_data_func(object_id)
         return pickle.loads(data)
 
     def __len__(self):
@@ -434,9 +391,8 @@ class StandaloneClusterSharedDataset(SharedDataset):
                             block_holder_mapping: Dict[str, BlockHolderActorHandlerWrapper],
                             resolved_block: Dict[int, ray.ObjectID],
                             plasma_store_socket_name: str):
-        instance = cls(fetch_indexes, block_sizes, block_holder_mapping)
+        instance = cls(fetch_indexes, block_sizes, block_holder_mapping, plasma_store_socket_name)
         instance.set_resolved_block(resolved_block)
-        instance.set_plasma_store_socket_name(plasma_store_socket_name)
         return instance
 
     def __reduce__(self):

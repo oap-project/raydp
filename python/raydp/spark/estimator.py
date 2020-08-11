@@ -23,5 +23,3 @@ class EstimatorInterface(ABC):
         DataFrame. This should be called after call fit.
         """
         df_type_check(df)
-
-

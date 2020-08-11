@@ -62,11 +62,13 @@ class RayCluster(SparkCluster):
         object_ids_and_hosts = object_store_writer.save()
         object_ids = []
         hosts = []
-        for object_id, host in object_ids_and_hosts:
+        sizes = []
+        for object_id, host, size in object_ids_and_hosts:
             object_ids.append(ray.ObjectID(object_id))
             hosts.append(host)
+            sizes.append(size)
 
-        return RayClusterSharedDataset(object_ids, hosts)
+        return RayClusterSharedDataset(object_ids, hosts, sizes)
 
     def stop(self):
         if self._spark_session is not None:
@@ -82,11 +84,12 @@ class RayClusterSharedDataset(SharedDataset):
     def __init__(self,
                  object_ids: List[ray.ObjectID],
                  hosts: List[str],
+                 sizes: List[int],
                  plasma_store_socket_name: str = None):
-        self._plasma_store_socket_name = plasma_store_socket_name
-
         self._object_ids: List[ray.ObjectID] = object_ids
         self._hosts: List[str] = hosts
+        self._sizes = sizes
+        self._plasma_store_socket_name = plasma_store_socket_name
         in_ray_worker: bool = ray.is_initialized()
         self._get_data_func = ray.get
         if not in_ray_worker:
@@ -94,13 +97,37 @@ class RayClusterSharedDataset(SharedDataset):
             # plasma_store_socket_name must be set
             assert plasma_store_socket_name is not None, "plasma_store_socket_name must be set"
             plasma_client: Optional[PlasmaClient] = plasma.connect(plasma_store_socket_name)
-            self._get_data_func = plasma_client.get
+
+            def get_by_plasma(object_id: ray.ObjectID):
+                plasma_object_id = plasma.ObjectID(object_id.binary())
+                # this should be really faster becuase of zero copy
+                data = plasma_client.get_buffers([plasma_object_id])[0]
+                return data
+
+            self._get_data_func = get_by_plasma
 
     def set_plasma_store_socket_name(self, path: str) -> NoReturn:
         self._plasma_store_socket_name = path
 
     def get_host_name(self, index: int) -> str:
         return self._hosts[index]
+
+    def total_size(self) -> int:
+        return sum(self._sizes)
+
+    def partition_sizes(self) -> List[int]:
+        return self._sizes
+
+    def resolve(self) -> bool:
+        self._fetch_objects_without_deserialization(self._object_ids)
+        return True
+
+    def subset(self, indexes: List[int]) -> 'SharedDataset':
+        subset_object_ids = [self._object_ids[i] for i in indexes]
+        subset_hosts = [self._hosts[i] for i in indexes]
+        subset_sizes = [self._sizes[i] for i in indexes]
+        return RayClusterSharedDataset(
+            subset_object_ids, subset_hosts, subset_sizes, self._plasma_store_socket_name)
 
     def __getitem__(self, index: int) -> pd.DataFrame:
         object_id = self._object_ids[index]
@@ -118,5 +145,5 @@ class RayClusterSharedDataset(SharedDataset):
         return instance
 
     def __reduce__(self):
-        return (NativeSharedDataset._custom_deserialize,
+        return (RayClusterSharedDataset._custom_deserialize,
                 (self._object_ids, self._hosts, self._plasma_store_socket_name))
