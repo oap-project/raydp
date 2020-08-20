@@ -3,16 +3,16 @@ from typing import List
 import tensorflow as tf
 import ray
 
-from raydp.spark.resource_manager.standalone.block_holder import BlockSet
+from raydp.spark.resource_manager.spark_cluster import SharedDataset
 
 
 # TODO: wrap into Dataset class
 def create_dataset_from_objects(
-        block_set: BlockSet,
+        shared_dataset: SharedDataset,
         features_columns: List[str],
         label_column: str) -> tf.data.Dataset:
     # TODO: this will load all data into memory which is not optimized.
-    block_set.resolve(indices=None)
+    shared_dataset.resolve()
     assert ray.is_initialized()
     plasma_store_path = ray.worker.global_worker.node.plasma_store_socket_name
     block_set.set_plasma_store_socket_name(plasma_store_path)

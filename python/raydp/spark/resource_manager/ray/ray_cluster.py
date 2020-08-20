@@ -1,7 +1,6 @@
 import glob
 from typing import Any, Callable, Dict, List, NoReturn, Optional
 
-import io
 import pandas as pd
 import pyarrow as pa
 import pyarrow.plasma as plasma

@@ -25,11 +25,9 @@ parser.add_argument("--num-executors", type=int, required=True, dest="num_execut
 parser.add_argument("--executor-cores", type=int, required=True, dest="executor_cores",
                     help="The number of cores for each of Spark executor")
 parser.add_argument("--executor-memory", type=float, required=True, dest="executor_memory",
-                    help="The size of memory(GB) for each of Spark executor")
+                    help="The size of memory for each of Spark executor")
 
 args = parser.parse_args()
-
-GB = 1 * 1024 * 1024 * 1024
 
 os.environ["SPARK_HOME"] = args.spark_home
 
@@ -50,7 +48,7 @@ else:
 app_name = "A simple example for spark on ray"
 num_executors = args.num_executors
 executor_cores = args.executor_cores
-executor_memory = int(args.executor_memory * GB)
+executor_memory = args.executor_memory
 
 context.init_spark(app_name, num_executors, executor_cores, executor_memory)
 

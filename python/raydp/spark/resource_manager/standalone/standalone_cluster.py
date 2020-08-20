@@ -138,7 +138,7 @@ class StandaloneCluster(SparkCluster):
                           app_name: str,
                           num_executors: int,
                           executor_cores: int,
-                          executor_memory: str,
+                          executor_memory: int,
                           extra_conf: Dict[str, str] = None) -> pyspark.sql.SparkSession:
 
         if self._master is None:
