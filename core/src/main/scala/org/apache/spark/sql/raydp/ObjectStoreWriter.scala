@@ -1,13 +1,12 @@
 package org.apache.spark.sql.raydp
 
 import java.io.ByteArrayOutputStream
-import java.util
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 import java.util.function.{Function => JFunction}
 import java.util.{List, UUID}
 
 import io.ray.api.{ObjectRef, Ray}
-import io.ray.runtime.config.RayConfig
+import io.ray.runtime.`object`.NativeObjectStore
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.apache.spark.raydp.RayDPUtils
@@ -22,11 +21,24 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-case class WroteRecord(nodeIp: String, numRecords: Int, objectId: Array[Byte])
+case class WroteRecord(ownerAddress: Array[Byte], objectId: Array[Byte], numRecords: Int)
 
 class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
   val uuid: UUID = ObjectStoreWriter.dfToId.getOrElseUpdate(df, UUID.randomUUID())
+
+  def writeToRay(data: Array[Byte],
+                 numRecords: Int,
+                 queue: ObjectRefHolder.Queue): WroteRecord = {
+    val objectRef = Ray.put(data)
+    // add the objectRef to the objectRefHolder to avoid reference GC
+    queue.add(objectRef)
+    val objectRefImpl = RayDPUtils.convert(objectRef)
+    val objectId = objectRefImpl.getId().getBytes()
+    NativeObjectStore.nativePromoteObjectToPlasma(objectId)
+    val addressInfo = NativeObjectStore.nativeGetOwnershipInfo(objectId)
+    WroteRecord(addressInfo, objectId, numRecords)
+  }
 
   def save(): List[WroteRecord] = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
@@ -37,7 +49,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
     //
     val objectIds = df.queryExecution.toRdd.mapPartitions{iter =>
       val queue = ObjectRefHolder.getQueue(uuid)
-      val nodeIp = RayConfig.getInstance().nodeIp
+
       // DO NOT use iter.grouped(). See BatchIterator.
       val batchIter = if (batchSize > 0) {
         new BatchIterator(iter, batchSize)
@@ -49,42 +61,45 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       val allocator = ArrowUtils.rootAllocator.newChildAllocator(
         s"ray object store writer", 0, Long.MaxValue)
       val root = VectorSchemaRoot.create(arrowSchema, allocator)
-      val byteOut = new ByteArrayOutputStream()
       val results = new ArrayBuffer[WroteRecord]()
 
-      Utils.tryWithSafeFinally {
-        val arrowWriter = ArrowWriter.create(root)
-        val writer = new ArrowStreamWriter(root, null, byteOut)
-        writer.start()
-        var numRecords: Int = 0
+      val byteOut = new ByteArrayOutputStream()
+      val arrowWriter = ArrowWriter.create(root)
+      var numRecords: Int = 0
 
+      Utils.tryWithSafeFinally {
         while (batchIter.hasNext) {
+          // reset the state
+          numRecords = 0
+          byteOut.reset()
+          arrowWriter.reset()
+
+          // write out the schema meta data
+          val writer = new ArrowStreamWriter(root, null, byteOut)
+          writer.start()
+
+          // get the next record batch
           val nextBatch = batchIter.next()
 
-          numRecords = 0
           while (nextBatch.hasNext) {
             numRecords += 1
             arrowWriter.write(nextBatch.next())
           }
 
+          // set the write record count
           arrowWriter.finish()
+          // write out the record batch to the underlying out
           writer.writeBatch()
-          arrowWriter.reset()
 
-
+          // get the wrote ByteArray and save to Ray ObjectStore
           val byteArray = byteOut.toByteArray
-          val objectRef = Ray.put(byteArray)
-          // add the objectRef to the objectRefHolder to avoid reference GC
-          queue.add(objectRef)
-          val objectRefImpl = RayDPUtils.convert(objectRef)
-          // Store the ObjectId in bytes
-          results += WroteRecord(nodeIp, numRecords, objectRefImpl.getId.getBytes)
-          byteOut.reset()
+          results += writeToRay(byteArray, numRecords, queue)
+          // end writes footer to the output stream and doesn't clean any resources.
+          // It could throw exception if the output stream is closed, so it should be
+          // in the try block.
+          writer.end()
         }
-        // end writes footer to the output stream and doesn't clean any resources.
-        // It could throw exception if the output stream is closed, so it should be
-        // in the try block.
-        writer.end()
+        arrowWriter.reset()
         byteOut.close()
       } {
         // If we close root and allocator in TaskCompletionListener, there could be a race
@@ -157,7 +172,6 @@ object ObjectRefHolder {
   def getRandom(df: UUID): Array[Byte] = {
     val queue = checkQueueExists(df)
     val ref = RayDPUtils.convert(queue.peek())
-    println(s"-------getRandom:${util.Arrays.toString(ref.getId.getBytes)}")
     ref.get()
   }
 

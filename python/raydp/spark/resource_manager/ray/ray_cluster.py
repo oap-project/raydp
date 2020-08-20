@@ -1,6 +1,7 @@
 import glob
-from typing import Any, Dict, List, NoReturn, Optional
+from typing import Any, Callable, Dict, List, NoReturn, Optional
 
+import io
 import pandas as pd
 import pyarrow as pa
 import pyarrow.plasma as plasma
@@ -55,20 +56,29 @@ class RayCluster(SparkCluster):
         return self._spark_session
 
     def save_to_ray(self, df: pyspark.sql.DataFrame) -> SharedDataset:
+        # call java function from python
         sql_context = df.sql_ctx
         jvm = sql_context.sparkSession.sparkContext._jvm
         jdf = df._jdf
         object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
-        object_ids_and_hosts = object_store_writer.save()
-        object_ids = []
-        hosts = []
-        sizes = []
-        for record in object_ids_and_hosts:
-            object_ids.append(ray.ObjectID(record.objectId()))
-            hosts.append(record.nodeIp())
-            sizes.append(record.numRecords())
+        records = object_store_writer.save()
 
-        return RayClusterSharedDataset(object_ids, hosts, sizes)
+        worker = ray.worker.global_worker
+
+        object_ids = []
+        sizes = []
+        for record in records:
+            owner_address = record.ownerAddress()
+            object_id = ray.ObjectID(record.objectId())
+            num_records = record.numRecords()
+            # Register the ownership of the ObjectRef
+            worker.core_worker.deserialize_and_register_object_ref(
+                object_id.binary(), ray.ObjectRef.nil(), owner_address)
+
+            object_ids.append(object_id)
+            sizes.append(num_records)
+
+        return RayClusterSharedDataset(object_ids, sizes)
 
     def stop(self):
         if self._spark_session is not None:
@@ -83,13 +93,13 @@ class RayCluster(SparkCluster):
 class RayClusterSharedDataset(SharedDataset):
     def __init__(self,
                  object_ids: List[ray.ObjectID],
-                 hosts: List[str],
                  sizes: List[int],
-                 plasma_store_socket_name: str = None):
+                 plasma_store_socket_name: str = None,
+                 index_map_func: Callable = lambda x: x):
         self._object_ids: List[ray.ObjectID] = object_ids
-        self._hosts: List[str] = hosts
         self._sizes = sizes
         self._plasma_store_socket_name = plasma_store_socket_name
+        self._index_map_func = index_map_func
         in_ray_worker: bool = ray.is_initialized()
         self._get_data_func = ray.get
         if not in_ray_worker:
@@ -109,9 +119,6 @@ class RayClusterSharedDataset(SharedDataset):
     def set_plasma_store_socket_name(self, path: str) -> NoReturn:
         self._plasma_store_socket_name = path
 
-    def get_host_name(self, index: int) -> str:
-        return self._hosts[index]
-
     def total_size(self) -> int:
         return sum(self._sizes)
 
@@ -123,27 +130,37 @@ class RayClusterSharedDataset(SharedDataset):
         return True
 
     def subset(self, indexes: List[int]) -> 'SharedDataset':
+        index_map = dict(zip(indexes, range(len(indexes))))
+
+        def index_map_func(i: int) -> int:
+            assert i in index_map
+            return index_map[i]
+
         subset_object_ids = [self._object_ids[i] for i in indexes]
-        subset_hosts = [self._hosts[i] for i in indexes]
         subset_sizes = [self._sizes[i] for i in indexes]
         return RayClusterSharedDataset(
-            subset_object_ids, subset_hosts, subset_sizes, self._plasma_store_socket_name)
+            subset_object_ids, subset_sizes, self._plasma_store_socket_name, index_map_func)
 
     def __getitem__(self, index: int) -> pd.DataFrame:
+        index = self._index_map_func(index)
         object_id = self._object_ids[index]
+        assert object_id is not None
         data = self._get_data_func(object_id)
-        tb = pa.Table.from_batches([data])
+        reader = pa.ipc.open_stream(data)
+        tb = reader.read_all()
         df = tb.to_pandas()
         return df
 
     @classmethod
     def _custom_deserialize(cls,
                             object_ids: List[ray.ObjectID],
-                            hosts: List[str],
-                            plasma_store_socket_name: str):
-        instance = cls(object_ids, hosts, plasma_store_socket_name)
+                            sizes: List[int],
+                            plasma_store_socket_name: str,
+                            index_map_func: Callable):
+        instance = cls(object_ids, sizes, plasma_store_socket_name, index_map_func)
         return instance
 
     def __reduce__(self):
         return (RayClusterSharedDataset._custom_deserialize,
-                (self._object_ids, self._hosts, self._plasma_store_socket_name))
+                (self._object_ids, self._sizes, self._plasma_store_socket_name,
+                 self._index_map_func))
