@@ -6,8 +6,8 @@ import ray
 from pyspark.sql.functions import rand
 from ray.util.sgd.tf.tf_trainer import TFTrainer
 
-from raydp.spark.resource_manager.standalone.block_holder import ObjectIdList
-from raydp.spark.resource_manager.standalone.standalone_cluster import save_to_ray, SparkCluster
+from raydp.spark import context
+from raydp.spark.resource_manager.spark_cluster import SharedDataset
 from raydp.spark.tf.tf_dataset import create_dataset_from_objects
 
 parser = argparse.ArgumentParser(description="A simple example for spark on ray")
@@ -26,11 +26,9 @@ parser.add_argument("--num-executors", type=int, required=True, dest="num_execut
 parser.add_argument("--executor-cores", type=int, required=True, dest="executor_cores",
                     help="The number of cores for each of Spark executor")
 parser.add_argument("--executor-memory", type=float, required=True, dest="executor_memory",
-                    help="The size of memory(GB) for each of Spark executor")
+                    help="The size of memory for each of Spark executor")
 
 args = parser.parse_args()
-
-GB = 1 * 1024 * 1024 * 1024
 
 # -------------------- set up ray cluster --------------------
 if args.redis_address:
@@ -45,16 +43,13 @@ else:
     ray.init()
 
 # -------------------- setup spark -------------------------
-# We can't hide the creation of SparkCluster easily because of we need to stop the cluster
-# manually. However, this can be improved after we support startup spark natively.
-spark_cluster = SparkCluster(spark_home=args.spark_home)
-# get SparkSession
-spark = spark_cluster.get_spark_session(
-    app_name="A simple example for spark on ray",
-    num_executors=args.num_executors,
-    executor_cores=args.executor_cores,
-    executor_memory=int(args.executor_memory * GB))
 
+app_name = "A simple example for spark on ray",
+num_executors = args.num_executors,
+executor_cores = args.executor_cores,
+executor_memory = args.executor_memory
+
+spark = context.init_spark(app_name, num_executors, executor_cores, executor_memory)
 
 # ---------------- data process with Spark ------------
 # calculate z = 3 * x + 4 * y + 5
@@ -66,7 +61,7 @@ df = df.select(df.x, df.y, df.z)
 
 # save DataFrame to ray
 # TODO: hide this
-ray_objects: ObjectIdList = save_to_ray(df)
+shared_dataset: SharedDataset = context.save_to_ray(df)
 
 
 # ---------------- ray sgd -------------------------
@@ -82,7 +77,7 @@ def create_mode(config: Dict):
 
 def data_creator(config: Dict):
     train_dataset = create_dataset_from_objects(
-                        objs=ray_objects,
+                        shared_dataset=shared_dataset,
                         features_columns=["x", "y"],
                         label_column="z").repeat().batch(1000)
     test_dataset = None
@@ -103,7 +98,5 @@ print(model.get_weights())
 
 tf_trainer.shutdown()
 
-spark.stop()
-spark_cluster.stop()
-
+context.stop_spark()
 ray.shutdown()

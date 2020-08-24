@@ -1,14 +1,14 @@
-import math
 from collections.abc import Iterable
 from typing import Any, List, Optional
 
+import math
 import numpy as np
 import pandas
 import torch
 from torch.utils.data import Dataset, DistributedSampler
 
-from raydp.spark.resource_manager.standalone.block_holder import BlockSet
-from raydp.spark.resource_manager.standalone.standalone_cluster import save_to_ray
+from raydp.spark.context import save_to_ray
+from raydp.spark.resource_manager.exchanger import SharedDataset
 
 # we use 4 bytes for block size, this means each block can contain
 # 4294967296 records
@@ -131,19 +131,22 @@ class RayDataset(_Dataset):
         """
         super(RayDataset, self).__init__(feature_columns, feature_shapes,
                                          feature_types, label_column, label_type)
-        self._block_set: BlockSet = None
+        self._unresolved_shared_dataset: SharedDataset = None
+        self._resolved_shared_dataset: SharedDataset = None
         self._previous_block_index = -1
 
         self._check_and_convert()
 
         if df is not None:
-            self._block_set = save_to_ray(df)
+            self._unresolved_shared_dataset = save_to_ray(df)
 
     def _resolve_with_indices(self,
                               indices: List[int],
                               plasma_store_socket_name: Optional[str]):
-        self._block_set.resolve(indices)
-        self._block_set.set_plasma_store_socket_name(plasma_store_socket_name)
+        resolved_shared_dataset = self._unresolved_shared_dataset.subset(indices)
+        resolved_shared_dataset.set_plasma_store_socket_name(plasma_store_socket_name)
+        resolved_shared_dataset.resolve()
+        self._resolved_shared_dataset = resolved_shared_dataset
 
     def __getitem__(self, index):
         global BLOCK_SIZE_BIT
@@ -151,21 +154,21 @@ class RayDataset(_Dataset):
         block_inner_index = (block_index << BLOCK_SIZE_BIT) ^ index
         if block_index != self._previous_block_index:
             self._previous_block_index = block_index
-            df = self._block_set[block_index]
+            df = self._resolved_shared_dataset[block_index]
             self._convert_to_tensor(df)
         return self._get_next(block_inner_index)
 
     def __len__(self):
         """Get the total size"""
-        return self._block_set.total_size
+        return self._unresolved_shared_dataset.total_size()
 
     def block_sizes(self) -> List[int]:
         """Get the block sizes"""
-        return self._block_set.block_sizes
+        return self._unresolved_shared_dataset.partition_sizes()
 
     @classmethod
     def _custom_deserialize(cls,
-                            block_set: BlockSet,
+                            data_set: SharedDataset,
                             feature_columns: List[str],
                             feature_shapes: List[Any],
                             feature_types: List[torch.dtype],
@@ -173,13 +176,13 @@ class RayDataset(_Dataset):
                             label_type: torch.dtype):
         instance = cls(
             None, feature_columns, feature_shapes, feature_types, label_column, label_type)
-        instance._block_set = block_set
+        instance._unresolved_shared_dataset = data_set
         return instance
 
     def __reduce__(self):
         return (RayDataset._custom_deserialize,
-                (self._block_set, self._feature_columns, self._feature_shapes, self._feature_types,
-                 self._label_column, self._label_type))
+                (self._unresolved_shared_dataset, self._feature_columns, self._feature_shapes,
+                 self._feature_types, self._label_column, self._label_type))
 
 
 class BlockSetSampler(DistributedSampler):

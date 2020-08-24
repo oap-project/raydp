@@ -1,7 +1,9 @@
-import signal
-
 import atexit
+import signal
+import re
 import psutil
+
+MEMORY_SIZE_UNITS = {"B": 1, "KB": 2**10, "MB": 2**20, "GB": 2**30, "TB": 2**40}
 
 
 def get_node_address() -> str:
@@ -93,3 +95,18 @@ def convert_to_spark(df):
     :return: a pair of (converted df, whether it is spark DataFrame)
     """
     return _df_helper(df, lambda d: (d, True), lambda d: (d.to_spark(), False))
+
+
+def parse_memory_size(memory_size: str) -> int:
+    """
+    Parse the human readable memory size into bytes.
+    Adapt from: https://stackoverflow.com/a/60708339
+    :param memory_size: human readable memory size
+    :return: convert to int size
+    """
+    global MEMORY_SIZE_UNITS
+    size = memory_size.upper()
+    if not re.match(r' ', size):
+        size = re.sub(r'([KMGT]?B)', r' \1', size)
+    number, unit_index = [item.strip() for item in size.split()]
+    return int(float(number) * MEMORY_SIZE_UNITS[unit_index])
