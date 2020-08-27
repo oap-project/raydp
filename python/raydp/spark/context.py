@@ -16,13 +16,13 @@ from raydp.spark.resource_manager.standalone.standalone_cluster import Standalon
 SUPPORTED_RESOURCE_MANAGER = ("ray", "standalone")
 
 
-class spark_context(ContextDecorator):
+class _spark_context(ContextDecorator):
     """
     A class used to create the Spark cluster and get the Spark session.
 
     .. code-block:: python
 
-        @spark_context(app_name, num_executors, executor_cores, executor_memory):
+        @_spark_context(app_name, num_executors, executor_cores, executor_memory):
         def process():
             # you can code here just like the normal spark code
             spark = SparkSession.builder.getOrCreate()
@@ -105,7 +105,7 @@ class spark_context(ContextDecorator):
 
 
 _spark_context_lock = RLock()
-_global_spark_context: spark_context = None
+_global_spark_context: _spark_context = None
 
 
 def init_spark(app_name: str,
@@ -132,7 +132,7 @@ def init_spark(app_name: str,
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is None:
-            _global_spark_context = spark_context(
+            _global_spark_context = _spark_context(
                 app_name, num_executors, executor_cores, executor_memory,
                 resource_manager, spark_home, configs)
             return _global_spark_context._get_session()
@@ -160,5 +160,5 @@ def save_to_ray(df: Union[DataFrame, 'koalas.DataFrame']) -> SharedDataset:
         if _global_spark_context is None:
             raise Exception("You should init the Spark context firstly.")
         # convert to Spark sql DF
-        df = convert_to_spark(df)
+        df, is_df = convert_to_spark(df)
         return _global_spark_context._get_spark_cluster().save_to_ray(df)
