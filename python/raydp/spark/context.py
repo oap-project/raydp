@@ -18,8 +18,6 @@ SUPPORTED_RESOURCE_MANAGER = ("ray", "standalone")
 
 class _spark_context(ContextDecorator):
     """
-    A class used to create the Spark cluster and get the Spark session.
-
     .. code-block:: python
 
         @_spark_context(app_name, num_executors, executor_cores, executor_memory):
