@@ -1,7 +1,6 @@
 from collections.abc import Iterable
 from typing import Any, List, Optional
 
-import math
 import numpy as np
 import pandas
 import torch
@@ -9,10 +8,7 @@ from torch.utils.data import Dataset, DistributedSampler
 
 from raydp.spark.context import save_to_ray
 from raydp.spark.resource_manager.exchanger import SharedDataset
-
-# we use 4 bytes for block size, this means each block can contain
-# 4294967296 records
-BLOCK_SIZE_BIT = 32
+from raydp.spark.utils import BLOCK_SIZE_BIT, divide_blocks
 
 
 class _Dataset(Dataset):
@@ -149,7 +145,6 @@ class RayDataset(_Dataset):
         self._resolved_shared_dataset = resolved_shared_dataset
 
     def __getitem__(self, index):
-        global BLOCK_SIZE_BIT
         block_index = index >> BLOCK_SIZE_BIT
         block_inner_index = (block_index << BLOCK_SIZE_BIT) ^ index
         if block_index != self._previous_block_index:
@@ -213,59 +208,10 @@ class BlockSetSampler(DistributedSampler):
             self._inited = True
 
     def _split_blocks(self):
-        num_blocks = int(math.ceil(len(self.dataset.block_sizes()) * 1.0 / self.num_replicas))
-        total_block_size = num_blocks * self.num_replicas
-        g = torch.Generator()
-        g.manual_seed(0)
-        if self.shuffle:
-            total_indices = torch.randperm(len(self.dataset.block_sizes()), generator=g).tolist()
-        else:
-            total_indices = list(range(len(self.dataset.block_sizes())))
-        # add extra samples to make it evenly divisible
-        # we should use while here, because the len(total_indices) can be smaller than num_replicas
-        while len(total_indices) != total_block_size:
-            total_indices += total_indices[:(total_block_size - len(total_indices))]
-
-        assert len(total_indices) == total_block_size
-
-        indices = total_indices[self.rank: total_block_size: self.num_replicas]
-        assert len(indices) == num_blocks
-
-        def select(i, current_size, selected) -> int:
-            block_size = self.dataset.block_sizes()[i]
-            tmp = current_size + block_size
-            if tmp < self.num_samples:
-                selected.append((i, block_size))
-                current_size = tmp
-            elif tmp >= self.num_samples:
-                selected.append((i, (self.num_samples - current_size)))
-                current_size = self.num_samples
-            return current_size
-
-        total_size = 0
-        selected_indices = []
-        for i in indices:
-            total_size = select(i, total_size, selected_indices)
-            if total_size == self.num_samples:
-                break
-
-        step = 1
-        while total_size < self.num_samples:
-            index = total_indices[(self.rank + step) % len(total_indices)]
-            total_size = select(index, total_size, selected_indices)
-            step += self.num_replicas
-
-        assert total_size == self.num_samples
-
-        block_indices = []
-        packed_selected_indices = []
-        global BLOCK_SIZE_BIT
-        for index, size in selected_indices:
-            block_indices.append(index)
-            # we use 4 Bytes for the block inner index
-            packed_selected_indices.append([((index << BLOCK_SIZE_BIT) | i) for i in range(size)])
-        self._block_indices = block_indices
-        self._selected_indices = packed_selected_indices
+        block_indexes, packed_selected_indexes = divide_blocks(
+            self.dataset.block_sizes(), self.num_replicas, self.rank, self.shffle)
+        self._block_indices = block_indexes
+        self._selected_indices = packed_selected_indexes
 
     def resolve(self, plasma_store_socket_name: Optional[str] = None):
         """Manually trigger the underlying object transfer."""

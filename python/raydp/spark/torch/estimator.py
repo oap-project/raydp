@@ -261,8 +261,8 @@ class TorchEstimator(EstimatorInterface):
         else:
             raise Exception("You call fit twice.")
 
-    def evaluate(self, df, ):
-        super(TorchEstimator, self).fit(df)
+    def evaluate(self, df):
+        super(TorchEstimator, self).evaluate(df)
         if self._trainer is None:
             raise Exception("Must call fit first")
         pdf = df.toPandas()
