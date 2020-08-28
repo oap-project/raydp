@@ -310,7 +310,7 @@ class TorchEstimator(EstimatorInterface):
         assert self._trainer is not None, "Must call fit first"
         self._trainer.save(checkpoint)
 
-    def load(self, checkpoint):
+    def restore(self, checkpoint):
         assert self._trainer is not None, "Must call fit first"
         self._trainer.load(checkpoint)
 
