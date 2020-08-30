@@ -1,14 +1,13 @@
 import argparse
-from typing import Dict
 
 import pyspark
 import ray
+import tensorflow.keras as keras
 from pyspark.sql.functions import rand
-from ray.util.sgd.tf.tf_trainer import TFTrainer
 
 from raydp.spark import context
-from raydp.spark.resource_manager.spark_cluster import SharedDataset
-from raydp.spark.tf.tf_dataset import create_dataset_from_objects
+from raydp.spark.utils import random_split
+from raydp.spark.tf.estimator import TFEstimator
 
 parser = argparse.ArgumentParser(description="A simple example for spark on ray")
 parser.add_argument("--redis-address", type=str, dest="redis_address",
@@ -25,7 +24,7 @@ parser.add_argument("--num-executors", type=int, required=True, dest="num_execut
                     help="The number of executors for this application")
 parser.add_argument("--executor-cores", type=int, required=True, dest="executor_cores",
                     help="The number of cores for each of Spark executor")
-parser.add_argument("--executor-memory", type=float, required=True, dest="executor_memory",
+parser.add_argument("--executor-memory", type=str, required=True, dest="executor_memory",
                     help="The size of memory for each of Spark executor")
 
 args = parser.parse_args()
@@ -44,9 +43,9 @@ else:
 
 # -------------------- setup spark -------------------------
 
-app_name = "A simple example for spark on ray",
-num_executors = args.num_executors,
-executor_cores = args.executor_cores,
+app_name = "A simple example for spark on ray"
+num_executors = args.num_executors
+executor_cores = args.executor_cores
 executor_memory = args.executor_memory
 
 spark = context.init_spark(app_name, num_executors, executor_cores, executor_memory)
@@ -59,44 +58,36 @@ df = df.withColumn("y", rand() * 1000)  # ad y column
 df = df.withColumn("z", df.x * 3 + df.y * 4 + rand() + 5)  # ad z column
 df = df.select(df.x, df.y, df.z)
 
-# save DataFrame to ray
-# TODO: hide this
-shared_dataset: SharedDataset = context.save_to_ray(df)
+train_df, test_df = random_split(df, [0.7, 0.3])
 
 
 # ---------------- ray sgd -------------------------
-def create_mode(config: Dict):
-    import tensorflow as tf
-    model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Dense(1, input_shape=(2,)))
-    model.compile(optimizer=tf.keras.optimizers.Adam(0.01),
-                  loss=tf.keras.losses.mean_squared_error,
-                  metrics=["accuracy", "mse"])
-    return model
+# create model
+input_1 = keras.Input(shape=(1,))
+input_2 = keras.Input(shape=(1,))
 
+concatenated = keras.layers.concatenate([input_1, input_2])
+output = keras.layers.Dense(1, activation='sigmoid')(concatenated)
+model = keras.Model(inputs=[input_1, input_2],
+                    outputs=output)
 
-def data_creator(config: Dict):
-    train_dataset = create_dataset_from_objects(
-                        shared_dataset=shared_dataset,
-                        features_columns=["x", "y"],
-                        label_column="z").repeat().batch(1000)
-    test_dataset = None
-    return train_dataset, test_dataset
+optimizer = keras.optimizers.Adam(0.01)
+loss = keras.losses.MeanSquaredError()
 
+estimator = TFEstimator(num_workers=2,
+                        model=model,
+                        optimizer=optimizer,
+                        loss=loss,
+                        metrics=["accuracy", "mse"],
+                        feature_columns=["x", "y"],
+                        label_column="z",
+                        batch_size=1000,
+                        num_epochs=2,
+                        config={"fit_config": {"steps_per_epoch": 100}})
 
-tf_trainer = TFTrainer(model_creator=create_mode,
-                       data_creator=data_creator,
-                       num_replicas=2,
-                       config={"fit_config": {"steps_per_epoch": 100}})
+estimator.fit(train_df)
+estimator.evaluate(test_df)
 
-for i in range(100):
-    stats = tf_trainer.train()
-    print(f"Step: {i}, stats: {stats}")
-
-model = tf_trainer.get_model()
-print(model.get_weights())
-
-tf_trainer.shutdown()
-
+estimator.shutdown()
 context.stop_spark()
 ray.shutdown()

@@ -24,7 +24,7 @@ parser.add_argument("--num-executors", type=int, required=True, dest="num_execut
                     help="The number of executors for this application")
 parser.add_argument("--executor-cores", type=int, required=True, dest="executor_cores",
                     help="The number of cores for each of Spark executor")
-parser.add_argument("--executor-memory", type=float, required=True, dest="executor_memory",
+parser.add_argument("--executor-memory", type=str, required=True, dest="executor_memory",
                     help="The size of memory for each of Spark executor")
 
 args = parser.parse_args()

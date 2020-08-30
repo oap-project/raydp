@@ -21,7 +21,15 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-case class WroteRecord(ownerAddress: Array[Byte], objectId: Array[Byte], numRecords: Int)
+/**
+ * A batch of record that has been wrote into Ray object store.
+ * @param ownerAddress the owner address of the ray worker
+ * @param objectId the ObjectId for the stored data
+ * @param numRecords the number of records for the stored data
+ */
+case class RecordBatch(ownerAddress: Array[Byte],
+                       objectId: Array[Byte],
+                       numRecords: Int)
 
 class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
@@ -29,7 +37,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
   def writeToRay(data: Array[Byte],
                  numRecords: Int,
-                 queue: ObjectRefHolder.Queue): WroteRecord = {
+                 queue: ObjectRefHolder.Queue): RecordBatch = {
     val objectRef = Ray.put(data)
     // add the objectRef to the objectRefHolder to avoid reference GC
     queue.add(objectRef)
@@ -37,17 +45,20 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
     val objectId = objectRefImpl.getId().getBytes()
     NativeObjectStore.nativePromoteObjectToPlasma(objectId)
     val addressInfo = NativeObjectStore.nativeGetOwnershipInfo(objectId)
-    WroteRecord(addressInfo, objectId, numRecords)
+    RecordBatch(addressInfo, objectId, numRecords)
   }
 
-  def save(): List[WroteRecord] = {
+  /**
+   * Save the DataFrame to Ray object store with Apache Arrow format.
+   */
+  def save(): List[RecordBatch] = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
     val batchSize = conf.getConf(SQLConf.ARROW_EXECUTION_MAX_RECORDS_PER_BATCH)
     val schema = df.schema
 
     //
-    val objectIds = df.queryExecution.toRdd.mapPartitions{iter =>
+    val objectIds = df.queryExecution.toRdd.mapPartitions{ iter =>
       val queue = ObjectRefHolder.getQueue(uuid)
 
       // DO NOT use iter.grouped(). See BatchIterator.
@@ -61,7 +72,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       val allocator = ArrowUtils.rootAllocator.newChildAllocator(
         s"ray object store writer", 0, Long.MaxValue)
       val root = VectorSchemaRoot.create(arrowSchema, allocator)
-      val results = new ArrayBuffer[WroteRecord]()
+      val results = new ArrayBuffer[RecordBatch]()
 
       val byteOut = new ByteArrayOutputStream()
       val arrowWriter = ArrowWriter.create(root)
