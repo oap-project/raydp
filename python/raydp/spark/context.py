@@ -160,5 +160,5 @@ def save_to_ray(df: Union[DataFrame, 'koalas.DataFrame']) -> SharedDataset:
         if _global_spark_context is None:
             raise Exception("You should init the Spark context firstly.")
         # convert to Spark sql DF
-        df = convert_to_spark(df)
+        df, _ = convert_to_spark(df)
         return _global_spark_context._get_spark_cluster().save_to_ray(df)

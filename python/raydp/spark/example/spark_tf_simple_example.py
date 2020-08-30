@@ -6,6 +6,7 @@ import tensorflow.keras as keras
 from pyspark.sql.functions import rand
 
 from raydp.spark import context
+from raydp.spark.utils import random_split
 from raydp.spark.tf.estimator import TFEstimator
 
 parser = argparse.ArgumentParser(description="A simple example for spark on ray")
@@ -23,7 +24,7 @@ parser.add_argument("--num-executors", type=int, required=True, dest="num_execut
                     help="The number of executors for this application")
 parser.add_argument("--executor-cores", type=int, required=True, dest="executor_cores",
                     help="The number of cores for each of Spark executor")
-parser.add_argument("--executor-memory", type=float, required=True, dest="executor_memory",
+parser.add_argument("--executor-memory", type=str, required=True, dest="executor_memory",
                     help="The size of memory for each of Spark executor")
 
 args = parser.parse_args()
@@ -57,12 +58,21 @@ df = df.withColumn("y", rand() * 1000)  # ad y column
 df = df.withColumn("z", df.x * 3 + df.y * 4 + rand() + 5)  # ad z column
 df = df.select(df.x, df.y, df.z)
 
+train_df, test_df = random_split(df, [0.7, 0.3])
+
 
 # ---------------- ray sgd -------------------------
 # create model
-model = keras.Sequential().add(keras.layers.Dense(1, input_shape=(2,)))
+input_1 = keras.Input(shape=(1,))
+input_2 = keras.Input(shape=(1,))
+
+concatenated = keras.layers.concatenate([input_1, input_2])
+output = keras.layers.Dense(1, activation='sigmoid')(concatenated)
+model = keras.Model(inputs=[input_1, input_2],
+                    outputs=output)
+
 optimizer = keras.optimizers.Adam(0.01)
-loss = keras.losses.mean_squared_error
+loss = keras.losses.MeanSquaredError()
 
 estimator = TFEstimator(num_workers=2,
                         model=model,
@@ -72,10 +82,12 @@ estimator = TFEstimator(num_workers=2,
                         feature_columns=["x", "y"],
                         label_column="z",
                         batch_size=1000,
-                        num_epochs=100,
+                        num_epochs=2,
                         config={"fit_config": {"steps_per_epoch": 100}})
 
-estimator.fit(df)
+estimator.fit(train_df)
+estimator.evaluate(test_df)
 
+estimator.shutdown()
 context.stop_spark()
 ray.shutdown()

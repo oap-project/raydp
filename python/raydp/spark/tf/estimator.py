@@ -10,10 +10,6 @@ from raydp.spark.tf.dataset import PandasDataset, RayDataset
 
 
 class TFEstimator(EstimatorInterface):
-    """
-    A scikit-learn like API to distributed training Tensorflow Keras model. In the backend it
-    leverage the ray.sgd.TorchTrainer.
-    """
     def __init__(self,
                  num_workers: int = 1,
                  model: keras.Model = None,
@@ -21,15 +17,40 @@ class TFEstimator(EstimatorInterface):
                  loss: Union[keras.losses.Loss, str] = None,
                  metrics: Union[List[keras.metrics.Metric], List[str]] = None,
                  feature_columns: Union[str, List[str]] = None,
-                 feature_types: Union[Optional[DType, Optional[List[DType]]]] = tf.float32,
-                 feature_shapes: Union[Optional[TensorShape], Optional[List[TensorShape]]] = None,
+                 feature_types: Optional[Union[DType, List[DType]]] = None,
+                 feature_shapes: Optional[Union[TensorShape, List[TensorShape]]] = None,
                  label_column: str = None,
-                 label_type: Optional[tf.DType] = tf.float32,
+                 label_type: Optional[tf.DType] = None,
                  label_shape: Optional[tf.TensorShape] = None,
                  batch_size: int = None,
                  num_epochs: int = None,
                  shuffle: bool = True,
                  config: Dict = None):
+        """
+        A scikit-learn like API to distributed training Tensorflow Keras model. In the backend it
+        leverage the ray.sgd.TorchTrainer.
+        :param num_workers: the number of workers for distributed model training
+        :param model: the model, it should be instance of tensorflow.keras.Model. We do not support
+                      multiple output models.
+        :param optimizer: the optimizer, it should be keras.optimizers.Optimizer instance or str.
+                          We do not support multiple optimizers currently.
+        :param loss: the loss, it should be keras.losses.Loss instance or str. We do not support
+                     multiple losses.
+        :param metrics: the metrics list. It could be None, a list of keras.metrics.Metric instance
+                        or a list of str.
+        :param feature_columns: the feature columns name.
+        :param feature_types: the type for each feature input. It must match the length of the
+                              feature_columns if provided. It will be tf.float32 by default.
+        :param feature_shapes: the shape for each feature input. It must match the length of the
+                               feature_columns
+        :param label_column: the label column name.
+        :param label_type: the label type, it will be tf.float32 by default.
+        :param label_shape: the label shape.
+        :param batch_size: the batch size
+        :param num_epochs: the number of epochs
+        :param shuffle: whether input dataset should be shuffle, True by default.
+        :param config: extra config will fit into TFTrainer.
+        """
         self._num_workers: int = num_workers
 
         # model
@@ -99,13 +120,16 @@ class TFEstimator(EstimatorInterface):
     def fit(self, df, **kwargs) -> NoReturn:
         super(TFEstimator, self).fit(df, **kwargs)
 
-        def create_model(config):
+        def model_creator(config):
+            # https://github.com/ray-project/ray/issues/5914
+            import tensorflow as tf
+            import tensorflow.keras as keras
+
             model: keras.Model = keras.models.model_from_json(self._serialized_model)
             optimizer = keras.optimizers.get(self._serialized_optimizer)
             loss = keras.losses.get(self._serialized_loss)
-            metrics = keras.metrics.get(self._serialized_metrics)
+            metrics = [keras.metrics.get(m) for m in self._serialized_metrics]
             model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-            model.fit()
             return model
 
         data_set = RayDataset(df,
@@ -117,10 +141,10 @@ class TFEstimator(EstimatorInterface):
                               self._label_shape,
                               self._shuffle)
 
-        def data_create(config):
+        def data_creator(config):
             return data_set.setup(config), None
 
-        self._trainer = TFTrainer(create_model, data_create, self._config, self._num_workers)
+        self._trainer = TFTrainer(model_creator, data_creator, self._config, self._num_workers)
         for i in range(self._num_epochs):
             stats = self._trainer.train()
             print(f"Epoch-{i}: {stats}")
@@ -139,9 +163,9 @@ class TFEstimator(EstimatorInterface):
                                 self._label_shape,
                                 self._shuffle)
         config = self._config
-        tf_dataset = dataset.setup(config)
-        model = self._trainer.get_model()
-        result = model.fit(tf_dataset)
+        tf_dataset: tf.data.Dataset = dataset.setup(config)
+        model: keras.Model = self._trainer.get_model()
+        result = model.evaluate(tf_dataset)
         print(result)
 
     def get_model(self) -> Any:
@@ -160,4 +184,3 @@ class TFEstimator(EstimatorInterface):
         if self._trainer is not None:
             self._trainer.shutdown()
             del self._trainer
-
