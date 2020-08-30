@@ -1,0 +1,89 @@
+From 0fd20b06c3f6c13b2e87f2f128fe030afad6940e Mon Sep 17 00:00:00 2001
+From: Xianyang Liu <xianyang.liu@intel.com>
+Date: Sun, 30 Aug 2020 21:51:17 +0800
+Subject: [PATCH] support promote & get_ownership
+
+---
+ .../ray/runtime/object/NativeObjectStore.java |  4 ++++
+ ...io_ray_runtime_object_NativeObjectStore.cc | 20 +++++++++++++++++++
+ .../io_ray_runtime_object_NativeObjectStore.h | 20 +++++++++++++++++++
+ 3 files changed, 44 insertions(+)
+
+diff --git a/java/runtime/src/main/java/io/ray/runtime/object/NativeObjectStore.java b/java/runtime/src/main/java/io/ray/runtime/object/NativeObjectStore.java
+index fe39413b3..50c397e3b 100644
+--- a/java/runtime/src/main/java/io/ray/runtime/object/NativeObjectStore.java
++++ b/java/runtime/src/main/java/io/ray/runtime/object/NativeObjectStore.java
+@@ -98,4 +98,8 @@ public class NativeObjectStore extends ObjectStore {
+   private static native void nativeRemoveLocalReference(byte[] workerId, byte[] objectId);
+ 
+   private static native Map<byte[], long[]> nativeGetAllReferenceCounts();
++
++  public static native void nativePromoteObjectToPlasma(byte[] objectId);
++
++  public static native byte[] nativeGetOwnershipInfo(byte[] objectId);
+ }
+diff --git a/src/ray/core_worker/lib/java/io_ray_runtime_object_NativeObjectStore.cc b/src/ray/core_worker/lib/java/io_ray_runtime_object_NativeObjectStore.cc
+index b806c369d..c9dd6fe7b 100644
+--- a/src/ray/core_worker/lib/java/io_ray_runtime_object_NativeObjectStore.cc
++++ b/src/ray/core_worker/lib/java/io_ray_runtime_object_NativeObjectStore.cc
+@@ -171,6 +171,26 @@ Java_io_ray_runtime_object_NativeObjectStore_nativeGetAllReferenceCounts(JNIEnv
+       });
+ }
+ 
++JNIEXPORT void JNICALL
++Java_io_ray_runtime_object_NativeObjectStore_nativePromoteObjectToPlasma(JNIEnv *env, jclass,
++        jbyteArray objectId) {
++    auto object_id = JavaByteArrayToId<ray::ObjectID>(env, objectId);
++    ray::CoreWorkerProcess::GetCoreWorker().PromoteObjectToPlasma(object_id);
++}
++
++JNIEXPORT jbyteArray JNICALL
++Java_io_ray_runtime_object_NativeObjectStore_nativeGetOwnershipInfo(JNIEnv *env, jclass,
++        jbyteArray objectId) {
++    auto object_id = JavaByteArrayToId<ray::ObjectID>(env, objectId);
++    ray::rpc::Address address;
++    ray::CoreWorkerProcess::GetCoreWorker().GetOwnershipInfo(object_id, &address);
++    auto address_str = address.SerializeAsString();
++    jbyteArray arr = env->NewByteArray(address_str.length());
++    env->SetByteArrayRegion(
++      arr, 0, address_str.length(), reinterpret_cast<const jbyte *>(address_str.c_str()));
++    return arr;
++}
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/src/ray/core_worker/lib/java/io_ray_runtime_object_NativeObjectStore.h b/src/ray/core_worker/lib/java/io_ray_runtime_object_NativeObjectStore.h
+index bc9719b48..a6c4b545a 100644
+--- a/src/ray/core_worker/lib/java/io_ray_runtime_object_NativeObjectStore.h
++++ b/src/ray/core_worker/lib/java/io_ray_runtime_object_NativeObjectStore.h
+@@ -94,6 +94,26 @@ JNIEXPORT jobject JNICALL
+ Java_io_ray_runtime_object_NativeObjectStore_nativeGetAllReferenceCounts(JNIEnv *,
+                                                                          jclass);
+ 
++
++
++/*
++ * Class:     io_ray_runtime_object_NativeObjectStore
++ * Method:    nativePromoteObjectToPlasma
++ * Signature: ([B)V
++ */
++JNIEXPORT void JNICALL
++Java_io_ray_runtime_object_NativeObjectStore_nativePromoteObjectToPlasma(JNIEnv *, jclass,
++                                                                         jbyteArray);
++
++/*
++ * Class:     io_ray_runtime_object_NativeObjectStore
++ * Method:    nativeGetOwnershipInfo
++ * Signature: ([B)[B
++ */
++JNIEXPORT jbyteArray JNICALL
++Java_io_ray_runtime_object_NativeObjectStore_nativeGetOwnershipInfo(JNIEnv *, jclass,
++                                                                    jbyteArray);
++
+ #ifdef __cplusplus
+ }
+ #endif
+-- 
+2.24.3 (Apple Git-128)
+
