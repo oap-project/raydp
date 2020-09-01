@@ -1,0 +1,19 @@
+languaga: python
+
+git:
+  quiet: true
+
+python:
+  - '3.7'
+jdk:
+  - openjdk8
+
+before_install:
+  pip install --user -r requirements.txt
+  dev/install_dependencies.sh
+
+install:
+  ./install.sh
+
+scripts:
+  pytest python/

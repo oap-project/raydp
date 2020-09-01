@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -ex
+
 current_dir=`pwd $(dirname "$0")`
 
 if ! command -v mvn &> /dev/null
@@ -22,3 +24,5 @@ python_dir="${current_dir}/python"
 pushd ${python_dir}
 python setup.py install
 popd
+
+set +ex

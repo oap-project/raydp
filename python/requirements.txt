@@ -1,0 +1,10 @@
+koalas
+
+numpy
+
+pandas
+pyarrow >= 0.10
+pytest
+psutil
+
+typing
