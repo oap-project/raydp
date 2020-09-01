@@ -37,7 +37,6 @@ try:
         "pandas",
         "psutil",
         "pyarrow >= 0.10",
-        "ray",
     ]
 
     with open('../README.md') as f:

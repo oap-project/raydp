@@ -77,7 +77,7 @@ def test_unbalanced_blockset_sampler():
     assert dataset.block_sizes() == [4, 8, 3]
 
     sampler = BlockSetSampler(dataset, num_replicas=2, rank=0, shuffle=False, init_lazy=False)
-    assert sampler.block_indices == [0, 2, 1]
+    assert sampler.block_indices == sorted([0, 2, 1])
     assert len(sampler) == 8
     block_index = 0
     results = [((block_index << BLOCK_SIZE_BIT) | i) for i in range(4)]
