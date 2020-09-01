@@ -57,7 +57,7 @@ python setup.py bdist_wheel
 popd # python
 
 pushd java
-mvn clean install -Dmaven.test.skip
+mvn clean install -q -Dmaven.test.skip
 popd # java
 
 popd # ray

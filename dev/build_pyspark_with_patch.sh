@@ -33,7 +33,7 @@ git apply --check ../spark.patch
 git am ../spark.patch
 
 # build spark
-mvn clean package -DskipTests
+mvn clean package -q -DskipTests
 
 # build pyspark
 pushd python

@@ -15,7 +15,7 @@ fi
 
 core_dir="${current_dir}/core"
 pushd ${core_dir}
-mvn clean package -DskipTests
+mvn clean package -q -DskipTests
 popd
 
 python_path=`which python`

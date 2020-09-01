@@ -2,6 +2,7 @@ import logging
 
 import pytest
 from pyspark.sql import SparkSession
+import ray
 
 
 def quiet_logger():
@@ -20,3 +21,7 @@ def spark_session(request):
     return spark
 
 
+@pytest.fixture(scope="function")
+def ray_cluster(request):
+    ray.init(include_java=True, redis_password="123")
+    request.addfinalizer(lambda: ray.shutdown())
