@@ -209,7 +209,7 @@ class BlockSetSampler(DistributedSampler):
 
     def _split_blocks(self):
         block_indexes, packed_selected_indexes = divide_blocks(
-            self.dataset.block_sizes(), self.num_replicas, self.rank, self.shffle)
+            self.dataset.block_sizes(), self.num_replicas, self.rank, self.shuffle)
         self._block_indices = block_indexes
         self._selected_indices = packed_selected_indexes
 

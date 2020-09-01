@@ -18,3 +18,5 @@ def spark_session(request):
     request.addfinalizer(lambda: spark.stop())
     quiet_logger()
     return spark
+
+

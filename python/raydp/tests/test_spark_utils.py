@@ -2,6 +2,7 @@ import databricks.koalas as ks
 import pyspark
 import pytest
 import sys
+import math
 
 import raydp.spark.utils as utils
 
@@ -50,6 +51,86 @@ def test_random_split(spark_session):
     assert isinstance(splits[0], ks.DataFrame)
     assert isinstance(splits[1], ks.DataFrame)
     assert len(splits) == 2
+
+
+def test_memory_size_parser():
+    upper_units = ["", "K", "M", "G", "T"]
+    expected = [math.pow(2, 10 * p) for p in range(len(upper_units))]
+
+    # upper without B
+    values = [f"1{unit}" for unit in upper_units]
+    parsed = [utils.parse_memory_size(v) for v in values]
+    assert parsed == expected
+    # lower without B
+    values = [f"1{unit.lower()}" for unit in upper_units]
+    parsed = [utils.parse_memory_size(v) for v in values]
+    assert parsed == expected
+    # upper blank without B
+    values = [f"1 {unit}" for unit in upper_units]
+    parsed = [utils.parse_memory_size(v) for v in values]
+    assert parsed == expected
+    # upper two blanks without B
+    values = [f"1  {unit}" for unit in upper_units]
+    parsed = [utils.parse_memory_size(v) for v in values]
+    assert parsed == expected
+
+    upper_units = ["B", "KB", "MB", "GB", "TB"]
+    # upper with B
+    values = [f"1{unit}" for unit in upper_units]
+    parsed = [utils.parse_memory_size(v) for v in values]
+    assert parsed == expected
+    # lower with B
+    values = [f"1{unit.lower()}" for unit in upper_units]
+    parsed = [utils.parse_memory_size(v) for v in values]
+    assert parsed == expected
+    # upper blank with B
+    values = [f"1 {unit}" for unit in upper_units]
+    parsed = [utils.parse_memory_size(v) for v in values]
+    assert parsed == expected
+    # upper two blanks with B
+    values = [f"1  {unit}" for unit in upper_units]
+    parsed = [utils.parse_memory_size(v) for v in values]
+    assert parsed == expected
+
+
+def test_divide_blocks():
+    blocks = [5, 10, 9]
+    world_size = 3
+
+    def _sum(packed_indexes) -> int:
+        return sum([len(i) for i in packed_indexes])
+
+    # no shuffle, no pack
+    block_indexes_0, block_size_0 = utils.divide_blocks(blocks, world_size, 0, False, False)
+    block_indexes_1, block_size_1 = utils.divide_blocks(blocks, world_size, 1, False, False)
+    block_indexes_2, block_size_2 = utils.divide_blocks(blocks, world_size, 2, False, False)
+    assert sum(block_size_0) == sum(block_size_1) == sum(block_size_2)
+
+    # no shuffle, pack
+    block_indexes_0, block_size_0 = utils.divide_blocks(blocks, world_size, 0, False, True)
+    block_indexes_1, block_size_1 = utils.divide_blocks(blocks, world_size, 1, False, True)
+    block_indexes_2, block_size_2 = utils.divide_blocks(blocks, world_size, 2, False, True)
+    assert _sum(block_size_0) == _sum(block_size_1) == _sum(block_size_2)
+
+    # shuffle, no pack
+    block_indexes_0, block_size_0 = utils.divide_blocks(blocks, world_size, 0, True, False)
+    block_indexes_1, block_size_1 = utils.divide_blocks(blocks, world_size, 1, True, False)
+    block_indexes_2, block_size_2 = utils.divide_blocks(blocks, world_size, 2, True, False)
+    assert sum(block_size_0) == sum(block_size_1) == sum(block_size_2)
+
+    # shuffle, pack
+    block_indexes_0, block_size_0 = utils.divide_blocks(blocks, world_size, 0, True, True)
+    block_indexes_1, block_size_1 = utils.divide_blocks(blocks, world_size, 1, True, True)
+    block_indexes_2, block_size_2 = utils.divide_blocks(blocks, world_size, 2, True, True)
+    assert _sum(block_size_0) == _sum(block_size_1) == _sum(block_size_2)
+
+    # special case
+    blocks = [10]
+    block_indexes_0, block_size_0 = utils.divide_blocks(blocks, world_size, 0, False, False)
+    block_indexes_1, block_size_1 = utils.divide_blocks(blocks, world_size, 1, False, False)
+    block_indexes_2, block_size_2 = utils.divide_blocks(blocks, world_size, 2, False, False)
+    assert sum(block_size_0) == sum(block_size_1) == sum(block_size_2)
+    assert sum(block_size_0) == 4
 
 
 if __name__ == "__main__":

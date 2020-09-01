@@ -7,8 +7,7 @@ from typing import List, Tuple
 import numpy as np
 import psutil
 
-
-MEMORY_SIZE_UNITS = {"B": 1, "KB": 2**10, "MB": 2**20, "GB": 2**30, "TB": 2**40}
+MEMORY_SIZE_UNITS = {"K": 2**10, "M": 2**20, "G": 2**30, "T": 2**40}
 
 # we use 4 bytes for block size, this means each block can contain
 # 4294967296 records
@@ -113,11 +112,20 @@ def parse_memory_size(memory_size: str) -> int:
     :param memory_size: human readable memory size
     :return: convert to int size
     """
+    memory_size = memory_size.strip().upper()
+    if re.search(r"B", memory_size):
+        # discard "B"
+        memory_size = re.sub(r"B", "", memory_size)
+
+    try:
+        return int(memory_size)
+    except ValueError:
+        pass
+
     global MEMORY_SIZE_UNITS
-    size = memory_size.upper()
-    if not re.match(r' ', size):
-        size = re.sub(r'([KMGT]?B)', r' \1', size)
-    number, unit_index = [item.strip() for item in size.split()]
+    if not re.search(r" ", memory_size):
+        memory_size = re.sub(r"([KMGT]?)", r" \1", memory_size)
+    number, unit_index = [item.strip() for item in memory_size.split()]
     return int(float(number) * MEMORY_SIZE_UNITS[unit_index])
 
 
@@ -128,14 +136,16 @@ def divide_blocks(
         shuffle: bool,
         pack_index: bool = True) -> Tuple[List[int], List]:
     """
-    Divide the blocks into world_size size, and return the divided block indexes for the
+    Divide the blocks into world_size partitions, and return the divided block indexes for the
     Given work_rank
     :param blocks: the blocks and each item is the given block size
     :param world_size: total world size
     :param world_rank: the current rank
     :param shuffle: whether we need to the shuffle the blocks index
-    :param pack_index:
-    :return: the selected block indexes, and packed block index with block inner index
+    :param pack_index: whether pack the index
+    :return: a pair, the first one is the selected block indexes. If the pack_index set to True,
+             the second one return packed block index with block inner index, else return the
+             selected block size.
     """
     # get the block size for each rank
     num_blocks = int(math.ceil(len(blocks) * 1.0 / world_size))
