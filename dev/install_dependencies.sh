@@ -3,7 +3,7 @@
 set -ex
 
 CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-DIST_PATH = ${CURRENT_DIR}/../dist/
+DIST_PATH=${CURRENT_DIR}/../dist/
 
 pip install torch==1.5.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install tensorflow==2.0.0

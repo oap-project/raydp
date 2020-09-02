@@ -12,8 +12,8 @@ else
 fi
 
 CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-DIST_PATH = ${CURRENT_DIR}/../dist/
-TMP_DIR = ".tmp_dir"
+DIST_PATH=${CURRENT_DIR}/../dist/
+TMP_DIR=".tmp_dir"
 
 pushd CURRENT_DIR
 
