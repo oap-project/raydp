@@ -15,6 +15,11 @@ CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 DIST_PATH=${CURRENT_DIR}/../dist/
 TMP_DIR=".tmp_dir"
 
+if [ ! -d ${DIST_PATH} ];
+then
+  mkdir ${DIST_PATH}
+fi
+
 pushd ${TMP_DIR}
 
 if [ -d ${TMP_DIR} ];
@@ -59,7 +64,7 @@ git am ${CURRENT_DIR}/ray.patch
 export RAY_INSTALL_JAVA=1
 
 pushd python
-python setup.py bdist_wheel
+python setup.py -q bdist_wheel
 popd # python
 
 pushd java

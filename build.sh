@@ -14,6 +14,11 @@ fi
 CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 DIST_PATH=${CURRENT_DIR}/../dist/
 
+if [ ! -d ${DIST_PATH} ];
+then
+  mkdir ${DIST_PATH}
+fi
+
 # build pyspark and ray
 ${CURRENT_DIR}/dev/build_pyspark_with_patch.sh
 ${CURRENT_DIR}/dev/build_ray_with_patch.sh

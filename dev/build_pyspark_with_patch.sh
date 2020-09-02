@@ -15,6 +15,11 @@ CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 DIST_PATH=${CURRENT_DIR}/../dist/
 TMP_DIR=".tmp_dir"
 
+if [ ! -d ${DIST_PATH} ];
+then
+  mkdir ${DIST_PATH}
+fi
+
 pushd ${CURRENT_DIR}
 
 if [ -d ${TMP_DIR} ];
@@ -43,13 +48,13 @@ mvn clean package -q -DskipTests
 
 # build pyspark
 pushd python
-python setup.py bdist_wheel
+python setup.py -q bdist_wheel
 popd # python
 
 popd # spark
 
 # copy the build dist to the given dir
-copy spark/python/dist/pyspark-* ${DIST_PATH}
+cp spark/python/dist/pyspark-* ${DIST_PATH}
 # mv the build spark to the given dir
 mv spark ${DIST_PATH}
 
