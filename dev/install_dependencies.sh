@@ -2,14 +2,19 @@
 
 set -ex
 
+CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+DIST_PATH = ${CURRENT_DIR}/../dist/
+
 pip install torch==1.5.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install tensorflow==2.0.0
 
-RAYDP_TMP_DIR=${HOME}/raydp_tmp_dir
+# build and install pyspark
+${CURRENT_DIR}/build_pyspark_with_patch.sh
+pip install ${DIST_PATH}/pyspark-*
+export SPARK_HOME=${DIST_PATH}/spark
 
-dev/build_pyspark_with_patch.sh
-pip install ${RAYDP_TMP_DIR}/pyspark-*
-dev/build_ray_with_patch.sh
-pip install ${RAYDP_TMP_DIR}/ray-0.8.7-*
+# build and install ray
+${CURRENT_DIR}/build_ray_with_patch.sh
+pip install ${DIST_PATH}/ray-0.8.7-*
 
 set +ex

@@ -2,8 +2,6 @@
 
 set -ex
 
-current_dir=`pwd $(dirname "$0")`
-
 if ! command -v mvn &> /dev/null
 then
     echo "mvn could not be found, please install maven first"
@@ -13,19 +11,18 @@ else
     echo "Using ${mvn_path} for build ray java module"
 fi
 
-# cd home dir
-pushd ${HOME}
+CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+DIST_PATH = ${CURRENT_DIR}/../dist/
+TMP_DIR = ".tmp_dir"
 
-if [ ! -d "raydp_tmp_dir" ]; then
-  mkdir raydp_tmp_dir
-else
-  if [ -d "ray" ]; then
-    rm -rf "ray"
-  fi
+if [ -d ${TMP_DIR} ]; then
+  rm -rf ${TMP_DIR}
 fi
 
-# cd raydp tmp dir
-pushd raydp_tmp_dir
+# create tmp dir
+mkdir ${TMP_DIR}
+# cd tmp dir
+pushd ${TMP_DIR}
 
 # download ray
 git clone -b releases/0.8.7 --single-branch https://github.com/ray-project/ray.git
@@ -51,11 +48,11 @@ else
 fi
 
 pushd ray
-### add patch
-git apply --check current_dir/ray.patch
-git am current_dir/ray.patch
+# add patch
+git apply --check ${CURRENT_DIR}/ray.patch
+git am ${CURRENT_DIR}/ray.patch
 
-### Build
+# Build
 export RAY_INSTALL_JAVA=1
 
 pushd python
@@ -68,10 +65,10 @@ popd # java
 
 popd # ray
 
-mv ray/python/dist/ray-0.8.7-* .
-rm -rf ray
+mv ray/python/dist/ray-0.8.7-* ${DIST_PATH}
 
-popd # raydp_tmp_dir
+popd # tmp dir
+rm -rf ${TMP_DIR}
 popd # ${HOME}
 
 set +ex
