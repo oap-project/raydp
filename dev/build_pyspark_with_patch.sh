@@ -15,9 +15,10 @@ CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 DIST_PATH=${CURRENT_DIR}/../dist/
 TMP_DIR=".tmp_dir"
 
-pushd CURRENT_DIR
+pushd ${CURRENT_DIR}
 
-if [ -d ${TMP_DIR} ]; then
+if [ -d ${TMP_DIR} ];
+then
   rm -rf ${TMP_DIR}
 fi
 
@@ -42,7 +43,7 @@ mvn clean package -q -DskipTests
 
 # build pyspark
 pushd python
-python setup.py. bdist_wheel
+python setup.py bdist_wheel
 popd # python
 
 popd # spark
