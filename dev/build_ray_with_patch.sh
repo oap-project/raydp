@@ -2,6 +2,8 @@
 
 set -ex
 
+current_dir=`pwd $(dirname "$0")`
+
 if ! command -v mvn &> /dev/null
 then
     echo "mvn could not be found, please install maven first"
@@ -16,6 +18,10 @@ pushd ${HOME}
 
 if [ ! -d "raydp_tmp_dir" ]; then
   mkdir raydp_tmp_dir
+else
+  if [ -d "ray" ]; then
+    rm -rf "ray"
+  fi
 fi
 
 # cd raydp tmp dir
@@ -46,8 +52,8 @@ fi
 
 pushd ray
 ### add patch
-git apply --check ../ray.patch
-git am ../ray.patch
+git apply --check current_dir/ray.patch
+git am current_dir/ray.patch
 
 ### Build
 export RAY_INSTALL_JAVA=1

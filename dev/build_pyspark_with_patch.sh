@@ -2,6 +2,8 @@
 
 set -ex
 
+current_dir=`pwd $(dirname "$0")`
+
 if ! command -v mvn &> /dev/null
 then
     echo "mvn could not be found, please install maven first"
@@ -16,6 +18,10 @@ pushd ${HOME}
 
 if [ ! -d "raydp_tmp_dir" ]; then
   mkdir raydp_tmp_dir
+else:
+   if [ -d "spark"]; then
+     rm -rf spark
+   fi
 fi
 
 # cd raydp tmp dir
@@ -28,9 +34,9 @@ pushd spark
 
 git reset --hard 3fdfce3120f307147244e5eaf46d61419a723d50
 
-### add patch
-git apply --check ../spark.patch
-git am ../spark.patch
+# add patch
+git apply --check ${current_dir}/spark.patch
+git am ${current_dir}/spark.patch
 
 # build spark
 mvn clean package -q -DskipTests
