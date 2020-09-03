@@ -26,35 +26,24 @@ We provide a scikit-learn like API for RaySGD and supports training and evaluati
 > * In Spark 3.0 and 3.0.1 version, pyspark does not support user defined resource manager.
 > * In Ray 0.8.7 version, we can not esay exchange ray ObjectRef between different language workers.
 
-#### Build and install pyspark
 
-1. Get the modified Spark source code: https://github.com/ConeyLiu/spark/tree/pyspark
-2. Under `${SPARK_HOME}` build Spark with `mvn clean install -DskipTests`
-3. Under the `${SPARK_HOME}/pyspark` build & install pyspark:
-   * Install directly with command: `python setup.py install`
-   * Build `wheel` file with command: `python setup.py bdist_wheel`, then you can install the wheel file with `pip install ${the_wheel_file}`
 
-#### Build and install Ray with Java support
+You can build with the following command:
 
-1. Get the modified Ray source code: https://github.com/ConeyLiu/ray/tree/java_plus
-2. Build python package with java support:
-   1. Firstly, you need to install `bazel` with `ray/ci/travis/install-bazel.sh`
-   2. If you want to build dashboard, you can following the: https://docs.ray.io/en/master/development.html#building-ray
-   3. You need to set the env: `export RAY_INSTALL_JAVA=1`
-   4. Under `${RAY_HOME}/python` to build ray:
-      * Install directly with command: `python setup.py install`
-      * Build `wheel` file with command: `python setup.py bdist_wheel`, then you can install the wheel file with `pip install ${the_wheel_file}`
-   5. Under `${RAY_HOME}/java` to install java packages which needs by RayDP for build: `mvn clean install -Dmaven.test.skip`
+```shell
+# build patched spark, based on spark 3.0
+export RAYDP_BUILD_PYSPARK=1
+# build patched ray, based on ray 0.8.7
+export RAYDP_BUILD_RAY=1
+${RAYDP_HOME}/.build.sh
+```
 
-#### Build and install RayDP
-
-RayDP build depends on the modified Spark jar and Ray java jar, so you should have installed those jar into local maven repository.
-
-1. Get the RayDP source code.
-2. Install the RayDP in local with the command under `${RAYDP_HOME}`: `./install.sh`
+You can find all the `whl` file under `${RAYDP_HOME}/dist`.
 
 ## Example
 
 PLAsTiCC Astronomical Classification(https://www.kaggle.com/c/PLAsTiCC-2018)
 
 ![example](doc/example.png)
+
+You can find the `NYC_Taxi` example under the `examples` folder.

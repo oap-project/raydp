@@ -124,7 +124,7 @@ def parse_memory_size(memory_size: str) -> int:
 
     global MEMORY_SIZE_UNITS
     if not re.search(r" ", memory_size):
-        memory_size = re.sub(r"([KMGT]?)", r" \1", memory_size)
+        memory_size = re.sub(r"([KMGT]+)", r" \1", memory_size)
     number, unit_index = [item.strip() for item in memory_size.split()]
     return int(float(number) * MEMORY_SIZE_UNITS[unit_index])
 

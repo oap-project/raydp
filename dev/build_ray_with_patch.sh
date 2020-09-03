@@ -20,7 +20,7 @@ then
   mkdir ${DIST_PATH}
 fi
 
-pushd ${TMP_DIR}
+pushd ${CURRENT_DIR}
 
 if [ -d ${TMP_DIR} ];
 then
