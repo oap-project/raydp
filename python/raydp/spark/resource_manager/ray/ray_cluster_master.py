@@ -9,6 +9,7 @@ from subprocess import Popen, PIPE
 import ray
 import ray.services
 import time
+import pyspark
 from py4j.java_gateway import JavaGateway, GatewayParameters
 from pyspark import find_spark_home
 
@@ -41,7 +42,7 @@ class RayClusterMaster(ClusterMaster):
         ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
         cp_list.append(ray_cp)
         # find pyspark jars path
-        spark_home = find_spark_home._find_spark_home()
+        spark_home = os.path.dirname(pyspark.__file__)
         spark_jars = os.path.join(spark_home, "jars/*")
         cp_list.append(spark_jars)
         return cp_list

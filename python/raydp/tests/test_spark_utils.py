@@ -55,40 +55,40 @@ def test_random_split(spark_session):
 
 def test_memory_size_parser():
     upper_units = ["", "K", "M", "G", "T"]
-    expected = [math.pow(2, 10 * p) for p in range(len(upper_units))]
+    expected = [10 * math.pow(2, 10 * p) for p in range(len(upper_units))]
 
     # upper without B
-    values = [f"1{unit}" for unit in upper_units]
+    values = [f"10{unit}" for unit in upper_units]
     parsed = [utils.parse_memory_size(v) for v in values]
     assert parsed == expected
     # lower without B
-    values = [f"1{unit.lower()}" for unit in upper_units]
+    values = [f"10{unit.lower()}" for unit in upper_units]
     parsed = [utils.parse_memory_size(v) for v in values]
     assert parsed == expected
     # upper blank without B
-    values = [f"1 {unit}" for unit in upper_units]
+    values = [f"10 {unit}" for unit in upper_units]
     parsed = [utils.parse_memory_size(v) for v in values]
     assert parsed == expected
     # upper two blanks without B
-    values = [f"1  {unit}" for unit in upper_units]
+    values = [f"10  {unit}" for unit in upper_units]
     parsed = [utils.parse_memory_size(v) for v in values]
     assert parsed == expected
 
     upper_units = ["B", "KB", "MB", "GB", "TB"]
     # upper with B
-    values = [f"1{unit}" for unit in upper_units]
+    values = [f"10{unit}" for unit in upper_units]
     parsed = [utils.parse_memory_size(v) for v in values]
     assert parsed == expected
     # lower with B
-    values = [f"1{unit.lower()}" for unit in upper_units]
+    values = [f"10{unit.lower()}" for unit in upper_units]
     parsed = [utils.parse_memory_size(v) for v in values]
     assert parsed == expected
     # upper blank with B
-    values = [f"1 {unit}" for unit in upper_units]
+    values = [f"10 {unit}" for unit in upper_units]
     parsed = [utils.parse_memory_size(v) for v in values]
     assert parsed == expected
     # upper two blanks with B
-    values = [f"1  {unit}" for unit in upper_units]
+    values = [f"10  {unit}" for unit in upper_units]
     parsed = [utils.parse_memory_size(v) for v in values]
     assert parsed == expected
 

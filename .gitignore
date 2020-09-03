@@ -6,6 +6,8 @@ build/
 dist/
 *.egg-info/
 
+dev/.tmp_dir/
+dist/
 target/
 
 .DS_Store
