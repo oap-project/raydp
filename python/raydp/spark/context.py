@@ -20,6 +20,8 @@ from contextlib import ContextDecorator
 from threading import RLock
 from typing import Dict, Union, Optional
 
+import ray
+
 from pyspark.sql import DataFrame
 from pyspark.sql import SparkSession
 
@@ -94,6 +96,14 @@ class _SparkContext(ContextDecorator):
             self._executor_cores,
             self._executor_memory,
             self._configs)
+        session_path = ray.worker.global_worker.node.get_session_dir_path()
+        jvm = self._spark_session.sparkContext._jvm
+        log_manager = jvm.org.apache.log4j.LogManager
+        default_appender = log_manager.getRootLogger().getAllAppenders().nextElement()
+        fa = jvm.org.apache.log4j.FileAppender(default_appender.getLayout(), os.path.join(session_path, "spark_log", "driver.log"))
+        fa.setName("driver")
+        log_manager.getRootLogger().addAppender(fa)
+        log_manager.getRootLogger().removeAppender(default_appender)
         return self._spark_session
 
     def _stop(self):

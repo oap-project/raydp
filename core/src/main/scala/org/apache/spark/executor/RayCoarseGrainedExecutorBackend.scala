@@ -18,6 +18,7 @@
 package org.apache.spark.executor
 
 import java.io.File
+import java.nio.file.Paths
 import java.net.URL
 
 import io.ray.runtime.config.RayConfig
@@ -31,6 +32,9 @@ import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{Retrieve
 import org.apache.spark.util.Utils
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf, SparkEnv}
 
+import org.apache.log4j.LogManager
+import org.apache.log4j.Appender
+import org.apache.log4j.{FileAppender => Log4jFileAppender}
 
 class RayCoarseGrainedExecutorBackend(
     val executorId: String,
@@ -49,6 +53,7 @@ class RayCoarseGrainedExecutorBackend(
     val conf = new SparkConf()
     createTemporaryRpcEnv(temporaryRpcEnvName, conf)
     assert(temporaryRpcEnv.nonEmpty)
+    redirectLog()
     registerToAppMaster()
   }
 
@@ -206,6 +211,17 @@ class RayCoarseGrainedExecutorBackend(
 
       env.rpcEnv.awaitTermination()
     }
+  }
+
+  def redirectLog(): Unit = {
+    val appenders = LogManager.getRootLogger().getAllAppenders()
+    val defaultAppender = appenders.nextElement().asInstanceOf[Appender]
+    val logFile = Paths.get(RayConfig.getInstance().sessionDir, "spark_log", s"executor${executorId}.log")
+    val fa = new Log4jFileAppender(defaultAppender.getLayout(), logFile.toString())
+    fa.setName("executor")
+    LogManager.getRootLogger().addAppender(fa)
+    LogManager.getRootLogger().removeAppender(defaultAppender)
+    logInfo(s"Redirect executor log to ${logFile.toString()}")
   }
 
   def createTemporaryRpcEnv(
