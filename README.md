@@ -1,7 +1,7 @@
 # RayDP: Distributed Data processing on Ray
 
 ## Introduction
-RayDP is a library can help you finish an end to end job for data processing and model training on single `python` file or with jupyter notebook. [Ray](https://github.com/ray-project/ray/) is an easy and powerful framework and provides useful tools for AI problems(such as, RLlib, Tune, RaySGD and more). And [Apache Spark](https://github.com/apache/spark) is a very popular distribute data processing and analytics framework. RayDP can be considered as the intersection of Apache Spark and Ray. It brings Apache Spark powerful data processing ability into Ray ecosystem. And it allows data processing and model training to coexist better.
+RayDP brings popular big data frameworks including [Apache Spark](https://github.com/apache/spark) to [Ray](https://github.com/ray-project/ray/) clusters and integrates with other Ray libraries seamlessly. RayDP makes it simple to build distributed end-to-end data analytics and AI pipeline on Ray by using Spark for data preprocessing, RayTune for hyperparameter tunning, RaySGD for distributed deep learning, RLlib for reinforcement learning and RayServe for model serving.
 
 ![stack](doc/stack.png)
 
@@ -9,19 +9,15 @@ RayDP is a library can help you finish an end to end job for data processing and
 
 ### Spark on Ray
 
-We bring Apache Spark as a data processing framework on Ray and seamlessly integrated with other Ray libraries. We now support two ways to running Spark on Ray:
+RayDP enables you to start a Spark job inside your python program without a need to setup a Spark cluster manually. You can use Spark to read the input data, process the data using SQL or DataFrame API, extract and transform features using Spark MLLib, and use RayDP Estimator API for distributed training on the preprocessed dataset. RayDP supports Ray as a resource manger of Spark and starts Spark executors using Ray actor directly. RayDP utilizes Ray's in-memory object store to efficiently exchange data between Spark and other Ray libraries.
 
-***Standalone***: We will startup a spark standalone cluster to running Spark.
+### Estimator APIs for Distributed Training
 
-***Native***: In this way, all the Spark executors are running in Ray java actors. And we startup a Ray java actor acts as Spark AppMaster for start/stop Spark executors. We could exchange data between Spark and Ray other components by Ray object store and leverage Apache Arrow format to decrease serialization/deserialization overhead.
-
-### Estimator API for RaySGD
-
-We provide a scikit-learn like API for RaySGD and supports training and evaluating on pyspark DataFrame directly. This hides the underlying details for distributed model training and data exchanging between Spark and Ray. 
+RayDP provides high level scikit-learn style Estimator APIs for distributed training. The Estimator APIs allow you to train a deep neural network directly on a Spark DataFrame, leveraging Ray’s ability to scale out across the cluster. The Estimator APIs are wrappers of RaySGD and hide the complexity of converting a Spark DataFrame to a PyTorch/Tensorflow dataset and distributing the training.
 
 ## Build and Install
 
-> **Note**: RayDP depends on the Ray and Apache Spark. However, we have to do some modification of the source code for those two framework due to the following reasons. **We will patch those modification to upstream later**. 
+> **Note**: RayDP depends on Ray and Apache Spark. However, we have to do some modification of the source code for those two framework due to the following reasons. **We will patch those modification to upstream later**. 
 >
 > * In Spark 3.0 and 3.0.1 version, pyspark does not support user defined resource manager.
 > * In Ray 0.8.7 version, we can not esay exchange ray ObjectRef between different language workers.
@@ -42,8 +38,27 @@ You can find all the `whl` file under `${RAYDP_HOME}/dist`.
 
 ## Example
 
-PLAsTiCC Astronomical Classification(https://www.kaggle.com/c/PLAsTiCC-2018)
+Write Spark, PyTorch/Tensorflow, Ray code in the same python program using RayDP
+```
+import ray
+from raydp.spark import context
+from raydp.spark.torch.estimator import TorchEstimator
 
-![example](doc/example.png)
+ray.init(…) 
+spark = context.init_spark(…)
 
-You can find the `NYC_Taxi` example under the `examples` folder.
+#Spark DataFrame Code 
+df = spark.read.parquet(…) 
+train_df = df.withColumn(…)
+
+#PyTorch Code 
+model = torch.nn.Sequential(torch.nn.Linear(2, 1)) 
+optimizer = torch.optim.Adam(model.parameters())
+
+#Sklearn style Estimator API in RayDP for distributed training 
+estimator = TorchEstimator(model=model, optimizer=optimizer, ...) 
+estimator.fit(train_df)
+
+```
+
+You can find more examples under the `examples` folder.
