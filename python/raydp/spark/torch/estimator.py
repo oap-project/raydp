@@ -308,12 +308,9 @@ class TorchEstimator(EstimatorInterface):
                 *features, target = batch
                 output = model(*features)
                 loss = criterion(output, target)
-                _, predicted = torch.max(output.data, 1)
-                num_correct = (predicted == target).sum().item()
                 num_samples = target.size(0)
                 metrics = {
                     "val_loss": loss.item(),
-                    "val_accuracy": num_correct / num_samples,
                     "num_samples": num_samples}
                 metric_meters.update(metrics)
 
