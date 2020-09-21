@@ -22,11 +22,13 @@ import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from ray.util.sgd.tf import TFTrainer
 
-from raydp.spark.estimator import EstimatorInterface
+from raydp.dataset import Dataset
+from raydp.estimator import EstimatorInterface
+from raydp.spark.interfaces import SparkEstimatorInterface
 from raydp.spark.tf.dataset import PandasDataset, RayDataset
 
 
-class TFEstimator(EstimatorInterface):
+class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def __init__(self,
                  num_workers: int = 1,
                  model: keras.Model = None,
@@ -134,12 +136,14 @@ class TFEstimator(EstimatorInterface):
 
         self._trainer: TFTrainer = None
 
-    def fit(self, df, **kwargs) -> NoReturn:
-        super(TFEstimator, self).fit(df, **kwargs)
+    def fit(self, ds: Dataset, **kwargs) -> NoReturn:
+        pass
+
+    def fit_on_spark(self, df, **kwargs) -> NoReturn:
+        super(TFEstimator, self).fit_on_spark(df, **kwargs)
 
         def model_creator(config):
             # https://github.com/ray-project/ray/issues/5914
-            import tensorflow as tf
             import tensorflow.keras as keras
 
             model: keras.Model = keras.models.model_from_json(self._serialized_model)
@@ -166,8 +170,11 @@ class TFEstimator(EstimatorInterface):
             stats = self._trainer.train()
             print(f"Epoch-{i}: {stats}")
 
-    def evaluate(self, df, **kwargs) -> NoReturn:
-        super(TFEstimator, self).evaluate(df)
+    def evaluate(self, df: Dataset, **kwargs) -> NoReturn:
+        pass
+
+    def evaluate_on_spark(self, df, **kwargs) -> NoReturn:
+        super(TFEstimator, self).evaluate_on_spark(df)
         if self._trainer is None:
             raise Exception("Must call fit first")
         pdf = df.toPandas()

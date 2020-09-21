@@ -16,7 +16,7 @@
 #
 
 import inspect
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, List, NoReturn, Optional, Union
 
 import setproctitle
 import torch
@@ -24,7 +24,9 @@ from ray.util.sgd.torch.torch_trainer import TorchTrainer
 from ray.util.sgd.utils import AverageMeterCollection
 from torch.nn.modules.loss import _Loss as TLoss
 
-from raydp.spark.estimator import EstimatorInterface
+from raydp.dataset import Dataset
+from raydp.estimator import EstimatorInterface
+from raydp.spark.interfaces import SparkEstimatorInterface
 from raydp.spark.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
 from raydp.spark.torch.operator import TrainingOperatorWithWarmUp
 
@@ -37,7 +39,7 @@ def worker_init_fn(work_id):
     setproctitle.setproctitle(title)
 
 
-class TorchEstimator(EstimatorInterface):
+class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     """
     A scikit-learn like API to distributed training torch model. In the backend it leverage
     the ray.sgd.TorchTrainer.
@@ -170,7 +172,7 @@ class TorchEstimator(EstimatorInterface):
             assert len(self._feature_columns) == len(self._feature_shapes), \
                 "The feature_shapes size must match the feature_columns"
 
-    def _create_trainer(self):
+    def _create_trainer(self, data_creator: Callable):
         def model_creator(config):
             if isinstance(self._model, torch.nn.Module):
                 # it is the instance of torch.nn.Module
@@ -218,25 +220,6 @@ class TorchEstimator(EstimatorInterface):
                     "Unsupported parameter, we only support torch.nn.modules.loss._Loss subclass "
                     ", subclass instance or a function(dict -> loss)")
 
-        def data_creator(config):
-            batch_size = config["batch_size"]
-            shuffle = config["shuffle"]
-            sampler = BlockSetSampler(self._data_set, shuffle=shuffle)
-            context = None
-            init_fn = None
-            if self._num_processes_for_data_loader > 0:
-                context = torch.multiprocessing.get_context("spawn")
-                init_fn = worker_init_fn
-
-            dataloader = torch.utils.data.DataLoader(
-                self._data_set,
-                batch_size=batch_size,
-                sampler=sampler,
-                num_workers=self._num_processes_for_data_loader,
-                multiprocessing_context=context,
-                worker_init_fn=init_fn)
-            return dataloader, None
-
         def scheduler_creator(optimizers, config):
             return self._lr_scheduler_creator(optimizers, config)
 
@@ -254,18 +237,41 @@ class TorchEstimator(EstimatorInterface):
                                      training_operator_cls=TrainingOperatorWithWarmUp,
                                      **self._extra_config)
 
-    def fit(self,
-            df,
-            num_steps=None,
-            profile=False,
-            reduce_results=True,
-            max_retries=3,
-            info=None):
-        super(TorchEstimator, self).fit(df)
+    def fit(self, ds: Dataset, **kwargs) -> NoReturn:
+        pass
+
+    def fit_on_spark(self,
+                     df,
+                     num_steps=None,
+                     profile=False,
+                     reduce_results=True,
+                     max_retries=3,
+                     info=None):
+        super(TorchEstimator, self).fit_on_spark(df)
         if self._trainer is None:
             self._data_set = RayDataset(df, self._feature_columns, self._feature_shapes,
                                         self._feature_types, self._label_column, self._label_type)
-            self._create_trainer()
+
+            def data_creator(config):
+                batch_size = config["batch_size"]
+                shuffle = config["shuffle"]
+                sampler = BlockSetSampler(self._data_set, shuffle=shuffle)
+                context = None
+                init_fn = None
+                if self._num_processes_for_data_loader > 0:
+                    context = torch.multiprocessing.get_context("spawn")
+                    init_fn = worker_init_fn
+
+                dataloader = torch.utils.data.DataLoader(
+                    self._data_set,
+                    batch_size=batch_size,
+                    sampler=sampler,
+                    num_workers=self._num_processes_for_data_loader,
+                    multiprocessing_context=context,
+                    worker_init_fn=init_fn)
+                return dataloader, None
+
+            self._create_trainer(data_creator)
             assert self._trainer is not None
             for i in range(self._num_epochs):
                 stats = self._trainer.train(
@@ -278,8 +284,11 @@ class TorchEstimator(EstimatorInterface):
         else:
             raise Exception("You call fit twice.")
 
-    def evaluate(self, df):
-        super(TorchEstimator, self).evaluate(df)
+    def evaluate(self, df: Dataset, **kwargs) -> NoReturn:
+        pass
+
+    def evaluate_on_spark(self, df, **kwargs):
+        super(TorchEstimator, self).evaluate_on_spark(df)
         if self._trainer is None:
             raise Exception("Must call fit first")
         pdf = df.toPandas()

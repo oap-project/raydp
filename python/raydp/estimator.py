@@ -18,7 +18,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, NoReturn
 
-from raydp.spark.utils import df_type_check
+from raydp.dataset import Dataset
 
 
 class EstimatorInterface(ABC):
@@ -27,19 +27,12 @@ class EstimatorInterface(ABC):
     """
 
     @abstractmethod
-    def fit(self, df, **kwargs) -> NoReturn:
-        """
-        Fit the model on the df. The df should be ether spark DataFrame or koalas DataFrame.
-        """
-        df_type_check(df)
+    def fit(self, ds: Dataset, **kwargs) -> NoReturn:
+        pass
 
     @abstractmethod
-    def evaluate(self, df: Any, **kwargs) -> NoReturn:
-        """
-        Evaluate on the trained model. The df should be ether spark DataFrame or koalas
-        DataFrame. This should be called after call fit.
-        """
-        df_type_check(df)
+    def evaluate(self, df: Dataset, **kwargs) -> NoReturn:
+        pass
 
     @abstractmethod
     def get_model(self) -> Any:
