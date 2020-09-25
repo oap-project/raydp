@@ -20,7 +20,7 @@ from typing import Any, List, Optional, TypeVar
 import torch
 from torch.utils.data import IterableDataset
 
-from raydp.dataset import Shard
+from raydp.parallel.dataset import Shard
 
 T = TypeVar("T")
 

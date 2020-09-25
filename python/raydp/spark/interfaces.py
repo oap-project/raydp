@@ -18,7 +18,7 @@
 from typing import NoReturn
 from typing import Union
 
-from raydp.spark.utils import df_type_check
+from raydp.utils import df_type_check
 
 
 class SparkEstimatorInterface:

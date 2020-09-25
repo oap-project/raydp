@@ -21,7 +21,7 @@ import pytest
 import sys
 import math
 
-import raydp.spark.utils as utils
+import raydp.utils as utils
 
 
 def test_df_type_check(spark_session):

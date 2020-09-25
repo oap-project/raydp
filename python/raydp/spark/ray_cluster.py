@@ -25,10 +25,13 @@ import pyspark
 import ray
 from pyarrow.plasma import PlasmaClient
 from pyspark.sql.session import SparkSession
+import numpy as np
 
-from raydp.spark.resource_manager.exchanger import SharedDataset
-from raydp.spark.resource_manager.ray.ray_cluster_master import RayClusterMaster, RAYDP_CP
-from raydp.spark.resource_manager.spark_cluster import SparkCluster
+from raydp.spark import SparkCluster
+from raydp.spark.ray_cluster_master import RayClusterMaster, RAYDP_CP
+from raydp.parallel import RayDataset
+
+from collections import Iterator
 
 
 class RayCluster(SparkCluster):
@@ -71,7 +74,7 @@ class RayCluster(SparkCluster):
             spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
         return self._spark_session
 
-    def save_to_ray(self, df: pyspark.sql.DataFrame) -> SharedDataset:
+    def save_to_ray(self, df: pyspark.sql.DataFrame, num_shards: int) -> RayDataset:
         # call java function from python
         sql_context = df.sql_ctx
         jvm = sql_context.sparkSession.sparkContext._jvm
@@ -81,8 +84,7 @@ class RayCluster(SparkCluster):
 
         worker = ray.worker.global_worker
 
-        object_ids = []
-        sizes = []
+        batch_list: List[RecordBatch] = []
         for record in records:
             owner_address = record.ownerAddress()
             object_id = ray.ObjectID(record.objectId())
@@ -91,8 +93,8 @@ class RayCluster(SparkCluster):
             worker.core_worker.deserialize_and_register_object_ref(
                 object_id.binary(), ray.ObjectRef.nil(), owner_address)
 
-            object_ids.append(object_id)
-            sizes.append(num_records)
+            batch_list.append(RecordBatch([object_id], [num_records]))
+        batch_set = RecordBatchSet(batch_list)
 
         return RayClusterSharedDataset(object_ids, sizes)
 
@@ -106,77 +108,62 @@ class RayCluster(SparkCluster):
             self._app_master_bridge = None
 
 
-class RayClusterSharedDataset(SharedDataset):
+class RecordBatch:
     def __init__(self,
-                 object_ids: List[ray.ObjectID],
-                 sizes: List[int],
-                 plasma_store_socket_name: str = None,
-                 index_map_func: Callable = lambda x: x):
-        self._object_ids: List[ray.ObjectID] = object_ids
-        self._sizes = sizes
-        self._plasma_store_socket_name = plasma_store_socket_name
-        self._index_map_func = index_map_func
-        in_ray_worker: bool = ray.is_initialized()
-        self._get_data_func = ray.get
-        if not in_ray_worker:
-            # if the current process is not a Ray worker, the
-            # plasma_store_socket_name must be set
-            assert plasma_store_socket_name is not None, "plasma_store_socket_name must be set"
-            plasma_client: Optional[PlasmaClient] = plasma.connect(plasma_store_socket_name)
+                 object_ids: List[ray.ObjectRef],
+                 sizes: List[int]):
+        self._object_ids: List[ray.ObjectRef] = object_ids
+        self._sizes: List[int] = sizes
+        self._resolved: bool = False
 
-            def get_by_plasma(object_id: ray.ObjectID):
-                plasma_object_id = plasma.ObjectID(object_id.binary())
-                # this should be really faster becuase of zero copy
-                data = plasma_client.get_buffers([plasma_object_id])[0]
-                return data
-
-            self._get_data_func = get_by_plasma
-
-    def set_plasma_store_socket_name(self, path: str) -> NoReturn:
-        self._plasma_store_socket_name = path
-
-    def total_size(self) -> int:
+    def batch_size(self) -> int:
         return sum(self._sizes)
 
+    def _fetch_objects_without_deserialization(self, object_ids, timeout=None) -> NoReturn:
+        """
+        This is just fetch object from remote object store to local and without deserialization.
+        :param object_ids: Object ID of the object to get or a list of object IDs to
+            get.
+        :param timeout (Optional[float]): The maximum amount of time in seconds to
+            wait before returning.
+        """
+        is_individual_id = isinstance(object_ids, ray.ObjectID)
+        if is_individual_id:
+            object_ids = [object_ids]
+
+        if not isinstance(object_ids, list):
+            raise ValueError("'object_ids' must either be an object ID "
+                             "or a list of object IDs.")
+
+        worker = ray.worker.global_worker
+        worker.check_connected()
+        timeout_ms = int(timeout * 1000) if timeout else -1
+        worker.core_worker.get_objects(object_ids, worker.current_task_id, timeout_ms)
+
+    def resolve(self):
+        self._fetch_objects_without_deserialization(self._object_ids)
+        self._resolved = True
+
+    def __iter__(self) -> Iterator[pd.DataFrame]:
+        index = 0
+        length = len(self._sizes)
+        while index < length:
+            object_id = self._object_ids[index]
+            assert object_id is not None
+            data = self._get_data_func(object_id)
+            reader = pa.ipc.open_stream(data)
+            tb = reader.read_all()
+            df = tb.to_pandas()
+            yield df
+            index += 1
+
+
+class RecordBatchSet:
+    def __init__(self, record_batches: List[RecordBatch]):
+        self._record_batches = record_batches
+
+    def total_size(self) -> int:
+        return sum([batch.batch_size() for batch in self._record_batches])
+
     def partition_sizes(self) -> List[int]:
-        return self._sizes
-
-    def resolve(self, timeout=None) -> bool:
-        self._fetch_objects_without_deserialization(self._object_ids, timeout)
-        return True
-
-    def subset(self, indexes: List[int]) -> 'SharedDataset':
-        index_map = dict(zip(indexes, range(len(indexes))))
-
-        def index_map_func(i: int) -> int:
-            assert i in index_map
-            return index_map[i]
-
-        subset_object_ids = [self._object_ids[i] for i in indexes]
-        subset_sizes = [self._sizes[i] for i in indexes]
-        return RayClusterSharedDataset(
-            subset_object_ids, subset_sizes, self._plasma_store_socket_name, index_map_func)
-
-    def __getitem__(self, index: int) -> pd.DataFrame:
-        index = self._index_map_func(index)
-        object_id = self._object_ids[index]
-        assert object_id is not None
-        data = self._get_data_func(object_id)
-        reader = pa.ipc.open_stream(data)
-        tb = reader.read_all()
-        df = tb.to_pandas()
-        return df
-
-    @classmethod
-    def _custom_deserialize(cls,
-                            object_ids: List[ray.ObjectID],
-                            sizes: List[int],
-                            plasma_store_socket_name: str,
-                            index_map_func: Callable):
-        instance = cls(object_ids, sizes, plasma_store_socket_name, index_map_func)
-        return instance
-
-    def __reduce__(self):
-        return (RayClusterSharedDataset._custom_deserialize,
-                (self._object_ids, self._sizes, self._plasma_store_socket_name,
-                 self._index_map_func))
+        return [batch.batch_size() for batch in self._record_batches]

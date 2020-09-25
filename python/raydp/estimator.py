@@ -18,7 +18,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, NoReturn
 
-from raydp.dataset import Dataset
+from raydp.parallel import Dataset
 
 
 class EstimatorInterface(ABC):

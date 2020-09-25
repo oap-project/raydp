@@ -22,9 +22,9 @@ import pytest
 import tensorflow.keras as keras
 from pyspark.sql.functions import rand
 
-from raydp.spark import context
-from raydp.spark.tf.estimator import TFEstimator
-from raydp.spark.utils import random_split
+from raydp import context
+from raydp.tf import TFEstimator
+from raydp.utils import random_split
 
 
 def test_tf_estimator(ray_cluster):

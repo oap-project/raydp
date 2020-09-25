@@ -21,7 +21,7 @@ import pytest
 import sys
 import torch
 
-from raydp.spark.torch.dataset import BLOCK_SIZE_BIT, BlockSetSampler, RayDataset, PandasDataset
+from raydp.torch import BLOCK_SIZE_BIT, BlockSetSampler, RayDataset, PandasDataset
 
 
 class DummyRayDataset(RayDataset):

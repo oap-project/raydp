@@ -19,16 +19,15 @@ from collections.abc import Iterable
 from typing import Any, List, Optional
 
 import numpy as np
-import pandas
+import pandas as pd
 import torch
-from torch.utils.data import Dataset, DistributedSampler
+from torch.utils.data import IterableDataset, DistributedSampler
 
-from raydp.spark.context import save_to_ray
-from raydp.spark.resource_manager.exchanger import SharedDataset
-from raydp.spark.utils import BLOCK_SIZE_BIT, divide_blocks
+from raydp.parallel import RayShard
+from raydp.utils import BLOCK_SIZE_BIT, divide_blocks
 
 
-class _Dataset(Dataset):
+class _Dataset(IterableDataset):
     def __init__(self,
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
@@ -127,31 +126,22 @@ class _Dataset(Dataset):
         return (*features, label)
 
 
-class RayDataset(_Dataset):
+class TorchDataset(_Dataset):
     """
     Store Spark DataFrame or koalas.DataFrame into ray object store and wrap into a torch
     Dataset which could be used by torch DataLoader.
     """
     def __init__(self,
-                 df: Any = None,
+                 data_iterator: Iterable[pd.DataFrame] = None,
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
                  feature_types: Optional[List[torch.dtype]] = None,
                  label_column: str = None,
                  label_type: Optional[torch.dtype] = None):
-        """
-        :param df: Spark DataFrame or Koalas.DataFrame
-        """
-        super(RayDataset, self).__init__(feature_columns, feature_shapes,
-                                         feature_types, label_column, label_type)
-        self._unresolved_shared_dataset: SharedDataset = None
-        self._resolved_shared_dataset: SharedDataset = None
-        self._previous_block_index = -1
-
+        super(TorchDataset, self).__init__(feature_columns, feature_shapes,
+                                           feature_types, label_column, label_type)
+        self._data_iterator: Iterable[pd.DataFrame] = data_iterator
         self._check_and_convert()
-
-        if df is not None:
-            self._unresolved_shared_dataset = save_to_ray(df)
 
     def _resolve_with_indices(self,
                               indices: List[int],
@@ -271,7 +261,7 @@ class PandasDataset(_Dataset):
     A pandas dataset which support feature columns with different shapes.
     """
     def __init__(self,
-                 df: pandas.DataFrame = None,
+                 df: pd.DataFrame = None,
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
                  feature_types: Optional[List[torch.dtype]] = None,

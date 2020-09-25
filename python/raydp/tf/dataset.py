@@ -23,9 +23,9 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-from raydp.spark.context import save_to_ray
-from raydp.spark.resource_manager.spark_cluster import SharedDataset
-from raydp.spark.utils import divide_blocks
+from raydp.context import save_to_ray
+from raydp.spark.spark_cluster import SharedDataset
+from raydp.utils import divide_blocks
 
 
 class _Dataset:

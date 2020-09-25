@@ -22,10 +22,10 @@ import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from ray.util.sgd.tf import TFTrainer
 
-from raydp.dataset import Dataset
+from raydp.parallel.dataset import Dataset
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface
-from raydp.spark.tf.dataset import PandasDataset, RayDataset
+from raydp.tf.dataset import PandasDataset, RayDataset
 
 
 class TFEstimator(EstimatorInterface, SparkEstimatorInterface):

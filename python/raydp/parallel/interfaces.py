@@ -14,3 +14,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+from abc import ABC, abstractmethod
+from typing import Generic, TypeVar
+
+# The type of an iterator element.
+T = TypeVar("T")
+U = TypeVar("U")
+
+
+class _Shard(ABC, Generic[T]):
+    pass
+
+
+class _Dataset(ABC, Generic[T]):
+
+    @abstractmethod
+    def get_shard(self, index: int, **kwargs) -> _Shard[T]:
+        """
+        Get one piece of Shards
+        """
+        pass
+
+    @abstractmethod
+    def num_shards(self) -> int:
+        pass

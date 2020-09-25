@@ -21,9 +21,9 @@ import databricks.koalas as ks
 import pytest
 import torch
 
-import raydp.spark.context as context
-from raydp.spark.torch.estimator import TorchEstimator
-from raydp.spark.utils import random_split
+import raydp.context as context
+from raydp.torch import TorchEstimator
+from raydp.utils import random_split
 
 
 def test_torch_estimator(ray_cluster):

@@ -24,11 +24,11 @@ from ray.util.sgd.torch.torch_trainer import TorchTrainer
 from ray.util.sgd.utils import AverageMeterCollection
 from torch.nn.modules.loss import _Loss as TLoss
 
-from raydp.dataset import Dataset
+from raydp.parallel.dataset import Dataset
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface
-from raydp.spark.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
-from raydp.spark.torch.operator import TrainingOperatorWithWarmUp
+from raydp.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
+from raydp.torch.operator import TrainingOperatorWithWarmUp
 
 
 def worker_init_fn(work_id):

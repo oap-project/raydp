@@ -90,6 +90,7 @@ def _df_helper(df, spark_callback, koalas_callback):
         pass
     else:
         if isinstance(df, pyspark.sql.DataFrame):
+            df.repartition
             return spark_callback(df)
 
     try:

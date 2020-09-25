@@ -28,7 +28,6 @@ import ray.services
 import time
 import pyspark
 from py4j.java_gateway import JavaGateway, GatewayParameters
-from pyspark import find_spark_home
 
 from raydp.services import ClusterMaster
 

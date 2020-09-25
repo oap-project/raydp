@@ -14,3 +14,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+from abc import abstractmethod
+from typing import Dict
+
+import pyspark
+
+from raydp.parallel import Dataset
+from raydp.services import Cluster
+
+
+class SparkCluster(Cluster):
+    """
+    A abstract class to support save Spark DataFrame to ray object store.
+    """
+
+    @abstractmethod
+    def get_spark_session(self,
+                          app_name: str,
+                          num_executors: int,
+                          executor_cores: int,
+                          executor_memory: int,
+                          extra_conf: Dict[str, str] = None) -> pyspark.sql.SparkSession:
+        pass
+
+    @abstractmethod
+    def save_to_ray(self,
+                    df: pyspark.sql.DataFrame,
+                    num_shards: int) -> Dataset:
+        pass
