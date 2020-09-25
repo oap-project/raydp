@@ -15,36 +15,66 @@
 # limitations under the License.
 #
 
-from typing import Any, Callable, Dict, Generic, List, NoReturn, Optional, Iterable, Iterator, Union
-
-from raydp.parallel import _Dataset, _Shard
-from raydp.parallel.interfaces import T, U
+import random
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Iterable, Iterator, Union
 
 import pandas as pd
-
 import ray
-import random
+
+import raydp.context as rcontext
+from raydp.parallel import _Dataset, _Shard
+from raydp.parallel.interfaces import T, U
 
 
 def from_items(items: List[T],
                num_shards: int = 2,
                repeat: bool = False) -> "Dataset[T]":
-    base_iterator = riter.from_items(items, num_shards, repeat)
-    return Dataset(base_iterator)
+    shards = [[] for _ in range(num_shards)]
+    for i, item in enumerate(items):
+        shards[i % num_shards].append(item)
+    name = "from_items[{}, {}, shards={}{}]".format(
+        items and type(items[0]).__name__ or "None",
+        len(items),
+        num_shards,
+        ", repeat=True" if repeat else "")
+    return from_iterators(shards, repeat=repeat, name=name)
 
 
 def from_range(n: int,
                num_shards: int = 2,
                repeat: bool = False) -> "Dataset[int]":
-    base_iterator = riter.from_range(n, num_shards, repeat)
-    return Dataset(base_iterator)
+    generators = []
+    shard_size = n // num_shards
+    for i in range(num_shards):
+        start = i * shard_size
+        if i == num_shards - 1:
+            end = n
+        else:
+            end = (i + 1) * shard_size
+        generators.append(range(start, end))
+    name = f"from_range[{n}, shards={num_shards} {', repeat=True' if repeat else ''}]"
+    return from_iterators(generators, repeat=repeat, name=name)
 
 
 def from_iterators(generators: List[Iterable[T]],
+                   shard_resources: Union[Dict[str, float], List[Dict[str, float]]] = None,
                    repeat: bool = False,
-                   name=None) -> "RayDataset[T]":
-    base_iterator = riter.from_iterators(generators, repeat, name)
-    return Dataset(base_iterator)
+                   name: str = None) -> "Dataset[T]":
+    creators = []
+    for gen in generators:
+        if repeat:
+            def base_generator() -> Iterator[T]:
+                while True:
+                    for item in gen:
+                        yield item
+        else:
+            def base_generator() -> Iterator[T]:
+                for item in gen:
+                    yield item
+
+        creators.append(base_generator)
+
+    return Dataset(None, creators, shard_resources, name, repeat, None)
 
 
 def from_spark_df(df: "pyspark.sql.DataFrame",
@@ -80,43 +110,29 @@ class BufferedIterator(Iterator[T]):
 
 class IteratorShard(_Shard[T]):
     def __init__(self,
-                 parent: Union[Iterable[T], "IteratorShard"[T]],
-                 transform: Callable[[Iterable], Any] = None,
+                 parent_or_generator: Union[Callable[[], Iterable[T]], "IteratorShard"[T]],
+                 transforms: List[Callable[[Iterable], Any]] = None,
                  name: str = None,
                  shard_id: int = 0,
                  is_repeated: bool = False):
-        self._parent = parent
-        self._lazy_transform: Callable[[Iterable], Iterator] = transform or (lambda x: x)
+        self._parent_or_generator = parent_or_generator
+        self._lazy_transforms: List[Callable[[Iterable], Iterator]] = transforms or []
         self._name: str = name or "unknown"
         self._shard_id: int = shard_id
         self._is_repeated: bool = is_repeated
 
-        self._built_iterator: Iterator[T] = None
-
     def transform(self,
-                  fn: Callable[[Iterable[T]], Iterator[U]],
+                  fns: List[Callable[[Iterable[T]], Iterator[U]]],
                   fn_name: str = ".transform()",
                   is_repeated: bool = False) -> "IteratorShard[U]":
         """
         Transform the underlying iterator to another iterator. This is a lazy execute function.
-        :param fn: the transform function
+        :param fns: the transform function
         :param fn_name: the function name
         :param is_repeated: whether the transform function will generate a repeated Iterator
         :return: a transformed new IteratorShard
         """
-        return IteratorShard(self, fn, self._name + fn_name, self._shard_id, is_repeated)
-
-    def build_iterator(self, ignore_existed: bool = False) -> Iterator[T]:
-        """
-        Build the iterator. This will create the first iterator and apply all lazy transform
-        functions to the iterator.
-        :param ignore_existed: whether create a new Iterator despite has built
-        :return: the built iterator.
-        """
-        if ignore_existed or self._built_iterator is None:
-            it = iter(self._parent)
-            self._built_iterator = self._lazy_transform(it)
-        return self._built_iterator
+        return IteratorShard(self, fns, self._name + fn_name, self._shard_id, is_repeated)
 
     def get_shard_id(self) -> int:
         return self._shard_id
@@ -134,68 +150,104 @@ class IteratorShard(_Shard[T]):
         return "IteratorShard[{}]".format(self.name)
 
     def __iter__(self):
-        self.build_iterator()
-        return self._built_iterator
-
-    def __next__(self):
-        self.build_iterator()
-        return next(self._built_iterator)
+        if callable(self._parent_or_generator):
+            it = self._parent_or_generator()
+        else:
+            it = iter(self._parent_or_generator)
+        if self._lazy_transforms is not None:
+            for transform in self._lazy_transforms:
+                it = transform(it)
+        return it
 
 
 class ShardExecutor:
     def __init__(self,
                  base_data_creator: Callable[[], Iterable[T]],
-                 original_name: str = "unknown",
+                 shard_name: str = "shard_executor",
                  shard_id: int = 0,
-                 original_is_repeated: bool = False):
-        self._base_data_creator: Callable[[], Iterable[T]] = base_data_creator
-        self._original_name = original_name
+                 original_is_repeated: bool = False,
+                 data_age: int = 0):
+        """
+        A actor that serves for the shard execution.
+        :param base_data_creator: the base data or source data creator
+        :param shard_name: the shard name
+        :param shard_id: the shard id
+        :param original_is_repeated: whether the original data that are generated by
+                                     base_data_creator is repeated.
+        :param data_age: the data age, each transform will increase the data age. It used
+                         to identify whether the shard iterator has changed
+        """
+        self._shard: IteratorShard[T] = IteratorShard(
+            base_data_creator, None, "source_generator", shard_id, original_is_repeated)
+        self._shard_name = shard_name
         self._shard_id = shard_id
         self._is_repeated = original_is_repeated
-        self._shard: IteratorShard[T] = None
 
-    def build_shard(self, transforms: List[Callable[[IteratorShard[T]], IteratorShard[U]]] = []):
-        it = self._shard
-        for fn in transforms:
-            it = fn(it)
-        self._shard = it
+        self._data_age = data_age
+        self._built_it: Iterable[T] = None
+
+    def get_data_age(self) -> int:
+        return self._data_age
+
+    def apply_transforms(self,
+                         transforms: List[Callable[[Iterable[T]], Iterator[U]]] = [],
+                         name: str = ".transform()"):
+        # increase the data age by length of transforms
+        self._data_age += len(transforms)
+        self._shard = self._shard.transform(transforms, name, self._is_repeated)
 
     def cache(self):
         if self._is_repeated:
             raise Exception("Can not cache for repeated iterator")
 
+        # cache will not change the data, so we don't need to increase the data age
         object_ids: List[ray.ObjectRef] = []
-        self._shard.build_iterator(True)
-        for item in self._shard:
+        it = iter(self._shard)
+        for item in it:
+            # cache each item into ray object store
             object_ids.append(ray.put(item))
 
-        def cache_fn(it) -> Iterator[T]:
+        def restore_fn() -> Iterator[T]:
+            # restore function
             for object_id in object_ids:
                 yield ray.get(object_id)
-        self._shard = IteratorShard(
-            iter([1]), cache_fn, str(self), self._shard_id, self._is_repeated)
+        self._shard = IteratorShard(restore_fn, [], str(self._shard) + ".cache()",
+                                    self._shard_id, self._is_repeated)
 
     def repeat(self):
         if self._is_repeated:
             return
+        self._data_age += 1
         self._is_repeated = True
 
         def repeat_fn(it: Iterable[T]) -> Iterator[T]:
             while True:
                 for item in it:
                     yield item
-        self._shard = IteratorShard(
-            self._shard, repeat_fn, str(self), self._shard_id, self._is_repeated)
+        self._shard = self._shard.transform([repeat_fn], ".repeat()", True)
+
+    def get_batch(self, build_new: bool, batch_size: int) -> List[T]:
+        if build_new:
+            self._built_it = iter(self._shard)
+        data = []
+        for i in range(batch_size):
+            try:
+                data.append(next(self._built_it))
+            except StopIteration:
+                break
+        return data
+
+    def apply(self, build_new: bool, fn: Callable[[Iterable[T]], Any]) -> Any:
+        if build_new:
+            self._built_it = iter(self._shard)
+        result = fn(self._built_it)
+        return result
 
     def __str__(self):
         return repr(self)
 
     def __repr__(self):
-        if self._shard is not None:
-            name = str(self._shard)
-        else:
-            name = self._original_name
-
+        name = f"{self._shard_name}-{self._shard_id}"
         return name
 
 
@@ -230,15 +282,19 @@ class Dataset(_Dataset[T]):
 
         self._num_shards: int = len(base_data_creators)
         self._lazy_transform: List[Callable[[Iterable[T]], Iterator[U]]] = transforms or []
+        self._fn_name_path = ""
 
     def _trigger_transform(self):
-        for shard in self._shards:
-            shard.build_shard.remote(self._lazy_transform)
-        self._lazy_transform = []
+        if len(self._lazy_transform) > 0:
+            for shard in self._shards:
+                shard.apply_transforms.remote(self._lazy_transform, self._fn_name_path)
+            self._lazy_transform = []
+            self._fn_name_path = ""
 
     def transform(self,
                   fn: Callable[[Iterable[T]], Iterator[U]],
                   fn_name: str) -> "Dataset[U]":
+        self._fn_name_path = self._fn_name_path + fn_name
         return Dataset(self._shards,
                        self._base_data_creators,
                        self._shard_resources,
@@ -351,7 +407,7 @@ class Dataset(_Dataset[T]):
     def cache(self) -> "Dataset[T]":
         """
         Cache each item into ray object store. The item should be a batch list for better
-        performance. This is a lazy execute function.
+        performance. This is a eager execute function.
         :return: a cached Dataset
         """
         if self._is_repeated:
@@ -379,77 +435,162 @@ class Dataset(_Dataset[T]):
     def take(self, n) -> List[T]:
         """
         Take the first n items. This is a eager execute function.
+        :return return as a list, the length of results can be less than n
         """
-        data = []
-        for item in self:
-            data.append(item)
-            if len(data) >= n:
-                break
-        return data
+        self._trigger_transform()
+        valid_shards = list(self._shards)
+        result = []
+
+        def fetch(build_new: bool):
+            to_remove_indexes = []
+            for i, shard in enumerate(valid_shards):
+                data = ray.get(shard.get_batch(build_new, 1).remote())
+                if data is []:
+                    to_remove_indexes.append(i)
+                else:
+                    result.append(data[0])
+                    if len(result) == n:
+                        break
+
+            to_remove_indexes.reverse()
+            for i in to_remove_indexes:
+                valid_shards.pop(i)
+
+        fetch(True)
+        while len(result) < n and valid_shards is not None:
+            fetch(False)
+
+        return result
 
     def show(self, n) -> NoReturn:
         """
         Print the first n items. This is a eager execute function.
         """
-        self.assert_not_built("show")
+        self._trigger_transform()
+        data = self.take(n)
         i = 0
-        for item in self:
+        for item in data:
             print(item)
             i += 1
-            if i >= n:
-                break
 
     def count(self) -> int:
         """
         Return the elements count. This is a eager execute function.
         :return: the elements count
         """
-        self.assert_not_built("count")
-        it = self.build_iterator()
-        return len(iter(it))
+        self._trigger_transform()
+        lens = ray.get([shard.apply(True, lambda it: len(it)).remote() for shard in self._shards])
+        return sum(lens)
 
-    def get_shard(self, index: int, **kwargs) -> IteratorShard[T]:
-        pass
+    def collect(self, batch_size: int = 1) -> IteratorShard[T]:
+        """
+        Collect all data as a local IteratorShard.
+        :param batch_size read batch_size of data from each shard once
+        """
+        self._trigger_transform()
+        shards = []
+        for shard_id in range(self._num_shards):
+            shards.append(iter(self.get_shard(shard_id, batch_size)))
+
+        def shard_creator():
+            valid_shards = list(shards)
+            to_remove_indexes = []
+
+            while valid_shards:
+                for i, shard in enumerate(valid_shards):
+                    try:
+                        yield next(shard)
+                    except StopIteration:
+                        to_remove_indexes.append(i)
+                if len(to_remove_indexes) > 0:
+                    to_remove_indexes.reverse()
+                    for i in to_remove_indexes:
+                        valid_shards.pop(i)
+                    to_remove_indexes = []
+        return IteratorShard(shard_creator, [], "local_shard(collect)")
+
+    def get_shard(self, shard_id: int, batch_size: int = 1) -> IteratorShard[T]:
+        """
+        Get the given shard_id shard into a local IteratorShard.
+        :param shard_id: the shard id
+        :param batch_size: read batch_size of data from shard in once
+        :return: a local IteratorShard
+        """
+        assert batch_size > 0, f"batch_size should be greater than zero, but got {batch_size}"
+        assert shard_id < self._num_shards,\
+            f"out of range(0, {self._num_shards}): shard_id({shard_id})"
+        self._trigger_transform()
+        shard = self._shards[shard_id]
+        expected_shard_age = ray.get(shard.get_data_age.remote())
+
+        def shard_generator():
+            shard_age = ray.get(shard.get_data_age.remote())
+            if shard_age != expected_shard_age:
+                # we should check the shard age here, because we can call this generator multiple
+                # times
+                raise Exception(f"the shard({shard_id}) age has changed, now({shard_age}), "
+                                f"expected({expected_shard_age}), you should get the new shard "
+                                f"iterator")
+            data = ray.get(shard.get_batch(True, batch_size).remote())
+            if data is []:
+                return
+            for item in data:
+                yield item
+            while len(data) > 0:
+                data = ray.get(shard.get_batch(False, batch_size).remote())
+                if data is []:
+                    return
+                for item in data:
+                    yield item
+        return IteratorShard(shard_generator, [], f"local_shard({shard_id})")
 
     def num_shards(self) -> int:
         return self._num_shards
 
-    def to_pandas(self) -> "PandasDataset":
-        pass
+    def to_pandas(self, fn: Callable[[Iterable[T]], Iterator[pd.DataFrame]]) -> "PandasDataset":
+        self.transform(fn, ".to_pandas()")
+        return PandasDataset(self)
 
 
 class PandasDataset(Dataset[pd.DataFrame]):
     """
-    This is a special RayDataset that each element is a pandas.DataFrame, and also transform
+    This is a special RayDataset that each element is a pandas.DataFrame, and all transform
     function should return a PandasDataset too.
     """
     def __iter__(self, base_data: Dataset[pd.DataFrame]):
         super(PandasDataset, self).__init__(base_data)
 
     def to_torch(self,
+                 shard_id: Optional[int] = None,
                  feature_columns: List[str] = None,
                  feature_types: Optional[List["torch.dtype"]] = None,
                  feature_shapes: Optional[List[Any]] = None,
                  label_column: str = None,
                  label_type: Optional["torch.dtype"] = None):
         """
-        This will
-        :param feature_columns:
-        :param feature_shapes:
-        :param feature_types:
-        :param label_column:
-        :param label_type:
-        :return:
+        This will create a torch dataset.
+        :param shard_id create the torch dataset for the given shard_id data if it is not None,
+                        else will create the dataset for all shards data.
+        :param feature_columns: the feature columns' name
+        :param feature_shapes: the expected feature shapes
+        :param feature_types: the expected feature types
+        :param label_column: the label column name
+        :param label_type: the expected label type
+        :return: a torch dataset
         """
-        pass
+        if shard_id is None:
+            source_it = iter(self.collect())
+        else:
+            source_it = iter(self.get_shard(shard_id))
 
-    def to_torch(self,
-                 feature_columns: List[str],
-                 feature_types: List["tensorflow.DType"],
-                 feature_shapes: List["tensorflow.TensorShape"],
-                 label_column: str,
-                 label_type: "tensorflow.DType",
-                 label_shape: "tensorflow.TensorShape",
-                 shuffle: bool):
+
+    def to_tf(self,
+              shard_id: Optional[int] = None,
+              feature_columns: List[str],
+              feature_types: List["tensorflow.DType"],
+              feature_shapes: List["tensorflow.TensorShape"],
+              label_column: str,
+              label_type: "tensorflow.DType",
+              label_shape: "tensorflow.TensorShape"):
         pass
 

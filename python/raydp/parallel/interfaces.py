@@ -30,7 +30,7 @@ class _Shard(ABC, Generic[T]):
 class _Dataset(ABC, Generic[T]):
 
     @abstractmethod
-    def get_shard(self, index: int, **kwargs) -> _Shard[T]:
+    def get_shard(self, shard_id: int) -> _Shard[T]:
         """
         Get one piece of Shards
         """
