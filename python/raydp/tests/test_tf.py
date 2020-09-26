@@ -63,8 +63,8 @@ def test_tf_estimator(ray_cluster):
                             num_epochs=2,
                             config={"fit_config": {"steps_per_epoch": 2}})
 
-    estimator.fit(train_df)
-    estimator.evaluate(test_df)
+    estimator.fit_on_spark(train_df)
+    estimator.evaluate_on_spark(test_df)
 
     estimator.shutdown()
     context.stop_spark()

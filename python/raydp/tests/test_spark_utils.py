@@ -118,34 +118,40 @@ def test_divide_blocks():
         return sum([len(i) for i in packed_indexes])
 
     # no shuffle, no pack
-    block_indexes_0, block_size_0 = utils.divide_blocks(blocks, world_size, 0, False, False)
-    block_indexes_1, block_size_1 = utils.divide_blocks(blocks, world_size, 1, False, False)
-    block_indexes_2, block_size_2 = utils.divide_blocks(blocks, world_size, 2, False, False)
+    divided_blocks = utils.divide_blocks(blocks, world_size, None, False, False)
+    assert len(divided_blocks) == 3
+    block_indexes_0, block_size_0 = divided_blocks[0]
+    block_indexes_1, block_size_1 = divided_blocks[1]
+    block_indexes_2, block_size_2 = divided_blocks[2]
     assert sum(block_size_0) == sum(block_size_1) == sum(block_size_2)
 
     # no shuffle, pack
-    block_indexes_0, block_size_0 = utils.divide_blocks(blocks, world_size, 0, False, True)
-    block_indexes_1, block_size_1 = utils.divide_blocks(blocks, world_size, 1, False, True)
-    block_indexes_2, block_size_2 = utils.divide_blocks(blocks, world_size, 2, False, True)
+    divided_blocks = utils.divide_blocks(blocks, world_size, 0, False, True)
+    block_indexes_0, block_size_0 = divided_blocks[0]
+    block_indexes_1, block_size_1 = divided_blocks[1]
+    block_indexes_2, block_size_2 = divided_blocks[2]
     assert _sum(block_size_0) == _sum(block_size_1) == _sum(block_size_2)
 
     # shuffle, no pack
-    block_indexes_0, block_size_0 = utils.divide_blocks(blocks, world_size, 0, True, False)
-    block_indexes_1, block_size_1 = utils.divide_blocks(blocks, world_size, 1, True, False)
-    block_indexes_2, block_size_2 = utils.divide_blocks(blocks, world_size, 2, True, False)
+    divided_blocks = utils.divide_blocks(blocks, world_size, 0, True, False)
+    block_indexes_0, block_size_0 = divided_blocks[0]
+    block_indexes_1, block_size_1 = divided_blocks[1]
+    block_indexes_2, block_size_2 = divided_blocks[2]
     assert sum(block_size_0) == sum(block_size_1) == sum(block_size_2)
 
     # shuffle, pack
-    block_indexes_0, block_size_0 = utils.divide_blocks(blocks, world_size, 0, True, True)
-    block_indexes_1, block_size_1 = utils.divide_blocks(blocks, world_size, 1, True, True)
-    block_indexes_2, block_size_2 = utils.divide_blocks(blocks, world_size, 2, True, True)
+    divided_blocks = utils.divide_blocks(blocks, world_size, 0, True, True)
+    block_indexes_0, block_size_0 = divided_blocks[0]
+    block_indexes_1, block_size_1 = divided_blocks[1]
+    block_indexes_2, block_size_2 = divided_blocks[2]
     assert _sum(block_size_0) == _sum(block_size_1) == _sum(block_size_2)
 
     # special case
     blocks = [10]
-    block_indexes_0, block_size_0 = utils.divide_blocks(blocks, world_size, 0, False, False)
-    block_indexes_1, block_size_1 = utils.divide_blocks(blocks, world_size, 1, False, False)
-    block_indexes_2, block_size_2 = utils.divide_blocks(blocks, world_size, 2, False, False)
+    divided_blocks = utils.divide_blocks(blocks, world_size, 0, False, False)
+    block_indexes_0, block_size_0 = divided_blocks[0]
+    block_indexes_1, block_size_1 = divided_blocks[1]
+    block_indexes_2, block_size_2 = divided_blocks[2]
     assert sum(block_size_0) == sum(block_size_1) == sum(block_size_2)
     assert sum(block_size_0) == 4
 

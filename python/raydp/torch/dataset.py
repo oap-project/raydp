@@ -22,12 +22,14 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import IterableDataset, DistributedSampler
+from torch.utils.data.dataset import T_co
 
-from raydp.parallel import RayShard
+from raydp.parallel import PandasDataset as ParallelPandasDataset
+
 from raydp.utils import BLOCK_SIZE_BIT, divide_blocks
 
 
-class _Dataset(IterableDataset):
+class AbstractDataset(object):
     def __init__(self,
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
@@ -44,7 +46,6 @@ class _Dataset(IterableDataset):
         :param label_column: the label column in df
         :param label_type: the label type. It will be casted into torch.float by default.
         """
-        super(_Dataset, self).__init__()
         self._feature_columns = feature_columns
         self._feature_shapes = feature_shapes
         self._feature_types = feature_types
@@ -126,13 +127,13 @@ class _Dataset(IterableDataset):
         return (*features, label)
 
 
-class TorchDataset(_Dataset):
+class TorchDataset(AbstractDataset, IterableDataset):
     """
     Store Spark DataFrame or koalas.DataFrame into ray object store and wrap into a torch
     Dataset which could be used by torch DataLoader.
     """
     def __init__(self,
-                 data_iterator: Iterable[pd.DataFrame] = None,
+                 parallel_pandas_ds: ParallelPandasDataset = None,
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
                  feature_types: Optional[List[torch.dtype]] = None,
@@ -140,51 +141,15 @@ class TorchDataset(_Dataset):
                  label_type: Optional[torch.dtype] = None):
         super(TorchDataset, self).__init__(feature_columns, feature_shapes,
                                            feature_types, label_column, label_type)
-        self._data_iterator: Iterable[pd.DataFrame] = data_iterator
         self._check_and_convert()
 
-    def _resolve_with_indices(self,
-                              indices: List[int],
-                              plasma_store_socket_name: Optional[str]):
-        resolved_shared_dataset = self._unresolved_shared_dataset.subset(indices)
-        resolved_shared_dataset.set_plasma_store_socket_name(plasma_store_socket_name)
-        resolved_shared_dataset.resolve()
-        self._resolved_shared_dataset = resolved_shared_dataset
+
+
+    def __iter__(self) -> Iterable[T_co]:
+        return super().__iter__()
 
     def __getitem__(self, index):
-        block_index = index >> BLOCK_SIZE_BIT
-        block_inner_index = (block_index << BLOCK_SIZE_BIT) ^ index
-        if block_index != self._previous_block_index:
-            self._previous_block_index = block_index
-            df = self._resolved_shared_dataset[block_index]
-            self._convert_to_tensor(df)
-        return self._get_next(block_inner_index)
-
-    def __len__(self):
-        """Get the total size"""
-        return self._unresolved_shared_dataset.total_size()
-
-    def block_sizes(self) -> List[int]:
-        """Get the block sizes"""
-        return self._unresolved_shared_dataset.partition_sizes()
-
-    @classmethod
-    def _custom_deserialize(cls,
-                            data_set: SharedDataset,
-                            feature_columns: List[str],
-                            feature_shapes: List[Any],
-                            feature_types: List[torch.dtype],
-                            label_column: str,
-                            label_type: torch.dtype):
-        instance = cls(
-            None, feature_columns, feature_shapes, feature_types, label_column, label_type)
-        instance._unresolved_shared_dataset = data_set
-        return instance
-
-    def __reduce__(self):
-        return (RayDataset._custom_deserialize,
-                (self._unresolved_shared_dataset, self._feature_columns, self._feature_shapes,
-                 self._feature_types, self._label_column, self._label_type))
+        raise TypeError("unsupported operation")
 
 
 class BlockSetSampler(DistributedSampler):
@@ -256,7 +221,7 @@ class BlockSetSampler(DistributedSampler):
         return self.num_samples
 
 
-class PandasDataset(_Dataset):
+class TorchPandasDataset(AbstractDataset):
     """
     A pandas dataset which support feature columns with different shapes.
     """

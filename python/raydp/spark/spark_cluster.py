@@ -20,7 +20,7 @@ from typing import Dict
 
 import pyspark
 
-from raydp.parallel import Dataset
+from raydp.parallel import PandasDataset
 from raydp.services import Cluster
 
 
@@ -41,5 +41,5 @@ class SparkCluster(Cluster):
     @abstractmethod
     def save_to_ray(self,
                     df: pyspark.sql.DataFrame,
-                    num_shards: int) -> Dataset:
+                    num_shards: int) -> PandasDataset:
         pass

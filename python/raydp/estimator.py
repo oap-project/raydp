@@ -18,7 +18,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, NoReturn
 
-from raydp.parallel import Dataset
+from raydp.parallel import PandasDataset
 
 
 class EstimatorInterface(ABC):
@@ -27,11 +27,11 @@ class EstimatorInterface(ABC):
     """
 
     @abstractmethod
-    def fit(self, ds: Dataset, **kwargs) -> NoReturn:
+    def fit(self, ds: PandasDataset, **kwargs) -> NoReturn:
         pass
 
     @abstractmethod
-    def evaluate(self, df: Dataset, **kwargs) -> NoReturn:
+    def evaluate(self, df: PandasDataset, **kwargs) -> NoReturn:
         pass
 
     @abstractmethod

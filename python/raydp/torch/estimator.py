@@ -24,10 +24,9 @@ from ray.util.sgd.torch.torch_trainer import TorchTrainer
 from ray.util.sgd.utils import AverageMeterCollection
 from torch.nn.modules.loss import _Loss as TLoss
 
-from raydp.parallel.dataset import Dataset
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface
-from raydp.torch.dataset import BlockSetSampler, PandasDataset, RayDataset
+from raydp.parallel import Dataset, PandasDataset
 from raydp.torch.operator import TrainingOperatorWithWarmUp
 
 
@@ -238,6 +237,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                      **self._extra_config)
 
     def fit(self, ds: Dataset, **kwargs) -> NoReturn:
+        assert isinstance(ds, PandasDataset)
         pass
 
     def fit_on_spark(self,

@@ -78,7 +78,7 @@ def from_iterators(generators: List[Iterable[T]],
 
 
 def from_spark_df(df: "pyspark.sql.DataFrame",
-                  num_shards: int = 2) -> "RayDataset[T]":
+                  num_shards: int = 2) -> "Dataset[T]":
     return rcontext.save_to_ray(df, num_shards)
 
 
@@ -547,9 +547,14 @@ class Dataset(_Dataset[T]):
     def num_shards(self) -> int:
         return self._num_shards
 
-    def to_pandas(self, fn: Callable[[Iterable[T]], Iterator[pd.DataFrame]]) -> "PandasDataset":
-        self.transform(fn, ".to_pandas()")
-        return PandasDataset(self)
+    def to_pandas(self,
+                  fn: Optional[Callable[[Iterable[T]], Iterator[pd.DataFrame]]]
+                  ) -> "PandasDataset":
+        if fn is not None:
+            ds = self.transform(fn, ".to_pandas()")
+        else:
+            ds = self
+        return PandasDataset(ds)
 
 
 class PandasDataset(Dataset[pd.DataFrame]):
@@ -578,19 +583,22 @@ class PandasDataset(Dataset[pd.DataFrame]):
         :param label_type: the expected label type
         :return: a torch dataset
         """
-        if shard_id is None:
-            source_it = iter(self.collect())
-        else:
-            source_it = iter(self.get_shard(shard_id))
-
+        pass
 
     def to_tf(self,
               shard_id: Optional[int] = None,
-              feature_columns: List[str],
-              feature_types: List["tensorflow.DType"],
-              feature_shapes: List["tensorflow.TensorShape"],
-              label_column: str,
-              label_type: "tensorflow.DType",
-              label_shape: "tensorflow.TensorShape"):
-        pass
-
+              feature_columns: List[str] = None,
+              feature_types: List["tensorflow.DType"] = None,
+              feature_shapes: List["tensorflow.TensorShape"] = None,
+              label_column: str = None,
+              label_type: "tensorflow.DType" = None,
+              label_shape: "tensorflow.TensorShape" = None):
+        from raydp.tf import TFDataset
+        tf_dataset = TFDataset(ds=self,
+                               feature_columns=feature_columns,
+                               feature_types=feature_types,
+                               feature_shapes=feature_shapes,
+                               label_column=label_column,
+                               label_type=label_type,
+                               label_shape=label_shape)
+        return tf_dataset.setup_dataset(shard_id)

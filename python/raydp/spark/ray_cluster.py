@@ -16,22 +16,20 @@
 #
 
 import glob
-from typing import Any, Callable, Dict, List, NoReturn, Optional
+from collections import Iterator
+from typing import Any, Dict, Iterable, List, NoReturn
 
 import pandas as pd
 import pyarrow as pa
-import pyarrow.plasma as plasma
 import pyspark
 import ray
-from pyarrow.plasma import PlasmaClient
 from pyspark.sql.session import SparkSession
-import numpy as np
 
+import raydp.parallel.dataset as parallel_dataset
+from raydp.parallel import PandasDataset
 from raydp.spark import SparkCluster
 from raydp.spark.ray_cluster_master import RayClusterMaster, RAYDP_CP
-from raydp.parallel import RayDataset
-
-from collections import Iterator
+from raydp.utils import divide_blocks
 
 
 class RayCluster(SparkCluster):
@@ -74,7 +72,7 @@ class RayCluster(SparkCluster):
             spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
         return self._spark_session
 
-    def save_to_ray(self, df: pyspark.sql.DataFrame, num_shards: int) -> RayDataset:
+    def save_to_ray(self, df: pyspark.sql.DataFrame, num_shards: int) -> PandasDataset:
         # call java function from python
         sql_context = df.sql_ctx
         jvm = sql_context.sparkSession.sparkContext._jvm
@@ -84,7 +82,8 @@ class RayCluster(SparkCluster):
 
         worker = ray.worker.global_worker
 
-        batch_list: List[RecordBatch] = []
+        blocks: List[ray.ObjectRef] = []
+        block_sizes: List[int] = []
         for record in records:
             owner_address = record.ownerAddress()
             object_id = ray.ObjectID(record.objectId())
@@ -93,10 +92,25 @@ class RayCluster(SparkCluster):
             worker.core_worker.deserialize_and_register_object_ref(
                 object_id.binary(), ray.ObjectRef.nil(), owner_address)
 
-            batch_list.append(RecordBatch([object_id], [num_records]))
-        batch_set = RecordBatchSet(batch_list)
+            blocks.append(object_id)
+            block_sizes.append(num_records)
 
-        return RayClusterSharedDataset(object_ids, sizes)
+        divided_blocks = divide_blocks(block_sizes, num_shards, None, False, False)
+        record_batch_set: List[List[RecordBatch]] = []
+        for i in range(num_shards):
+            indexes, record_sizes = divided_blocks[i]
+            object_ids = [blocks[index] for index in indexes]
+            record_batch_set.append([RecordBatch(object_ids, record_sizes)])
+
+        # TODO: we should specify the resource spec for each shard
+        ds = parallel_dataset.from_iterators(generators=record_batch_set,
+                                             name="spark_df")
+
+        def resolve_fn(it: Iterable[RecordBatch]) -> Iterator[RecordBatch]:
+            for item in it:
+                item.resolve()
+                yield item
+        return ds.transform(resolve_fn, ".RecordBatch#resolve()").flatten().to_pandas(None)
 
     def stop(self):
         if self._spark_session is not None:
@@ -141,29 +155,18 @@ class RecordBatch:
         worker.core_worker.get_objects(object_ids, worker.current_task_id, timeout_ms)
 
     def resolve(self):
+        if self._resolved:
+            return
         self._fetch_objects_without_deserialization(self._object_ids)
         self._resolved = True
 
     def __iter__(self) -> Iterator[pd.DataFrame]:
-        index = 0
-        length = len(self._sizes)
-        while index < length:
-            object_id = self._object_ids[index]
+        for i in range(len(self._object_ids)):
+            object_id = self._object_ids[i]
             assert object_id is not None
-            data = self._get_data_func(object_id)
+            data = ray.get(object_id)
             reader = pa.ipc.open_stream(data)
             tb = reader.read_all()
-            df = tb.to_pandas()
+            df: pd.DataFrame = tb.to_pandas()
+            df = df.sample(n=self._sizes[i], random_state=1)
             yield df
-            index += 1
-
-
-class RecordBatchSet:
-    def __init__(self, record_batches: List[RecordBatch]):
-        self._record_batches = record_batches
-
-    def total_size(self) -> int:
-        return sum([batch.batch_size() for batch in self._record_batches])
-
-    def partition_sizes(self) -> List[int]:
-        return [batch.batch_size() for batch in self._record_batches]

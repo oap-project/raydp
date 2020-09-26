@@ -22,7 +22,7 @@ from typing import Dict, Union, Optional
 from pyspark.sql import DataFrame
 from pyspark.sql import SparkSession
 
-from raydp.parallel import RayDataset
+from raydp.parallel import PandasDataset
 from raydp.spark import RayCluster
 from raydp.spark import SparkCluster
 from raydp.utils import convert_to_spark, parse_memory_size
@@ -125,13 +125,13 @@ def stop_spark():
 
 
 def save_to_ray(df: Union[DataFrame, 'koalas.DataFrame'],
-                num_shards: int) -> RayDataset["pandas.DataFrame"]:
+                num_shards: int) -> PandasDataset:
     """
     Save the pyspark.sql.DataFrame or koalas.DataFrame to Ray ObjectStore and return
     a SharedDataset which could fit into the 'Estimator' for distributed model training.
     :param df: ether pyspark.sql.DataFrame or koalas.DataFrame
     :param num_shards: the number of shard when stored
-    :return: a SharedDataset
+    :return: a PandasDataset
     """
     with _spark_context_lock:
         global _global_spark_context
@@ -139,4 +139,4 @@ def save_to_ray(df: Union[DataFrame, 'koalas.DataFrame'],
             raise Exception("You should init the Spark context firstly.")
         # convert to Spark sql DF
         df, _ = convert_to_spark(df)
-        return _global_spark_context._get_or_create_spark_cluster().save_to_ray(df)
+        return _global_spark_context._get_or_create_spark_cluster().save_to_ray(df, num_shards)
