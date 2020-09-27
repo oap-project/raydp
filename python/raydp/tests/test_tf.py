@@ -22,9 +22,9 @@ import pytest
 import tensorflow.keras as keras
 from pyspark.sql.functions import rand
 
-from raydp.spark import context
-from raydp.spark.tf.estimator import TFEstimator
-from raydp.spark.utils import random_split
+from raydp import context
+from raydp.tf import TFEstimator
+from raydp.utils import random_split
 
 
 def test_tf_estimator(ray_cluster):
@@ -63,8 +63,8 @@ def test_tf_estimator(ray_cluster):
                             num_epochs=2,
                             config={"fit_config": {"steps_per_epoch": 2}})
 
-    estimator.fit(train_df)
-    estimator.evaluate(test_df)
+    estimator.fit_on_spark(train_df)
+    estimator.evaluate_on_spark(test_df)
 
     estimator.shutdown()
     context.stop_spark()

@@ -19,16 +19,14 @@ from collections.abc import Iterable
 from typing import Any, List, Optional
 
 import numpy as np
-import pandas
+import pandas as pd
 import torch
-from torch.utils.data import Dataset, DistributedSampler
+from torch.utils.data import Dataset, IterableDataset
 
-from raydp.spark.context import save_to_ray
-from raydp.spark.resource_manager.exchanger import SharedDataset
-from raydp.spark.utils import BLOCK_SIZE_BIT, divide_blocks
+from raydp.parallel import PandasDataset as ParallelPandasDataset
 
 
-class _Dataset(Dataset):
+class AbstractDataset(object):
     def __init__(self,
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
@@ -45,15 +43,11 @@ class _Dataset(Dataset):
         :param label_column: the label column in df
         :param label_type: the label type. It will be casted into torch.float by default.
         """
-        super(_Dataset, self).__init__()
         self._feature_columns = feature_columns
         self._feature_shapes = feature_shapes
         self._feature_types = feature_types
         self._label_column = label_column
         self._label_type = label_type
-
-        self._feature_tensor = None
-        self._label_tensor = None
 
     def _check_and_convert(self):
         # convert to list for convenience
@@ -110,168 +104,86 @@ class _Dataset(Dataset):
                 if shape != [0]:
                     t = t.view(*(-1, *shape))
                 tensors.append(t)
-            self._feature_tensor = tensors
+            feature_tensor = tensors
         else:
             feature_columns = (self._feature_columns if
                                len(self._feature_columns) > 1 else self._feature_columns[0])
             feature_df = df[feature_columns].values
             t = torch.as_tensor(feature_df, dtype=self._feature_types[0])
-            self._feature_tensor = [t]
+            feature_tensor = [t]
 
         label_df = df[self._label_column].values
-        self._label_tensor = torch.as_tensor(label_df, dtype=self._label_type)
-
-    def _get_next(self, index):
-        label = self._label_tensor[index]
-        features = [tensor[index] for tensor in self._feature_tensor]
-        return (*features, label)
+        label_tensor = torch.as_tensor(label_df, dtype=self._label_type)
+        return feature_tensor, label_tensor
 
 
-class RayDataset(_Dataset):
+class TorchDataset(IterableDataset):
     """
     Store Spark DataFrame or koalas.DataFrame into ray object store and wrap into a torch
     Dataset which could be used by torch DataLoader.
     """
     def __init__(self,
-                 df: Any = None,
+                 parallel_pandas_ds: ParallelPandasDataset = None,
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
                  feature_types: Optional[List[torch.dtype]] = None,
                  label_column: str = None,
                  label_type: Optional[torch.dtype] = None):
-        """
-        :param df: Spark DataFrame or Koalas.DataFrame
-        """
-        super(RayDataset, self).__init__(feature_columns, feature_shapes,
-                                         feature_types, label_column, label_type)
-        self._unresolved_shared_dataset: SharedDataset = None
-        self._resolved_shared_dataset: SharedDataset = None
-        self._previous_block_index = -1
 
-        self._check_and_convert()
+        self._parallel_pandas_ds: ParallelPandasDataset = parallel_pandas_ds
+        self._feature_columns = feature_columns
+        self._feature_shapes = feature_shapes
+        self._feature_types = feature_types
+        self._label_column = label_column
+        self._label_type = label_type
+        self._rank: Optional[int] = None
 
-        if df is not None:
-            self._unresolved_shared_dataset = save_to_ray(df)
-
-    def _resolve_with_indices(self,
-                              indices: List[int],
-                              plasma_store_socket_name: Optional[str]):
-        resolved_shared_dataset = self._unresolved_shared_dataset.subset(indices)
-        resolved_shared_dataset.set_plasma_store_socket_name(plasma_store_socket_name)
-        resolved_shared_dataset.resolve()
-        self._resolved_shared_dataset = resolved_shared_dataset
-
-    def __getitem__(self, index):
-        block_index = index >> BLOCK_SIZE_BIT
-        block_inner_index = (block_index << BLOCK_SIZE_BIT) ^ index
-        if block_index != self._previous_block_index:
-            self._previous_block_index = block_index
-            df = self._resolved_shared_dataset[block_index]
-            self._convert_to_tensor(df)
-        return self._get_next(block_inner_index)
-
-    def __len__(self):
-        """Get the total size"""
-        return self._unresolved_shared_dataset.total_size()
-
-    def block_sizes(self) -> List[int]:
-        """Get the block sizes"""
-        return self._unresolved_shared_dataset.partition_sizes()
-
-    @classmethod
-    def _custom_deserialize(cls,
-                            data_set: SharedDataset,
-                            feature_columns: List[str],
-                            feature_shapes: List[Any],
-                            feature_types: List[torch.dtype],
-                            label_column: str,
-                            label_type: torch.dtype):
-        instance = cls(
-            None, feature_columns, feature_shapes, feature_types, label_column, label_type)
-        instance._unresolved_shared_dataset = data_set
-        return instance
-
-    def __reduce__(self):
-        return (RayDataset._custom_deserialize,
-                (self._unresolved_shared_dataset, self._feature_columns, self._feature_shapes,
-                 self._feature_types, self._label_column, self._label_type))
-
-
-class BlockSetSampler(DistributedSampler):
-    """
-    A distributed sampler for BlockSet.
-
-    We will shuffle the blocks order and then shuffle the block inner if shuffle is set to True.
-    """
-    def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, init_lazy=True):
-        assert isinstance(dataset, RayDataset)
-        self._args = (dataset, num_replicas, rank, shuffle)
-        self._inited = False
-
-        self._block_indices = None
-        self._selected_indices = None
-
-        if not init_lazy:
-            self._init_lazy()
-
-    def _init_lazy(self):
-        """
-        This is a workaround because of ray sgd call initialize the data creator before of
-        setup distributed components.
-        """
-        if not self._inited:
-            super(BlockSetSampler, self).__init__(*self._args)
-            self._split_blocks()
-            self._inited = True
-
-    def _split_blocks(self):
-        block_indexes, packed_selected_indexes = divide_blocks(
-            self.dataset.block_sizes(), self.num_replicas, self.rank, self.shuffle)
-        self._block_indices = block_indexes
-        self._selected_indices = packed_selected_indexes
-
-    def resolve(self, plasma_store_socket_name: Optional[str] = None):
-        """Manually trigger the underlying object transfer."""
-        self._init_lazy()
-        self.dataset._resolve_with_indices(self._block_indices,
-                                           plasma_store_socket_name)
-
-    @property
-    def block_indices(self):
-        return self._block_indices
+    def set_rank(self, rank_id: int):
+        self._rank = rank_id
 
     def __iter__(self):
-        self.resolve()
-        # deterministically shuffle based on epoch
-        np.random.seed(self.epoch)
-        block_indices = list(range(len(self._block_indices)))
-        if self.shuffle:
-            np.random.shuffle(block_indices)
-
-        indices = []
-        for index in block_indices:
-            tmp = self._selected_indices[index]
-            tmp = np.copy(tmp)
-            if self.shuffle:
-                np.random.shuffle(tmp)
-            indices += tmp.tolist()
-
-        return iter(indices)
-
-    def __len__(self):
-        # if we use `if sampler` to determine whether the sampler is None,
-        # it will call this method. This can be happened when the BlockSetSampler
-        # used in the evaluation in ray TorchTrainer.
-        self._init_lazy()
-        return self.num_samples
+        if self._rank is None:
+            it = self._parallel_pandas_ds.collect().get_repeat_iter()
+        else:
+            it = self._parallel_pandas_ds.get_shard(self._rank).get_repeat_iter()
+        ds = TorchIterablePandasDataset(it=it,
+                                        feature_columns=self._feature_columns,
+                                        feature_shapes=self._feature_shapes,
+                                        feature_types=self._feature_types,
+                                        label_column=self._label_column,
+                                        label_type=self._label_type)
+        return iter(ds)
 
 
-class PandasDataset(_Dataset):
+class TorchIterablePandasDataset(AbstractDataset, IterableDataset):
+    def __init__(self,
+                 it: Iterable[pd.DataFrame],
+                 feature_columns: List[str] = None,
+                 feature_shapes: Optional[List[Any]] = None,
+                 feature_types: Optional[List[torch.dtype]] = None,
+                 label_column: str = None,
+                 label_type: Optional[torch.dtype] = None):
+        super(AbstractDataset, self).__init__(feature_columns, feature_shapes,
+                                              feature_types, label_column, label_type)
+        self._check_and_convert()
+        self._it = it
+
+    def __iter__(self) -> Iterable:
+        for pdf in self._it:
+            num_rows = pdf.shape[0]
+            feature_tensor, label_tensor = self._convert_to_tensor(pdf)
+            for i in range(num_rows):
+                features = [tensor[i] for tensor in feature_tensor]
+                label = label_tensor[i]
+                yield (*features, label)
+
+
+class TorchPandasDataset(AbstractDataset, Dataset):
     """
     A pandas dataset which support feature columns with different shapes.
     """
     def __init__(self,
-                 df: pandas.DataFrame = None,
+                 df: pd.DataFrame = None,
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
                  feature_types: Optional[List[torch.dtype]] = None,
@@ -280,12 +192,21 @@ class PandasDataset(_Dataset):
         """
         :param df: pandas DataFrame
         """
-        super(PandasDataset, self).__init__(feature_columns, feature_shapes,
-                                            feature_types, label_column, label_type)
+        super(TorchPandasDataset, self).__init__(feature_columns, feature_shapes,
+                                                 feature_types, label_column, label_type)
         self._check_and_convert()
 
+        self._df = df
         self._size = len(df)
-        self._convert_to_tensor(df)
+        self._feature_tensor = None
+        self._label_tensor = None
+
+    def _get_next(self, index):
+        if self._feature_tensor is None:
+            self._feature_tensor, self._label_tensor = self._convert_to_tensor(self._df)
+        features = [tensor[index] for tensor in self._feature_tensor]
+        label = self._label_tensor[index]
+        return (*features, label)
 
     def __getitem__(self, index):
         return self._get_next(index)

@@ -14,3 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+from raydp.spark.ray_cluster import RayCluster
+from raydp.spark.spark_cluster import SparkCluster
+
+__all__ = ["RayCluster", "SparkCluster"]

@@ -22,11 +22,14 @@ import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from ray.util.sgd.tf import TFTrainer
 
-from raydp.spark.estimator import EstimatorInterface
-from raydp.spark.tf.dataset import PandasDataset, RayDataset
+from raydp.parallel import PandasDataset as ParallelPandasDataset
+from raydp.estimator import EstimatorInterface
+from raydp.spark.interfaces import SparkEstimatorInterface
+from raydp.tf.dataset import PandasTFDataset, TFDataset
+from raydp.context import save_to_ray
 
 
-class TFEstimator(EstimatorInterface):
+class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def __init__(self,
                  num_workers: int = 1,
                  model: keras.Model = None,
@@ -134,12 +137,9 @@ class TFEstimator(EstimatorInterface):
 
         self._trainer: TFTrainer = None
 
-    def fit(self, df, **kwargs) -> NoReturn:
-        super(TFEstimator, self).fit(df, **kwargs)
-
+    def fit(self, ds: ParallelPandasDataset, **kwargs) -> NoReturn:
         def model_creator(config):
             # https://github.com/ray-project/ray/issues/5914
-            import tensorflow as tf
             import tensorflow.keras as keras
 
             model: keras.Model = keras.models.model_from_json(self._serialized_model)
@@ -149,14 +149,14 @@ class TFEstimator(EstimatorInterface):
             model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
             return model
 
-        data_set = RayDataset(df,
-                              self._feature_columns,
-                              self._feature_types,
-                              self._feature_shapes,
-                              self._label_column,
-                              self._label_type,
-                              self._label_shape,
-                              self._shuffle)
+        data_set = TFDataset(ds,
+                             self._feature_columns,
+                             self._feature_types,
+                             self._feature_shapes,
+                             self._label_column,
+                             self._label_type,
+                             self._label_shape,
+                             self._shuffle)
 
         def data_creator(config):
             return data_set.setup(config), None
@@ -166,19 +166,41 @@ class TFEstimator(EstimatorInterface):
             stats = self._trainer.train()
             print(f"Epoch-{i}: {stats}")
 
-    def evaluate(self, df, **kwargs) -> NoReturn:
-        super(TFEstimator, self).evaluate(df)
+    def fit_on_spark(self, df, **kwargs) -> NoReturn:
+        super(TFEstimator, self).fit_on_spark(df, **kwargs)
+        ds = save_to_ray(df, self._num_workers)
+        self.fit(ds)
+
+    def evaluate(self, df: ParallelPandasDataset, **kwargs) -> NoReturn:
+        if self._trainer is None:
+            raise Exception("Must call fit first")
+        dataset = TFDataset(df,
+                            self._feature_columns,
+                            self._feature_types,
+                            self._feature_shapes,
+                            self._label_column,
+                            self._label_type,
+                            self._label_shape,
+                            self._shuffle)
+        config = self._config
+        tf_dataset: tf.data.Dataset = dataset.setup(config)
+        model: keras.Model = self._trainer.get_model()
+        result = model.evaluate(tf_dataset)
+        print(result)
+
+    def evaluate_on_spark(self, df, **kwargs) -> NoReturn:
+        super(TFEstimator, self).evaluate_on_spark(df)
         if self._trainer is None:
             raise Exception("Must call fit first")
         pdf = df.toPandas()
-        dataset = PandasDataset(pdf,
-                                self._feature_columns,
-                                self._feature_types,
-                                self._feature_shapes,
-                                self._label_column,
-                                self._label_type,
-                                self._label_shape,
-                                self._shuffle)
+        dataset = PandasTFDataset(pdf,
+                                  self._feature_columns,
+                                  self._feature_types,
+                                  self._feature_shapes,
+                                  self._label_column,
+                                  self._label_type,
+                                  self._label_shape,
+                                  self._shuffle)
         config = self._config
         tf_dataset: tf.data.Dataset = dataset.setup(config)
         model: keras.Model = self._trainer.get_model()
