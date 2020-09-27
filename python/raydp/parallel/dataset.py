@@ -143,6 +143,16 @@ class IteratorShard(_Shard[T]):
     def barrier(self) -> bool:
         return True
 
+    def get_repeat_iter(self) -> Iterator[T]:
+        if self._is_repeated:
+            for item in iter(self):
+                yield item
+        else:
+            while True:
+                it = iter(self)
+                for item in it:
+                    yield item
+
     def __str__(self):
         return repr(self)
 
@@ -213,18 +223,6 @@ class ShardExecutor:
                 yield ray.get(object_id)
         self._shard = IteratorShard(restore_fn, [], str(self._shard) + ".cache()",
                                     self._shard_id, self._is_repeated)
-
-    def repeat(self):
-        if self._is_repeated:
-            return
-        self._data_age += 1
-        self._is_repeated = True
-
-        def repeat_fn(it: Iterable[T]) -> Iterator[T]:
-            while True:
-                for item in it:
-                    yield item
-        self._shard = self._shard.transform([repeat_fn], ".repeat()", True)
 
     def get_batch(self, build_new: bool, batch_size: int) -> List[T]:
         if build_new:
@@ -419,18 +417,8 @@ class Dataset(_Dataset[T]):
         return Dataset(self._shards, self._base_data_creators, self._shard_resources,
                        self._name + ".cache()", False, [])
 
-    def repeat(self):
-        """
-        Convert the iterator of each shard into a repeated iterator.
-        :return: a repeated Dataset.
-        """
-        if self._is_repeated:
-            return
-        self._trigger_transform()
-        for shard in self._shards:
-            shard.repeat.remote()
-        return Dataset(self._shards, self._base_data_creators, self._shard_resources,
-                       self._name + ".repeat()", False, [])
+    def is_repeated(self) -> bool:
+        return self._is_repeated
 
     def take(self, n) -> List[T]:
         """
@@ -583,7 +571,17 @@ class PandasDataset(Dataset[pd.DataFrame]):
         :param label_type: the expected label type
         :return: a torch dataset
         """
-        pass
+        from raydp.torch import TorchIterablePandasDataset
+        if shard_id is None:
+            it = self.collect()
+        else:
+            it = self.get_shard(shard_id)
+        return TorchIterablePandasDataset(it=it,
+                                          feature_columns=feature_columns,
+                                          feature_types=feature_types,
+                                          feature_shapes=feature_shapes,
+                                          label_column=label_column,
+                                          label_type=label_type)
 
     def to_tf(self,
               shard_id: Optional[int] = None,

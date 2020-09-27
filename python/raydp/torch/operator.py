@@ -16,7 +16,8 @@
 #
 
 from ray.util.sgd.torch.training_operator import TrainingOperator
-import ray
+
+from raydp.torch import TorchDataset
 
 
 class TrainingOperatorWithWarmUp(TrainingOperator):
@@ -41,9 +42,9 @@ class TrainingOperatorWithWarmUp(TrainingOperator):
 
     def setup(self, config):
         """We trigger the underlying object transfer before training startup"""
-        train_loader = self.train_loader
-        plasma_store_path = ray.worker.global_worker.node.plasma_store_socket_name
-        train_loader.sampler.resolve(plasma_store_path)
+        dataset = self.train_loader.dataset
+        if isinstance(dataset, TorchDataset):
+            dataset.set_rank(self.world_rank)
 
     def train_epoch(self, iterator, info):
         if self.timers is not None:

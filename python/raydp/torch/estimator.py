@@ -26,8 +26,10 @@ from torch.nn.modules.loss import _Loss as TLoss
 
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface
-from raydp.parallel import Dataset, PandasDataset
+from raydp.parallel import PandasDataset as ParallelPandasDataset
 from raydp.torch.operator import TrainingOperatorWithWarmUp
+from raydp.torch import TorchDataset, TorchPandasDataset, TorchIterablePandasDataset
+from raydp.context import save_to_ray
 
 
 def worker_init_fn(work_id):
@@ -147,6 +149,9 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._num_processes_for_data_loader = num_processes_for_data_loader
         self._extra_config = extra_config
 
+        if self._num_processes_for_data_loader > 0:
+            raise TypeError("multiple processes for data loader has not supported")
+
         config = {"batch_size": self._batch_size, "shuffle": self._shuffle}
         if self._extra_config:
             if "config" in self._extra_config:
@@ -236,40 +241,40 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                      training_operator_cls=TrainingOperatorWithWarmUp,
                                      **self._extra_config)
 
-    def fit(self, ds: Dataset, **kwargs) -> NoReturn:
-        assert isinstance(ds, PandasDataset)
-        pass
-
-    def fit_on_spark(self,
-                     df,
-                     num_steps=None,
-                     profile=False,
-                     reduce_results=True,
-                     max_retries=3,
-                     info=None):
-        super(TorchEstimator, self).fit_on_spark(df)
+    def fit(self,
+            ds: ParallelPandasDataset,
+            num_steps=None,
+            profile=False,
+            reduce_results=True,
+            max_retries=3,
+            info=None) -> NoReturn:
         if self._trainer is None:
-            self._data_set = RayDataset(df, self._feature_columns, self._feature_shapes,
-                                        self._feature_types, self._label_column, self._label_type)
+            self._data_set = TorchDataset(ds, self._feature_columns, self._feature_shapes,
+                                          self._feature_types, self._label_column,
+                                          self._label_type)
 
-            def data_creator(config):
-                batch_size = config["batch_size"]
-                shuffle = config["shuffle"]
-                sampler = BlockSetSampler(self._data_set, shuffle=shuffle)
-                context = None
-                init_fn = None
-                if self._num_processes_for_data_loader > 0:
-                    context = torch.multiprocessing.get_context("spawn")
-                    init_fn = worker_init_fn
-
-                dataloader = torch.utils.data.DataLoader(
-                    self._data_set,
-                    batch_size=batch_size,
-                    sampler=sampler,
-                    num_workers=self._num_processes_for_data_loader,
-                    multiprocessing_context=context,
-                    worker_init_fn=init_fn)
-                return dataloader, None
+            if self._num_workers > 1:
+                def data_creator(config):
+                    batch_size = config["batch_size"]
+                    dataset = TorchDataset(parallel_pandas_ds=ds,
+                                           feature_columns=self._feature_columns,
+                                           feature_shapes=self._feature_shapes,
+                                           feature_types=self._feature_types,
+                                           label_column=self._label_column,
+                                           label_type=self._label_type)
+                    dataloader = torch.utils.data.DataLoader(dataset, batch_size)
+                    return dataloader, None
+            else:
+                def data_creator(config):
+                    batch_size = config["batch_size"]
+                    dataset = TorchIterablePandasDataset(it=ds.collect(),
+                                                         feature_columns=self._feature_columns,
+                                                         feature_shapes=self._feature_shapes,
+                                                         feature_types=self._feature_types,
+                                                         label_column=self._label_column,
+                                                         label_type=self._label_type)
+                    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
+                    return dataloader, None
 
             self._create_trainer(data_creator)
             assert self._trainer is not None
@@ -284,18 +289,20 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         else:
             raise Exception("You call fit twice.")
 
-    def evaluate(self, df: Dataset, **kwargs) -> NoReturn:
-        pass
+    def fit_on_spark(self,
+                     df,
+                     num_steps=None,
+                     profile=False,
+                     reduce_results=True,
+                     max_retries=3,
+                     info=None):
+        super(TorchEstimator, self).fit_on_spark(df)
+        ds = save_to_ray(df, self._num_workers)
+        self.fit(ds, num_steps, profile, reduce_results, max_retries, info)
 
-    def evaluate_on_spark(self, df, **kwargs):
-        super(TorchEstimator, self).evaluate_on_spark(df)
+    def _evaluate(self, dataloader):
         if self._trainer is None:
             raise Exception("Must call fit first")
-        pdf = df.toPandas()
-        dataset = PandasDataset(pdf, self._feature_columns, self._feature_shapes,
-                                self._feature_types, self._label_column, self._label_type)
-        dataloader = torch.utils.data.DataLoader(dataset, self._batch_size, shuffle=self._shuffle)
-
         if inspect.isclass(self._loss) and issubclass(self._loss, TLoss):
             # it is the loss class
             criterion = self._loss()
@@ -324,6 +331,25 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                 metric_meters.update(metrics)
 
         return metric_meters.summary()
+
+    def evaluate(self, df: ParallelPandasDataset, **kwargs) -> NoReturn:
+        if self._trainer is None:
+            raise Exception("Must call fit first")
+        it = df.collect()
+        dataset = TorchIterablePandasDataset(it, self._feature_columns, self._feature_shapes,
+                                             self._feature_types, self._label_column, self._label_type)
+        dataloader = torch.utils.data.DataLoader(dataset, self._batch_size, shuffle=self._shuffle)
+        return self._evaluate(dataloader)
+
+    def evaluate_on_spark(self, df, **kwargs):
+        super(TorchEstimator, self).evaluate_on_spark(df)
+        if self._trainer is None:
+            raise Exception("Must call fit first")
+        pdf = df.toPandas()
+        dataset = TorchPandasDataset(pdf, self._feature_columns, self._feature_shapes,
+                                     self._feature_types, self._label_column, self._label_type)
+        dataloader = torch.utils.data.DataLoader(dataset, self._batch_size, shuffle=self._shuffle)
+        return self._evaluate(dataloader)
 
     def get_model(self):
         assert self._trainer is not None, "Must call fit first"
