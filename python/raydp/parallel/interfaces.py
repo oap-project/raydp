@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 
 # The type of an iterator element.
@@ -23,19 +22,44 @@ T = TypeVar("T")
 U = TypeVar("U")
 
 
-class _Shard(ABC, Generic[T]):
-    pass
+class _Shard(Generic[T]):
+
+    def to_torch(self, **kwargs):
+        """
+        Create a torch Dataset from the current shard
+        :return: a torch.utils.data.Dataset
+        """
+        raise NotImplementedError
+
+    def to_tf(self, **kwargs):
+        """
+        Create a tensorflow Dataset from the current shard
+        :return: a tensorflow.data.Dataset
+        """
+        raise NotImplementedError
 
 
-class _Dataset(ABC, Generic[T]):
+class _Dataset(Generic[T]):
 
-    @abstractmethod
     def get_shard(self, shard_id: int) -> _Shard[T]:
         """
         Get one piece of Shards
         """
+        raise NotImplementedError
+
+    def num_shards(self) -> int:
+        raise NotImplementedError
+
+    def to_torch(self, **kwargs):
+        """
+        Create a torch Dataset from the current dataset.
+        :return: a torch.utils.data.Dataset
+        """
         pass
 
-    @abstractmethod
-    def num_shards(self) -> int:
+    def to_tf(self, **kwargs):
+        """
+        Create a tensorflow Dataset from the current dataset
+        :return: a tensorflow.data.Dataset
+        """
         pass
