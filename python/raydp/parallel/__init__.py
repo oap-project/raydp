@@ -15,7 +15,9 @@
 # limitations under the License.
 #
 
-from raydp.parallel.dataset import Dataset, PandasDataset, IteratorShard
-from raydp.parallel.interfaces import _Dataset, _Shard
+from raydp.parallel.general_dataset import Dataset, PandasDataset, IteratorShard
+from raydp.parallel.interfaces import _Dataset, _Shard, T, U
+
+from typing import Dict, List, Iterable, Iterator
 
 __all__ = ["_Shard", "_Dataset", "Dataset", "PandasDataset", "IteratorShard"]

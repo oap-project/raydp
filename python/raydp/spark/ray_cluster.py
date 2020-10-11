@@ -25,7 +25,7 @@ import pyspark
 import ray
 from pyspark.sql.session import SparkSession
 
-import raydp.parallel.dataset as parallel_dataset
+import raydp.parallel.general_dataset as parallel_dataset
 from raydp.parallel import PandasDataset
 from raydp.spark import SparkCluster
 from raydp.spark.ray_cluster_master import RayClusterMaster, RAYDP_CP
