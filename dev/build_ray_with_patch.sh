@@ -32,14 +32,14 @@ CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 DIST_PATH=${CURRENT_DIR}/../dist/
 TMP_DIR=".tmp_dir"
 
-if [ ! -d ${DIST_PATH} ];
+if [[ ! -d ${DIST_PATH} ]];
 then
   mkdir ${DIST_PATH}
 fi
 
 pushd ${CURRENT_DIR}
 
-if [ -d ${TMP_DIR} ];
+if [[ -d ${TMP_DIR} ]];
 then
   rm -rf ${TMP_DIR}
 fi

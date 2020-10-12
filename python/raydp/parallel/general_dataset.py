@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, NoReturn, Optional, Iterable, Iter
 import pandas as pd
 import ray
 
+import raydp.context as rcontext
 from raydp.parallel import _Dataset, _Shard
 from raydp.parallel.interfaces import T, U
 from raydp.parallel.sources import CacheDataSource, GeneratorSource, SourceShard
@@ -62,7 +63,9 @@ def from_iterators(generators: List[Iterable[T]],
                    repeat: bool = False,
                    name: str = None) -> "Dataset[T]":
     creators = []
-    for gen in generators:
+    if repeat:
+        repeatable = False
+    for i, gen in enumerate(generators):
         if repeat:
             def base_generator() -> Iterator[T]:
                 while True:
@@ -72,10 +75,15 @@ def from_iterators(generators: List[Iterable[T]],
             def base_generator() -> Iterator[T]:
                 for item in gen:
                     yield item
+        source_shard = GeneratorSource(name + str(i), base_generator, repeatable, repeat)
+        creators.append(source_shard)
 
-        creators.append(base_generator)
+    return Dataset(creators, shard_resources, name, repeatable, repeat, None)
 
-    return Dataset(None, creators, shard_resources, name, repeat, None)
+
+def from_spark_df(df: "pyspark.sql.DataFrame",
+                  num_shards: int = 2) -> "Dataset[T]":
+    return rcontext.save_to_ray(df, num_shards)
 
 
 class BufferedIterator(Iterator[T]):

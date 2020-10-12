@@ -16,8 +16,8 @@
 #
 
 from raydp.parallel.general_dataset import Dataset, PandasDataset, IteratorShard
+from raydp.parallel.general_dataset import from_items, from_iterators, from_range, from_spark_df
 from raydp.parallel.interfaces import _Dataset, _Shard, T, U
 
-from typing import Dict, List, Iterable, Iterator
-
-__all__ = ["_Shard", "_Dataset", "Dataset", "PandasDataset", "IteratorShard"]
+__all__ = ["_Shard", "_Dataset", "Dataset", "PandasDataset", "IteratorShard", "from_items",
+           "from_iterators", "from_range", "from_spark_df"]

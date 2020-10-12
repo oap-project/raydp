@@ -91,7 +91,7 @@ class _Dataset(Generic[T]):
                          is None, we will create the torch Dataset from the full shards.
         :return: a torch.utils.data.Dataset
         """
-        pass
+        raise NotImplementedError
 
     def to_tf(self, shard_ids: Optional[List[int]], **kwargs):
         """
@@ -101,7 +101,7 @@ class _Dataset(Generic[T]):
                          shards.
         :return: a tensorflow.data.Dataset
         """
-        pass
+        raise NotImplementedError
 
     def __str__(self):
         return repr(self)
