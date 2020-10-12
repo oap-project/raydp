@@ -71,6 +71,11 @@ popd # python
 popd # spark
 
 # copy the build dist to the given dir
+if [[ -d "${DIST_PATH}/spark" ]];
+then
+  rm -rf ${DIST_PATH}/spark
+fi
+
 cp spark/python/dist/pyspark-* ${DIST_PATH}
 # mv the build spark to the given dir
 mv spark ${DIST_PATH}

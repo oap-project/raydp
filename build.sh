@@ -31,7 +31,7 @@ fi
 CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 DIST_PATH=${CURRENT_DIR}/dist/
 
-if [ ! -d ${DIST_PATH} ];
+if [[ ! -d ${DIST_PATH} ]];
 then
   mkdir ${DIST_PATH}
 fi
@@ -39,12 +39,12 @@ fi
 BUILD_PYSPARK=${RAYDP_BUILD_PYSPARK:-0}
 BUILD_RAY=${RAYDP_BUILD_RAY:-0}
 
-if [ ${BUILD_PYSPARK} == 1 ];
+if [[ ${BUILD_PYSPARK} == 1 ]];
 then
   ${CURRENT_DIR}/dev/build_pyspark_with_patch.sh
 fi
 
-if [ ${BUILD_RAY} == 1 ];
+if [[ ${BUILD_RAY} == 1 ]];
 then
   ${CURRENT_DIR}/dev/build_ray_with_patch.sh
 fi
