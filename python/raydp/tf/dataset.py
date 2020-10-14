@@ -160,7 +160,7 @@ class TFDataset(_Dataset):
 
         dataset = self.setup_dataset(world_rank)
         batch_size = config["batch_size"]
-        dataset = dataset.repeat().batch(batch_size)
+        dataset = dataset.batch(batch_size)
         return dataset
 
     def setup_dataset(self, world_rank: Optional[int]) -> tf.data.Dataset:

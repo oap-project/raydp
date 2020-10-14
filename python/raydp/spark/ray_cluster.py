@@ -17,7 +17,7 @@
 
 import glob
 from collections import Iterator
-from typing import Any, Dict, Iterable, List, NoReturn
+from typing import Any, Dict, Generic, Iterable, List, NoReturn
 
 import pandas as pd
 import pyarrow as pa
@@ -27,9 +27,9 @@ from pyspark.sql.session import SparkSession
 
 import raydp.parallel.general_dataset as parallel_dataset
 from raydp.parallel import PandasDataset
-from raydp.spark import SparkCluster
-from raydp.spark.ray_cluster_master import RayClusterMaster, RAYDP_CP
 from raydp.utils import divide_blocks
+from .ray_cluster_master import RayClusterMaster, RAYDP_CP
+from .spark_cluster import SparkCluster
 
 
 class RayCluster(SparkCluster):
@@ -74,6 +74,7 @@ class RayCluster(SparkCluster):
 
     def save_to_ray(self, df: pyspark.sql.DataFrame, num_shards: int) -> PandasDataset:
         # call java function from python
+        df = df.repartition(num_shards)
         sql_context = df.sql_ctx
         jvm = sql_context.sparkSession.sparkContext._jvm
         jdf = df._jdf
@@ -95,18 +96,18 @@ class RayCluster(SparkCluster):
             blocks.append(object_id)
             block_sizes.append(num_records)
 
-        divided_blocks = divide_blocks(block_sizes, num_shards, None, False, False)
-        record_batch_set: List[List[RecordBatch]] = []
+        divided_blocks = divide_blocks(block_sizes, num_shards)
+        record_batch_set: List[RecordBatch] = []
         for i in range(num_shards):
-            indexes, record_sizes = divided_blocks[i]
+            indexes = divided_blocks[i]
             object_ids = [blocks[index] for index in indexes]
-            record_batch_set.append([RecordBatch(object_ids, record_sizes)])
+            record_batch_set.append(RecordBatch(object_ids))
 
         # TODO: we should specify the resource spec for each shard
         ds = parallel_dataset.from_iterators(generators=record_batch_set,
                                              name="spark_df")
 
-        def resolve_fn(it: Iterable[RecordBatch]) -> Iterator[RecordBatch]:
+        def resolve_fn(it: "Iterable[RecordBatch]") -> "Iterator[RecordBatch]":
             for item in it:
                 item.resolve()
                 yield item
@@ -123,15 +124,9 @@ class RayCluster(SparkCluster):
 
 
 class RecordBatch:
-    def __init__(self,
-                 object_ids: List[ray.ObjectRef],
-                 sizes: List[int]):
+    def __init__(self, object_ids: List[ray.ObjectRef]):
         self._object_ids: List[ray.ObjectRef] = object_ids
-        self._sizes: List[int] = sizes
         self._resolved: bool = False
-
-    def batch_size(self) -> int:
-        return sum(self._sizes)
 
     def _fetch_objects_without_deserialization(self, object_ids, timeout=None) -> NoReturn:
         """
@@ -160,7 +155,7 @@ class RecordBatch:
         self._fetch_objects_without_deserialization(self._object_ids)
         self._resolved = True
 
-    def __iter__(self) -> Iterator[pd.DataFrame]:
+    def __iter__(self) -> "Iterator[pd.DataFrame]":
         for i in range(len(self._object_ids)):
             object_id = self._object_ids[i]
             assert object_id is not None
@@ -168,5 +163,4 @@ class RecordBatch:
             reader = pa.ipc.open_stream(data)
             tb = reader.read_all()
             df: pd.DataFrame = tb.to_pandas()
-            df = df.sample(n=self._sizes[i], random_state=1)
             yield df

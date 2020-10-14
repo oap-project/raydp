@@ -19,12 +19,12 @@ from typing import Callable, List, Iterator
 
 import ray
 
-from raydp.parallel.interfaces import T, _Shard
+from .interfaces import T, _Shard
 
 
 class SourceShard(_Shard[T]):
     def __init__(self, name: str, is_repeatable: bool, is_repeated: bool):
-        super(SourceShard, self).__init__(name)
+        super(SourceShard, self).__init__()
         self._name = name
         self._is_repeatable = is_repeatable
         self._is_repeated = is_repeated
