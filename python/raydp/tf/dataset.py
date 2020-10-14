@@ -48,7 +48,7 @@ class _Dataset:
 
     def _check_and_convert(self):
         # convert to list for convenience
-        if not isinstance(self._feature_columns, List):
+        if not isinstance(self._feature_columns, list):
             self._feature_columns = [self._feature_columns]
 
         if self._feature_shapes:
@@ -102,7 +102,8 @@ class PandasTFDataset(_Dataset):
     def _create_dataset_from_pandas(self, df: pd.DataFrame) -> tf.data.Dataset:
         tensors: List[tf.Tensor] = []
         feature_shapes = [shape.as_list() for shape in self._feature_shapes]
-        [shape.insert(0, -1) for shape in feature_shapes]
+        for shape in feature_shapes:
+            shape.insert(0, -1)
         label_shape = self._label_shape.as_list()
         label_shape.insert(0, -1)
 
@@ -115,7 +116,6 @@ class PandasTFDataset(_Dataset):
 
         label_tensor = tf.convert_to_tensor(df[self._label_column], self._label_type)
         label_tensor = tf.reshape(label_tensor, label_shape)
-        tf.data.Dataset.from_generator()
         return tf.data.Dataset.from_tensor_slices((tuple(tensors), label_tensor))
 
     def setup(self, config) -> tf.data.Dataset:

@@ -37,7 +37,6 @@ class Cluster(ABC):
         """
         Subcluster should implement this to set up master node.
         """
-        pass
 
     def add_worker(self,
                    resources_requirement: Dict[str, float],
@@ -60,7 +59,6 @@ class Cluster(ABC):
         """
         Subcluster should implement this to set up worker node.
         """
-        pass
 
     @abstractmethod
     def get_cluster_url(self) -> str:
@@ -82,7 +80,6 @@ class ClusterMaster(ABC):
         """
         :return: error message, return None if succeeded
         """
-        pass
 
     @abstractmethod
     def get_master_url(self) -> str:
@@ -104,7 +101,6 @@ class ClusterWorker(ABC):
         """
         :return: error message, return None if succeeded
         """
-        pass
 
     @abstractmethod
     def get_host(self) -> str:

@@ -165,10 +165,9 @@ def divide_blocks(
         tmp_queue[i] = 0
     indexes = range(len(blocks))
     blocks_with_indexes = dict(zip(indexes, blocks))
-    blocks_with_indexes = {k: v for k, v in
-                           sorted(blocks_with_indexes.items(),
+    blocks_with_indexes = dict(sorted(blocks_with_indexes.items(),
                                   key=lambda item: item[1],
-                                  reverse=True)}
+                                  reverse=True))
     for i, block in blocks_with_indexes.items():
         rank = sorted(tmp_queue, key=lambda x: tmp_queue[x])[0]
         results[rank].append(i)

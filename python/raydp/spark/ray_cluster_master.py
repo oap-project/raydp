@@ -91,14 +91,14 @@ class RayClusterMaster(ClusterMaster):
             # Launch the Java gateway.
             popen_kwargs = {} if popen_kwargs is None else popen_kwargs
             # We open a pipe to stdin so that the Java gateway can die when the pipe is broken
-            popen_kwargs['stdin'] = PIPE
+            popen_kwargs["stdin"] = PIPE
             # We always set the necessary environment variables.
-            popen_kwargs['env'] = env
+            popen_kwargs["env"] = env
 
             # Don't send ctrl-c / SIGINT to the Java gateway:
             def preexec_func():
                 signal.signal(signal.SIGINT, signal.SIG_IGN)
-            popen_kwargs['preexec_fn'] = preexec_func
+            popen_kwargs["preexec_fn"] = preexec_func
             proc = Popen(command, **popen_kwargs)
 
             # Wait for the file to appear, or for the process to exit, whichever happens first.
