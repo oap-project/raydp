@@ -143,9 +143,9 @@ class TorchDataset(IterableDataset):
 
     def __iter__(self):
         if self._rank is None:
-            it = self._parallel_pandas_ds.collect().get_repeat_iter()
+            it = self._parallel_pandas_ds.collect()
         else:
-            it = self._parallel_pandas_ds.get_shard(self._rank).get_repeat_iter()
+            it = self._parallel_pandas_ds.get_shard(self._rank, batch_size=256)
         ds = TorchIterablePandasDataset(it=it,
                                         feature_columns=self._feature_columns,
                                         feature_shapes=self._feature_shapes,
@@ -157,14 +157,14 @@ class TorchDataset(IterableDataset):
 
 class TorchIterablePandasDataset(AbstractDataset, IterableDataset):
     def __init__(self,
-                 it: Iterable[pd.DataFrame],
+                 it: Iterable,
                  feature_columns: List[str] = None,
                  feature_shapes: Optional[List[Any]] = None,
-                 feature_types: Optional[List[torch.dtype]] = None,
+                 feature_types: Optional[List["torch.dtype"]] = None,
                  label_column: str = None,
-                 label_type: Optional[torch.dtype] = None):
-        super(AbstractDataset, self).__init__(feature_columns, feature_shapes,
-                                              feature_types, label_column, label_type)
+                 label_type: Optional["torch.dtype"] = None):
+        super(TorchIterablePandasDataset, self).__init__(feature_columns, feature_shapes,
+                                                         feature_types, label_column, label_type)
         self._check_and_convert()
         self._it = it
 

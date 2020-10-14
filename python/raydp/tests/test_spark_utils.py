@@ -111,49 +111,26 @@ def test_memory_size_parser():
 
 
 def test_divide_blocks():
-    blocks = [5, 10, 9]
+    blocks = [5, 1, 2, 3, 5, 6, 2, 1, 2]
     world_size = 3
 
-    def _sum(packed_indexes) -> int:
-        return sum([len(i) for i in packed_indexes])
-
-    # no shuffle, no pack
-    divided_blocks = utils.divide_blocks(blocks, world_size, None, False, False)
+    divided_blocks = utils.divide_blocks(blocks, world_size)
     assert len(divided_blocks) == 3
-    block_indexes_0, block_size_0 = divided_blocks[0]
-    block_indexes_1, block_size_1 = divided_blocks[1]
-    block_indexes_2, block_size_2 = divided_blocks[2]
-    assert sum(block_size_0) == sum(block_size_1) == sum(block_size_2)
+    blocks_0 = [blocks[i] for i in divided_blocks[0]]
+    blocks_1 = [blocks[i] for i in divided_blocks[1]]
+    blocks_2 = [blocks[i] for i in divided_blocks[2]]
+    assert sum(blocks_0) == sum(blocks_1) == sum(blocks_2)
 
-    # no shuffle, pack
-    divided_blocks = utils.divide_blocks(blocks, world_size, 0, False, True)
-    block_indexes_0, block_size_0 = divided_blocks[0]
-    block_indexes_1, block_size_1 = divided_blocks[1]
-    block_indexes_2, block_size_2 = divided_blocks[2]
-    assert _sum(block_size_0) == _sum(block_size_1) == _sum(block_size_2)
+    blocks = [5, 1, 2, 3, 5, 6, 2, 2, 2]
+    world_size = 3
 
-    # shuffle, no pack
-    divided_blocks = utils.divide_blocks(blocks, world_size, 0, True, False)
-    block_indexes_0, block_size_0 = divided_blocks[0]
-    block_indexes_1, block_size_1 = divided_blocks[1]
-    block_indexes_2, block_size_2 = divided_blocks[2]
-    assert sum(block_size_0) == sum(block_size_1) == sum(block_size_2)
-
-    # shuffle, pack
-    divided_blocks = utils.divide_blocks(blocks, world_size, 0, True, True)
-    block_indexes_0, block_size_0 = divided_blocks[0]
-    block_indexes_1, block_size_1 = divided_blocks[1]
-    block_indexes_2, block_size_2 = divided_blocks[2]
-    assert _sum(block_size_0) == _sum(block_size_1) == _sum(block_size_2)
-
-    # special case
-    blocks = [10]
-    divided_blocks = utils.divide_blocks(blocks, world_size, 0, False, False)
-    block_indexes_0, block_size_0 = divided_blocks[0]
-    block_indexes_1, block_size_1 = divided_blocks[1]
-    block_indexes_2, block_size_2 = divided_blocks[2]
-    assert sum(block_size_0) == sum(block_size_1) == sum(block_size_2)
-    assert sum(block_size_0) == 4
+    divided_blocks = utils.divide_blocks(blocks, world_size)
+    assert len(divided_blocks) == 3
+    blocks_0 = [blocks[i] for i in divided_blocks[0]]
+    blocks_1 = [blocks[i] for i in divided_blocks[1]]
+    blocks_2 = [blocks[i] for i in divided_blocks[2]]
+    assert sum(blocks_1) == sum(blocks_2)
+    assert sum(blocks_0) == (sum(blocks_1) + 1)
 
 
 if __name__ == "__main__":

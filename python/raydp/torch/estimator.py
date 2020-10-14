@@ -24,12 +24,12 @@ from ray.util.sgd.torch.torch_trainer import TorchTrainer
 from ray.util.sgd.utils import AverageMeterCollection
 from torch.nn.modules.loss import _Loss as TLoss
 
-from raydp.estimator import EstimatorInterface
-from raydp.spark.interfaces import SparkEstimatorInterface
-from raydp.parallel import PandasDataset as ParallelPandasDataset
-from raydp.torch.operator import TrainingOperatorWithWarmUp
-from raydp.torch import TorchDataset, TorchPandasDataset, TorchIterablePandasDataset
 from raydp.context import save_to_ray
+from raydp.estimator import EstimatorInterface
+from raydp.parallel import PandasDataset as ParallelPandasDataset
+from raydp.spark.interfaces import SparkEstimatorInterface
+from .dataset import TorchDataset, TorchPandasDataset, TorchIterablePandasDataset
+from .operator import TrainingOperatorWithWarmUp
 
 
 def worker_init_fn(work_id):
@@ -161,8 +161,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         else:
             self._extra_config = {"config": config}
 
-        self._data_set = None
-
         self._trainer: TorchTrainer = None
 
         self._check()
@@ -249,9 +247,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             max_retries=3,
             info=None) -> NoReturn:
         if self._trainer is None:
-            self._data_set = TorchDataset(ds, self._feature_columns, self._feature_shapes,
-                                          self._feature_types, self._label_column,
-                                          self._label_type)
 
             if self._num_workers > 1:
                 def data_creator(config):
@@ -365,6 +360,5 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
 
     def shutdown(self):
         if self._trainer is not None:
-            del self._data_set
             self._trainer.shutdown()
             self._trainer = None

@@ -15,6 +15,6 @@
 # limitations under the License.
 #
 
-from raydp.tf.estimator import PandasTFDataset, TFEstimator, TFDataset
+from .estimator import PandasTFDataset, TFEstimator, TFDataset
 
 __all__ = ["PandasTFDataset", "TFEstimator", "TFDataset"]

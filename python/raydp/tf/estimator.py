@@ -19,14 +19,14 @@ from typing import Any, Dict, List, NoReturn, Optional, Union
 
 import tensorflow as tf
 import tensorflow.keras as keras
-from tensorflow import DType, TensorShape
 from ray.util.sgd.tf import TFTrainer
+from tensorflow import DType, TensorShape
 
-from raydp.parallel import PandasDataset as ParallelPandasDataset
+from raydp.context import save_to_ray
 from raydp.estimator import EstimatorInterface
+from raydp.parallel import PandasDataset as ParallelPandasDataset
 from raydp.spark.interfaces import SparkEstimatorInterface
 from raydp.tf.dataset import PandasTFDataset, TFDataset
-from raydp.context import save_to_ray
 
 
 class TFEstimator(EstimatorInterface, SparkEstimatorInterface):

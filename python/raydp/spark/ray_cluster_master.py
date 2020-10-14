@@ -31,7 +31,7 @@ from py4j.java_gateway import JavaGateway, GatewayParameters
 
 from raydp.services import ClusterMaster
 
-RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../../../jars/*"))
+RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
 
 
 class RayClusterMaster(ClusterMaster):

@@ -17,7 +17,7 @@
 
 from ray.util.sgd.torch.training_operator import TrainingOperator
 
-from raydp.torch import TorchDataset
+from .dataset import TorchDataset
 
 
 class TrainingOperatorWithWarmUp(TrainingOperator):
