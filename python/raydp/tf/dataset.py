@@ -17,11 +17,12 @@
 
 import json
 import os
-from typing import Callable, List, Optional, Iterable
+from typing import Callable, List, Optional
 
 import pandas as pd
 import tensorflow as tf
 
+from raydp.parallel import IteratorShard
 from raydp.parallel import PandasDataset as ParallelPandasDataset
 
 
@@ -115,7 +116,6 @@ class PandasTFDataset(_Dataset):
 
         label_tensor = tf.convert_to_tensor(df[self._label_column], self._label_type)
         label_tensor = tf.reshape(label_tensor, label_shape)
-        tf.data.Dataset.from_generator()
         return tf.data.Dataset.from_tensor_slices((tuple(tensors), label_tensor))
 
     def setup(self, config) -> tf.data.Dataset:
@@ -160,7 +160,9 @@ class TFDataset(_Dataset):
 
         dataset = self.setup_dataset(world_rank)
         batch_size = config["batch_size"]
-        dataset = dataset.batch(batch_size)
+        if self._shuffle:
+            dataset = dataset.shuffle(buffer_size=batch_size, seed=world_rank)
+        dataset = dataset.batch(batch_size).repeat()
         return dataset
 
     def setup_dataset(self, world_rank: Optional[int]) -> tf.data.Dataset:
@@ -169,7 +171,7 @@ class TFDataset(_Dataset):
         else:
             it = self._data_set.collect()
 
-        make_generator = self._make_ds_generator(iter(it))
+        make_generator = self._make_ds_generator(it)
         output_shapes = self._feature_shapes.copy()
         output_shapes = (tuple(output_shapes), self._label_shape)
 
@@ -180,11 +182,11 @@ class TFDataset(_Dataset):
                                               output_types=output_types,
                                               output_shapes=output_shapes)
 
-    def _make_ds_generator(self, data: Iterable[pd.DataFrame]) -> Callable:
+    def _make_ds_generator(self, data: IteratorShard[pd.DataFrame]) -> Callable:
         outer = self
 
         def make_generator():
-            for pdf in data:
+            for pdf in iter(data):
                 num_rows = pdf.shape[0]
                 feature_columns = [pdf[col].values for col in outer._feature_columns]
                 label_column = pdf[outer._label_column].values

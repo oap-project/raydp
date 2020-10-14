@@ -56,7 +56,7 @@ optimizer = torch.optim.Adam(model.parameters())
 
 #Sklearn style Estimator API in RayDP for distributed training 
 estimator = TorchEstimator(model=model, optimizer=optimizer, ...) 
-estimator.fit(train_df)
+estimator.fit_on_spark(train_df)
 
 ```
 

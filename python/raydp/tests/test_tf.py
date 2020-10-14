@@ -60,8 +60,7 @@ def test_tf_estimator(ray_cluster):
                             feature_columns=["x", "y"],
                             label_column="z",
                             batch_size=1000,
-                            num_epochs=2,
-                            config={"fit_config": {"steps_per_epoch": 2}})
+                            num_epochs=2)
 
     estimator.fit_on_spark(train_df)
     estimator.evaluate_on_spark(test_df)

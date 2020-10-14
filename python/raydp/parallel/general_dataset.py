@@ -603,6 +603,16 @@ class Dataset(_Dataset[T]):
         return IteratorShard(
             source, [], source.name(), shard_id, source.repeatable(), source.repeated())
 
+    def apply(self, fn: Callable[[Iterable[T]], U]) -> List[U]:
+        """
+        This is a eager function. Apply the given fn to all the shards.
+        :param fn: the function
+        :return: a list of those shard results
+        """
+        self._trigger_transform()
+        results = ray.get([shard.apply.remote(True, fn) for shard in self._shards])
+        return results
+
     def num_shards(self) -> int:
         return self._num_shards
 

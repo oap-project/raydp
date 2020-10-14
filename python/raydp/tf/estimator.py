@@ -42,8 +42,8 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  label_column: str = None,
                  label_type: Optional[tf.DType] = None,
                  label_shape: Optional[tf.TensorShape] = None,
-                 batch_size: int = None,
-                 num_epochs: int = None,
+                 batch_size: int = 128,
+                 num_epochs: int = 1,
                  shuffle: bool = True,
                  config: Dict = None):
         """
@@ -128,9 +128,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._label_column = label_column
         self._label_type = label_type
         self._label_shape = label_shape
+        self._batch_size = batch_size
 
         _config = {"batch_size": batch_size}
-        _config.update(config)
+        if config is not None:
+            _config.update(config)
         self._config = _config
         self._num_epochs: int = num_epochs
         self._shuffle: bool = shuffle
@@ -138,6 +140,17 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._trainer: TFTrainer = None
 
     def fit(self, ds: ParallelPandasDataset, **kwargs) -> NoReturn:
+        if "fit_config" not in self._config:
+            self._config["fit_config"] = {}
+        if "steps_per_epoch" not in self._config["fit_config"]:
+            def count_fn(it) -> int:
+                count = 0
+                for pdf in it:
+                    count += pdf.shape[0]
+                return count
+            minimum_records = min(ds.apply(count_fn))
+            self._config["fit_config"]["steps_per_epoch"] = minimum_records // self._batch_size
+
         def model_creator(config):
             # https://github.com/ray-project/ray/issues/5914
             import tensorflow.keras as keras
