@@ -16,12 +16,10 @@
 #
 
 import atexit
-import math
 import re
 import signal
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
-import numpy as np
 import psutil
 
 MEMORY_SIZE_UNITS = {"K": 2**10, "M": 2**20, "G": 2**30, "T": 2**40}
