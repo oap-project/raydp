@@ -212,9 +212,9 @@ class RayCoarseGrainedExecutorBackend(
   }
 
   def redirectLog(): Unit = {
-    val logFile = Paths.get(workingDir.getAbsolutePath, executorId, 
+    val logFile = Paths.get(workingDir.getAbsolutePath, executorId,
       s"executor${executorId}.out")
-    val errorFile = Paths.get(workingDir.getAbsolutePath, executorId, 
+    val errorFile = Paths.get(workingDir.getAbsolutePath, executorId,
       s"executor${executorId}.err")
     logInfo(s"Redirect executor log to ${logFile.toString()}")
     val appenders = LogManager.getRootLogger().getAllAppenders()
@@ -224,7 +224,7 @@ class RayCoarseGrainedExecutorBackend(
 
     val out = new Log4jFileAppender(layout, logFile.toString())
     out.setName("outfile")
-    
+
     val err = new Log4jFileAppender(layout, errorFile.toString())
     err.setName("errfile")
     err.setThreshold(Level.ERROR)

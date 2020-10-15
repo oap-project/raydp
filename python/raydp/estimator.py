@@ -40,7 +40,6 @@ class EstimatorInterface(ABC):
         Get the trained model
         :return the model
         """
-        pass
 
     @abstractmethod
     def save(self, file_path) -> NoReturn:
@@ -48,7 +47,6 @@ class EstimatorInterface(ABC):
         Save the trained model to the given file path
         :param file_path: the file path
         """
-        pass
 
     @abstractmethod
     def restore(self, file_path) -> NoReturn:
@@ -56,11 +54,9 @@ class EstimatorInterface(ABC):
         Restore the model
         :param file_path: the model saved file path
         """
-        pass
 
     @abstractmethod
     def shutdown(self) -> NoReturn:
         """
         Shutdown the estimator
         """
-        pass

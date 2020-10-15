@@ -124,7 +124,7 @@ def stop_spark():
             _global_spark_context = None
 
 
-def save_to_ray(df: Union[DataFrame, 'koalas.DataFrame'],
+def save_to_ray(df: Union[DataFrame, "koalas.DataFrame"],
                 num_shards: int) -> PandasDataset:
     """
     Save the pyspark.sql.DataFrame or koalas.DataFrame to Ray ObjectStore and return

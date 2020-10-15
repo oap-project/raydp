@@ -45,7 +45,7 @@ class RayAppMaster(host: String,
     this(RayConfig.getInstance().nodeIp, 0, actor_extra_classpath)
   }
 
-  def init() = {
+  def init(): Unit = {
     val conf = new SparkConf()
     val securityMgr = new SecurityManager(conf)
     rpcEnv = RpcEnv.create(

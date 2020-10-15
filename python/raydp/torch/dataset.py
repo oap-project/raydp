@@ -51,7 +51,7 @@ class AbstractDataset(object):
 
     def _check_and_convert(self):
         # convert to list for convenience
-        if not isinstance(self._feature_columns, List):
+        if not isinstance(self._feature_columns, list):
             self._feature_columns = [self._feature_columns]
 
         if self._feature_shapes:

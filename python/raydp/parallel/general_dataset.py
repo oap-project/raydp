@@ -588,13 +588,13 @@ class Dataset(_Dataset[T]):
                                 f"expected({expected_shard_age}), you should get the new shard "
                                 f"iterator")
             data = ray.get(shard.get_batch.remote(True, batch_size))
-            if data is []:
+            if not data:
                 return
             for item in data:
                 yield item
             while len(data) > 0:
                 data = ray.get(shard.get_batch.remote(False, batch_size))
-                if data is []:
+                if not data:
                     return
                 for item in data:
                     yield item
@@ -666,7 +666,8 @@ class PandasDataset(Dataset[pd.DataFrame]):
               feature_shapes: List["tensorflow.TensorShape"] = None,
               label_column: str = None,
               label_type: "tensorflow.DType" = None,
-              label_shape: "tensorflow.TensorShape" = None):
+              label_shape: "tensorflow.TensorShape" = None,
+              shuffle: bool = True):
         from raydp.tf import TFDataset
         tf_dataset = TFDataset(ds=self,
                                feature_columns=feature_columns,
@@ -674,5 +675,6 @@ class PandasDataset(Dataset[pd.DataFrame]):
                                feature_shapes=feature_shapes,
                                label_column=label_column,
                                label_type=label_type,
-                               label_shape=label_shape)
+                               label_shape=label_shape,
+                               shuffle=shuffle)
         return tf_dataset.setup_dataset(shard_id)

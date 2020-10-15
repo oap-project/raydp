@@ -20,15 +20,15 @@ package org.apache.spark.raydp;
 import io.ray.api.ActorHandle;
 import io.ray.api.Ray;
 import io.ray.api.call.ActorCreator;
-import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;
-
 import java.util.Map;
+import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;
 
 public class AppMasterJavaUtils {
   private static int MEMORY_RESOURCE_UNIT_BYTES = 50 * 1024 * 1024;
   /**
    * Convert from mbs -> memory units. The memory units in ray is 50 * 1024 * 1024
    */
+   
   private static double toMemoryUnits(int memoryInMB) {
     double result = 1.0 * memoryInMB * 1024 * 1024 / MEMORY_RESOURCE_UNIT_BYTES;
     return Math.round(result);
