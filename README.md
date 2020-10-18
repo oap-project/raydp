@@ -40,11 +40,11 @@ You can find all the `whl` file under `${RAYDP_HOME}/dist`.
 Write Spark, PyTorch/Tensorflow, Ray code in the same python program using RayDP.
 ```python
 import ray
-from raydp.spark import context
-from raydp.spark.torch.estimator import TorchEstimator
+import raydp
+from raydp.tf import TFEstimator
 
 ray.init(…) 
-spark = context.init_spark(…)
+spark = raydp.init_spark(…)
 
 #Spark DataFrame Code 
 df = spark.read.parquet(…) 
