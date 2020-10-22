@@ -19,7 +19,7 @@ RayDP provides high level scikit-learn style Estimator APIs for distributed trai
 > **Note**: RayDP depends on Ray and Apache Spark. However, we have to do some modification of the source code for those two frameworks due to the following reasons. **We will patch those modification to upstream later**. 
 >
 > * In Spark 3.0 and 3.0.1 version, pyspark does not support user defined resource manager.
-> * In Ray 0.8.7 version, we can not esay exchange ray ObjectRef between different language workers.
+> * In Ray 0.8.7 version, we can not easily exchange ray ObjectRef between different language workers.
 
 
 
