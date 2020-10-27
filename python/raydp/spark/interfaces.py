@@ -26,7 +26,7 @@ class SparkEstimatorInterface:
                      df: Union["pyspark.sql.DataFrame", "koalas.DataFrame"],
                      **kwargs) -> NoReturn:
         """
-        Fit the model on the df. The df should be ether spark DataFrame or koalas DataFrame.
+        Fit the model on the df. The df should be either spark DataFrame or koalas DataFrame.
         """
         df_type_check(df)
 
@@ -34,7 +34,16 @@ class SparkEstimatorInterface:
                           df: Union["pyspark.sql.DataFrame", "koalas.DataFrame"],
                           **kwargs) -> NoReturn:
         """
-        Evaluate on the trained model. The df should be ether spark DataFrame or koalas
-        DataFrame. This should be called after call fit.
+        Evaluate on the trained model. The df should be either spark DataFrame or koalas
+        DataFrame. This should be called after fit.
+        """
+        df_type_check(df)
+
+    def predict_on_spark(self,
+                          df: Union["pyspark.sql.DataFrame", "koalas.DataFrame"],
+                          **kwargs) -> "numpy.array":
+        """
+        Predict based on the trained model. The df should be either spark DataFrame or
+        koalas DataFrame. This should be called after fit.
         """
         df_type_check(df)

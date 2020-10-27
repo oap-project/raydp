@@ -35,6 +35,10 @@ class EstimatorInterface(ABC):
         pass
 
     @abstractmethod
+    def evaluate(self, df: PandasDataset, **kwargs) -> "numpy.array":
+        pass
+
+    @abstractmethod
     def get_model(self) -> Any:
         """
         Get the trained model

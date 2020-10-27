@@ -184,17 +184,18 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         ds = save_to_ray(df, self._num_workers)
         self.fit(ds)
 
-    def evaluate(self, df: ParallelPandasDataset, **kwargs) -> NoReturn:
+    def evaluate(self, ds: ParallelPandasDataset, **kwargs) -> NoReturn:
         if self._trainer is None:
             raise Exception("Must call fit first")
-        dataset = TFDataset(df,
+        dataset = TFDataset(ds,
                             self._feature_columns,
                             self._feature_types,
                             self._feature_shapes,
                             self._label_column,
                             self._label_type,
                             self._label_shape,
-                            self._shuffle)
+                            self._shuffle,
+                            repeat=False)
         config = self._config
         tf_dataset: tf.data.Dataset = dataset.setup(config)
         model: keras.Model = self._trainer.get_model()
@@ -219,6 +220,32 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         model: keras.Model = self._trainer.get_model()
         result = model.evaluate(tf_dataset)
         print(result)
+
+    def predict(self, ds: ParallelPandasDataset, **kwargs) -> "numpy.array":
+        if self._trainer is None:
+            raise Exception("Must call fit first")
+        dataset = TFDataset(ds,
+                            self._feature_columns,
+                            self._feature_types,
+                            self._feature_shapes,
+                            shuffle=self._shuffle,
+                            repeat=False)
+        tf_dataset = dataset.setup(self._config)
+        model = self.get_model()
+        return model.predict(tf_dataset)
+
+    def predict_on_spark(self, df, **kwargs) -> "numpy.array":
+        if self._trainer is None:
+            raise Exception("Must call fit first")
+        pdf = df.toPandas()
+        dataset = PandasTFDataset(pdf,
+                                  self._feature_columns,
+                                  self._feature_types,
+                                  self._feature_shapes,
+                                  shuffle=self._shuffle)
+        tf_dataset = dataset.setup(self._config)
+        model = self.get_model()
+        return model.predict(tf_dataset)
 
     def get_model(self) -> Any:
         assert self._trainer, "Trainer has not been created"

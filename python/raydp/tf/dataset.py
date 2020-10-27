@@ -34,7 +34,8 @@ class _Dataset:
                  label_column: str,
                  label_type: tf.DType,
                  label_shape: tf.TensorShape,
-                 shuffle: bool):
+                 shuffle: bool,
+                 repeat: bool):
 
         self._feature_columns: List[str] = feature_columns
         self._feature_types: List[tf.DType] = feature_types
@@ -43,6 +44,7 @@ class _Dataset:
         self._label_type: tf.DType = label_type
         self._label_shape: tf.TensorShape = label_shape
         self._shuffle: bool = shuffle
+        self._repeat: bool = repeat
         self._resolved: bool = False
 
         self._check_and_convert()
@@ -91,13 +93,14 @@ class PandasTFDataset(_Dataset):
                  feature_columns: List[str],
                  feature_types: List[tf.DType],
                  feature_shapes: List[tf.TensorShape],
-                 label_column: str,
-                 label_type: tf.DType,
-                 label_shape: tf.TensorShape,
-                 shuffle: bool):
+                 label_column: str = None,
+                 label_type: tf.DType = None,
+                 label_shape: tf.TensorShape = None,
+                 shuffle: bool = True,
+                 repeat: bool = False):
         super(PandasTFDataset, self).__init__(
             feature_columns, feature_types, feature_shapes, label_column,
-            label_type, label_shape, shuffle)
+            label_type, label_shape, shuffle, repeat)
         self._df = df
 
     def _create_dataset_from_pandas(self, df: pd.DataFrame) -> tf.data.Dataset:
@@ -105,8 +108,10 @@ class PandasTFDataset(_Dataset):
         feature_shapes = [shape.as_list() for shape in self._feature_shapes]
         for shape in feature_shapes:
             shape.insert(0, -1)
-        label_shape = self._label_shape.as_list()
-        label_shape.insert(0, -1)
+        
+        if self._label_column is not None:
+            label_shape = self._label_shape.as_list()
+            label_shape.insert(0, -1)
 
         for col, tp, shape in zip(self._feature_columns,
                                   self._feature_types,
@@ -115,9 +120,12 @@ class PandasTFDataset(_Dataset):
             col_t = tf.reshape(col_t, shape)
             tensors.append(col_t)
 
-        label_tensor = tf.convert_to_tensor(df[self._label_column], self._label_type)
-        label_tensor = tf.reshape(label_tensor, label_shape)
-        return tf.data.Dataset.from_tensor_slices((tuple(tensors), label_tensor))
+        if self._label_column is not None:
+            label_tensor = tf.convert_to_tensor(df[self._label_column], self._label_type)
+            label_tensor = tf.reshape(label_tensor, label_shape)
+            return tf.data.Dataset.from_tensor_slices((tuple(tensors), label_tensor))
+        else:
+            return tf.data.Dataset.from_tensor_slices((tuple(tensors), ))
 
     def setup(self, config) -> tf.data.Dataset:
         batch_size = config["batch_size"]
@@ -131,10 +139,11 @@ class TFDataset(_Dataset):
                  feature_columns: List[str],
                  feature_types: List[tf.DType],
                  feature_shapes: List[tf.TensorShape],
-                 label_column: str,
-                 label_type: tf.DType,
-                 label_shape: tf.TensorShape,
-                 shuffle: bool):
+                 label_column: str = None,
+                 label_type: tf.DType = None,
+                 label_shape: tf.TensorShape = None,
+                 shuffle: bool = True,
+                 repeat: bool = True):
         """
         :param ds: the raydp.parallel.PandasDataset
         :param feature_columns: the feature columns, also it is the Model input name
@@ -147,7 +156,7 @@ class TFDataset(_Dataset):
         """
         super(TFDataset, self).__init__(
             feature_columns, feature_types, feature_shapes, label_column,
-            label_type, label_shape, shuffle)
+            label_type, label_shape, shuffle, repeat)
         # TODO: support shuffle
         self._data_set: ParallelPandasDataset = ds
 
@@ -163,7 +172,9 @@ class TFDataset(_Dataset):
         batch_size = config["batch_size"]
         if self._shuffle:
             dataset = dataset.shuffle(buffer_size=batch_size, seed=world_rank)
-        dataset = dataset.batch(batch_size).repeat()
+        dataset = dataset.batch(batch_size)
+        if self._repeat:
+            dataset.repeat()
         return dataset
 
     def setup_dataset(self, world_rank: Optional[int]) -> tf.data.Dataset:
@@ -174,10 +185,13 @@ class TFDataset(_Dataset):
 
         make_generator = self._make_ds_generator(it)
         output_shapes = self._feature_shapes.copy()
-        output_shapes = (tuple(output_shapes), self._label_shape)
-
         output_types = self._feature_types.copy()
-        output_types = (tuple(output_types),  self._label_type)
+        if self._label_column is not None:
+            output_shapes = (tuple(output_shapes), self._label_shape)
+            output_types = (tuple(output_types),  self._label_type)
+        else:
+            output_shapes = (tuple(output_shapes), )
+            output_types = (tuple(output_types), )
 
         return tf.data.Dataset.from_generator(generator=make_generator,
                                               output_types=output_types,
@@ -190,8 +204,12 @@ class TFDataset(_Dataset):
             for pdf in iter(data):
                 num_rows = pdf.shape[0]
                 feature_columns = [pdf[col].values for col in outer._feature_columns]
-                label_column = pdf[outer._label_column].values
+                if outer._label_column is not None:
+                    label_column = pdf[outer._label_column].values
                 for i in range(num_rows):
                     features = [f[i] for f in feature_columns]
-                    yield tuple(features), label_column[i]
+                    if outer._label_column is not None:
+                        yield tuple(features), label_column[i]
+                    else:
+                        yield tuple(features), 
         return make_generator
