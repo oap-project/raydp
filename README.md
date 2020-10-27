@@ -41,20 +41,20 @@ Write Spark, PyTorch/Tensorflow, Ray code in the same python program using RayDP
 ```python
 import ray
 import raydp
-from raydp.tf import TFEstimator
+from raydp.torch import TorchEstimator
 
 ray.init(…) 
 spark = raydp.init_spark(…)
 
-#Spark DataFrame Code 
+# Spark DataFrame Code 
 df = spark.read.parquet(…) 
 train_df = df.withColumn(…)
 
-#PyTorch Code 
+# PyTorch Code 
 model = torch.nn.Sequential(torch.nn.Linear(2, 1)) 
 optimizer = torch.optim.Adam(model.parameters())
 
-#Sklearn style Estimator API in RayDP for distributed training 
+# Sklearn style Estimator API in RayDP for distributed training 
 estimator = TorchEstimator(model=model, optimizer=optimizer, ...) 
 estimator.fit_on_spark(train_df)
 
