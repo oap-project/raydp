@@ -212,40 +212,31 @@ class RayCoarseGrainedExecutorBackend(
   }
 
   def redirectLog(): Unit = {
-    val logFile = Paths.get(workingDir.getAbsolutePath, executorId,
-      s"executor${executorId}.out")
-    val errorFile = Paths.get(workingDir.getAbsolutePath, executorId,
-      s"executor${executorId}.err")
-    logInfo(s"Redirect executor log to ${logFile.toString()}")
-    val appenders = LogManager.getRootLogger().getAllAppenders()
+    val logFile = Paths.get(workingDir.getAbsolutePath, executorId, s"executor${executorId}.out")
+    val errorFile = Paths.get(workingDir.getAbsolutePath, executorId, s"executor${executorId}.err")
+    logInfo(s"Redirect executor log to ${logFile.toString}")
+    val appenders = LogManager.getRootLogger.getAllAppenders
     // There should be a console appender. Use its layout.
     val defaultAppender = appenders.nextElement().asInstanceOf[Appender]
-    val layout = defaultAppender.getLayout()
+    val layout = defaultAppender.getLayout
 
-    val out = new Log4jFileAppender(layout, logFile.toString())
+    val out = new Log4jFileAppender(layout, logFile.toString)
     out.setName("outfile")
 
     val err = new Log4jFileAppender(layout, errorFile.toString())
     err.setName("errfile")
     err.setThreshold(Level.ERROR)
 
-    LogManager.getRootLogger().addAppender(out)
-    LogManager.getRootLogger().addAppender(err)
-    LogManager.getRootLogger().removeAppender(defaultAppender)
+    LogManager.getRootLogger.addAppender(out)
+    LogManager.getRootLogger.addAppender(err)
+    LogManager.getRootLogger.removeAppender(defaultAppender)
   }
 
   def createTemporaryRpcEnv(
       name: String,
       conf: SparkConf): Unit = {
-    val env = RpcEnv.create(
-      name,
-      nodeIp,
-      nodeIp,
-      -1,
-      conf,
-      new SecurityManager(conf),
-      numUsableCores = 0,
-      clientMode = true)
+    val env = RpcEnv.create(name, nodeIp, nodeIp, -1, conf, new SecurityManager(conf),
+      numUsableCores = 0, clientMode = true)
     temporaryRpcEnv = Some(env)
   }
 

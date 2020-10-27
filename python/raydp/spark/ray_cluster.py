@@ -17,7 +17,7 @@
 
 import glob
 from collections import Iterator
-from typing import Any, Dict, Generic, Iterable, List, NoReturn
+from typing import Any, Dict, Iterable, List, NoReturn
 
 import pandas as pd
 import pyarrow as pa
