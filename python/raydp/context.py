@@ -15,6 +15,9 @@
 # limitations under the License.
 #
 
+import atexit
+import ray
+
 from contextlib import ContextDecorator
 from threading import RLock
 from typing import Dict, Union, Optional
@@ -81,10 +84,10 @@ class _SparkContext(ContextDecorator):
             self._spark_cluster = None
 
     def __enter__(self):
-        self._get_or_create_session()
+        self.get_or_create_session()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._stop()
+        self.stop()
 
 
 _spark_context_lock = RLock()
@@ -106,6 +109,11 @@ def init_spark(app_name: str,
     :param configs: the extra Spark config need to set
     :return: return the SparkSession
     """
+
+    if not ray.is_initialized():
+        # ray has not initialized, init local
+        ray.init(include_java=True)
+
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is None:
@@ -140,3 +148,6 @@ def save_to_ray(df: Union[DataFrame, "koalas.DataFrame"],
         # convert to Spark sql DF
         df, _ = convert_to_spark(df)
         return _global_spark_context._get_or_create_spark_cluster().save_to_ray(df, num_shards)
+
+
+atexit.register(stop_spark)
