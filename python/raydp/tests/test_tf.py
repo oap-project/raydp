@@ -45,7 +45,7 @@ def test_tf_estimator(ray_cluster):
     input_2 = keras.Input(shape=(1,))
 
     concatenated = keras.layers.concatenate([input_1, input_2])
-    output = keras.layers.Dense(1, activation='sigmoid')(concatenated)
+    output = keras.layers.Dense(1)(concatenated)
     model = keras.Model(inputs=[input_1, input_2],
                         outputs=output)
 
@@ -56,7 +56,7 @@ def test_tf_estimator(ray_cluster):
                             model=model,
                             optimizer=optimizer,
                             loss=loss,
-                            metrics=["accuracy", "mse"],
+                            metrics=["mse"],
                             feature_columns=["x", "y"],
                             label_column="z",
                             batch_size=1000,
