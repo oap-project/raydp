@@ -24,7 +24,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build and test:
+  build-and-test:
 
     runs-on: ubuntu-latest
 
