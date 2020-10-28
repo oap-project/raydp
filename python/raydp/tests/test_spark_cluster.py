@@ -19,14 +19,11 @@ import sys
 
 import pytest
 
-import raydp
 
-
-def test_spark(ray_cluster):
-    spark = raydp.init_spark("test", 1, 1, "500 M")
+def test_spark(spark_on_ray_small):
+    spark = spark_on_ray_small
     result = spark.range(0, 10).count()
     assert result == 10
-    raydp.stop_spark()
 
 
 if __name__ == "__main__":

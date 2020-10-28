@@ -20,6 +20,7 @@ import logging
 import pytest
 from pyspark.sql import SparkSession
 import ray
+import raydp
 
 
 def quiet_logger():
@@ -40,5 +41,17 @@ def spark_session(request):
 
 @pytest.fixture(scope="function")
 def ray_cluster(request):
-    ray.init(include_java=True, redis_password="123")
+    ray.init(include_java=True, redis_password="123", include_dashboard=False)
     request.addfinalizer(lambda: ray.shutdown())
+
+
+@pytest.fixture(scope="function")
+def spark_on_ray_small(request):
+    ray.init(include_java=True, redis_password="123", include_dashboard=False)
+    spark = raydp.init_spark("test", 1, 1, "500 M")
+
+    def stop_all():
+        raydp.stop_spark()
+        ray.shutdown()
+    request.addfinalizer(stop_all)
+    return spark
