@@ -174,7 +174,7 @@ class TFDataset(_Dataset):
             dataset = dataset.shuffle(buffer_size=batch_size, seed=world_rank)
         dataset = dataset.batch(batch_size)
         if self._repeat:
-            dataset.repeat()
+            dataset = dataset.repeat()
         return dataset
 
     def setup_dataset(self, world_rank: Optional[int]) -> tf.data.Dataset:
