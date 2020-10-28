@@ -38,24 +38,37 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      - name: setup bazel
+      - name: Setup bazel
         uses: abhinavsingh/setup-bazel@v3
         with:
-          version: 3.2.0
-      - name: build
+          version: 3.2.0S
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install wheel
+          pip install wheel pytest koalas tensorflow torch
+      - name: Cache Spark and Ray
+        id: cache-spark-and-ray
+        uses: actions/cache@v2
+        env:
+          cache-name: cache-spark-ray
+        with:
+          path: ~/raydp_dist
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('dev/spark.patch') }}-${{ hashFiles('dev/ray.patch') }}
+      - name: Build Spark and Ray
+        if: steps.cache-spark-and-ray.outputs.cache-hit != 'true'
+        run: |
           git config --global user.name "raydp"
           git config --global user.email "raydp@intel.com"
-          export RAYDP_BUILD_PYSPARK=1
-          export RAYDP_BUILD_RAY=1
-          ./build.sh
-      - name: Install dependencies & package
+          dev/build_pyspark_with_patch.sh
+          dev/build_ray_with_patch.sh
+          mkdir ~/raydp_dist
+          mv dist/pyspark-3.0.0*.whl ~/raydp_dist
+          mv dist/ray-*.whl ~/raydp_dist
+      - name: Build and install package
         run: |
-          pip install pytest koalas
-          pip install dist/pyspark-3.0.0*.whl
-          pip install dist/ray-*.whl
+          ./build.sh
+          pip install raydp_dist/pyspark-3.0.0*.whl
+          pip install raydp_dist/ray-*.whl
           pip install dist/raydp-*.whl
       - name: Test with pytest
         run: |
