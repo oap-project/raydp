@@ -64,8 +64,8 @@ jobs:
       - name: Build and install package
         run: |
           ./build.sh
-          pip install raydp_dist/pyspark-3.0.0*.whl
-          pip install raydp_dist/ray-*.whl
+          pip install ~/raydp_dist/pyspark-3.0.0*.whl
+          pip install ~/raydp_dist/ray-*.whl
           pip install dist/raydp-*.whl
       - name: Test with pytest
         run: |
