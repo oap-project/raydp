@@ -59,4 +59,4 @@ jobs:
           pip install dist/raydp-*.whl
       - name: Test with pytest
         run: |
-          pytes
+          pytest python/raydp/tests/
