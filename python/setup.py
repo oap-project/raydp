@@ -51,8 +51,8 @@ try:
     copy2(JARS_PATH, JARS_TARGET)
 
     install_requires = [
-        "numpy"
-        "typing"
+        "numpy",
+        "typing",
         "pandas",
         "psutil",
         "pyarrow >= 0.10",
