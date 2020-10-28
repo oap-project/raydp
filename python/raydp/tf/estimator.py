@@ -45,7 +45,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  batch_size: int = 128,
                  num_epochs: int = 1,
                  shuffle: bool = True,
-                 config: Dict = None):
+                 **extra_config):
         """
         A scikit-learn like API to distributed training Tensorflow Keras model. In the backend it
         leverage the ray.sgd.TorchTrainer.
@@ -69,7 +69,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param batch_size: the batch size
         :param num_epochs: the number of epochs
         :param shuffle: whether input dataset should be shuffle, True by default.
-        :param config: extra config will fit into TFTrainer.
+        :param extra_config: extra config will fit into TFTrainer.
         """
         self._num_workers: int = num_workers
 
@@ -131,8 +131,8 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._batch_size = batch_size
 
         _config = {"batch_size": batch_size}
-        if config is not None:
-            _config.update(config)
+        if extra_config is not None:
+            _config.update(extra_config)
         self._config = _config
         self._num_epochs: int = num_epochs
         self._shuffle: bool = shuffle

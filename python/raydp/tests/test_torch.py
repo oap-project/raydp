@@ -60,7 +60,8 @@ def test_torch_estimator(spark_on_ray_small):
                                feature_columns=["x", "y"],
                                label_column="z",
                                batch_size=1000,
-                               num_epochs=2)
+                               num_epochs=2,
+                               use_gpu=False)
 
     # train the model
     estimator.fit_on_spark(train_df)
