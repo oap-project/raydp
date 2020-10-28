@@ -327,10 +327,10 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
 
         return metric_meters.summary()
 
-    def evaluate(self, df: ParallelPandasDataset, **kwargs) -> NoReturn:
+    def evaluate(self, ds: ParallelPandasDataset, **kwargs) -> NoReturn:
         if self._trainer is None:
             raise Exception("Must call fit first")
-        it = df.collect()
+        it = ds.collect()
         dataset = TorchIterablePandasDataset(it, self._feature_columns, self._feature_shapes,
                                              self._feature_types, self._label_column, self._label_type)
         dataloader = torch.utils.data.DataLoader(dataset, self._batch_size, shuffle=self._shuffle)
@@ -345,6 +345,40 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                      self._feature_types, self._label_column, self._label_type)
         dataloader = torch.utils.data.DataLoader(dataset, self._batch_size, shuffle=self._shuffle)
         return self._evaluate(dataloader)
+
+    def _predict(self, dataloader):
+        if self._trainer is None:
+            raise Exception("Must call fit first")
+
+        model = self.get_model()
+        model.eval()
+        result = torch.Tensor()
+        with torch.no_grad():
+            for batch in dataloader:
+                *features, = batch
+                predict = model(*features)
+                result = torch.cat((result, predict), dim=0)
+
+        return result.numpy()
+
+
+    def predict(self, ds: ParallelPandasDataset, **kwargs):
+        if self._trainer is None:
+            raise Exception("Must call fit first")
+        it = ds.collect()
+        dataset = TorchIterablePandasDataset(it, self._feature_columns, self._feature_shapes,
+                                             self._feature_types)
+        dataloader = torch.utils.data.DataLoader(dataset, self._batch_size)
+        return self._predict(dataloader)
+
+    def predict_on_spark(self, df, **kwargs):
+        if self._trainer is None:
+            raise Exception("Must call fit first")
+        pdf = df.toPandas()
+        dataset = TorchPandasDataset(pdf, self._feature_columns, self._feature_shapes,
+                                     self._feature_types)
+        dataloader = torch.utils.data.DataLoader(dataset, self._batch_size)
+        return self._predict(dataloader)
 
     def get_model(self):
         assert self._trainer is not None, "Must call fit first"

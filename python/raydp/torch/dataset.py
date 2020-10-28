@@ -81,7 +81,7 @@ class AbstractDataset(object):
         if not self._feature_types:
             self._feature_types = [torch.float] * len(self._feature_columns)
 
-        if not self._label_type:
+        if self._label_column is not None and not self._label_type:
             self._label_type = torch.float
 
     def _convert_to_tensor(self, df):
@@ -112,8 +112,10 @@ class AbstractDataset(object):
             t = torch.as_tensor(feature_df, dtype=self._feature_types[0])
             feature_tensor = [t]
 
-        label_df = df[self._label_column].values
-        label_tensor = torch.as_tensor(label_df, dtype=self._label_type)
+        label_tensor = None
+        if self._label_column is not None:
+            label_df = df[self._label_column].values
+            label_tensor = torch.as_tensor(label_df, dtype=self._label_type)
         return feature_tensor, label_tensor
 
 
@@ -174,8 +176,11 @@ class TorchIterablePandasDataset(AbstractDataset, IterableDataset):
             feature_tensor, label_tensor = self._convert_to_tensor(pdf)
             for i in range(num_rows):
                 features = [tensor[i] for tensor in feature_tensor]
-                label = label_tensor[i]
-                yield (*features, label)
+                if label_tensor is None:
+                    yield (*features,)
+                else:
+                    label = label_tensor[i]
+                    yield (*features, label)
 
 
 class TorchPandasDataset(AbstractDataset, Dataset):
@@ -205,8 +210,11 @@ class TorchPandasDataset(AbstractDataset, Dataset):
         if self._feature_tensor is None:
             self._feature_tensor, self._label_tensor = self._convert_to_tensor(self._df)
         features = [tensor[index] for tensor in self._feature_tensor]
-        label = self._label_tensor[index]
-        return (*features, label)
+        if self._label_tensor is None:
+            return (*features,)
+        else:
+            label = self._label_tensor[index]
+            return (*features, label)
 
     def __getitem__(self, index):
         return self._get_next(index)
