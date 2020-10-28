@@ -41,7 +41,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install wheel pytest koalas tensorflow torch
+          pip install wheel pytest koalas tensorflow torch tabulate
       - name: Cache Spark and Ray
         id: cache-spark-and-ray
         uses: actions/cache@v2
