@@ -541,11 +541,11 @@ class Dataset(_Dataset[T]):
         Collect all data as a local IteratorShard.
         :param batch_size read batch_size of data from each shard once
         """
-        shards = []
-        for shard_id in range(self._num_shards):
-            shards.append(iter(self.get_shard(shard_id, batch_size)))
 
         def shard_creator():
+            shards = []
+            for shard_id in range(self._num_shards):
+                shards.append(iter(self.get_shard(shard_id, batch_size)))
             valid_shards = list(shards)
             to_remove_indexes = []
 

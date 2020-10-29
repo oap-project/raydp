@@ -58,8 +58,15 @@ then
     echo "bazel has not been installed, install it..."
     ray/ci/travis/install-bazel.sh
 else
-    bazel_path=`which bazel`
-    echo "Using ${bazel_path} for build ray"
+    INSTALL_BAZEL=${INSTALL_BAZEL:-0}
+    if [[ ${INSTALL_BAZEL} == 1 ]];
+    then
+        echo "Install bazel"
+        ray/ci/travis/install-bazel.sh
+    else
+        bazel_path=`which bazel`
+        echo "Using ${bazel_path} for build ray"
+    fi
 fi
 
 if ! command -v npm &> /dev/null

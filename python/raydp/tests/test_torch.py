@@ -15,21 +15,19 @@
 # limitations under the License.
 #
 
-import sys
-
-import databricks.koalas as ks
 import pytest
+import sys
 import torch
 
-import raydp.context as context
+import databricks.koalas as ks
+
 from raydp.torch import TorchEstimator
 from raydp.utils import random_split
 
 
-def test_torch_estimator(ray_cluster):
+def test_torch_estimator(spark_on_ray_small):
     # ---------------- data process with koalas ------------
-    app_name = "A simple example for spark on ray"
-    context.init_spark(app_name, 2, 1, "500MB")
+    spark = spark_on_ray_small
 
     # calculate z = 3 * x + 4 * y + 5
     df: ks.DataFrame = ks.range(0, 100000)
@@ -54,7 +52,7 @@ def test_torch_estimator(ray_cluster):
             optimizer, milestones=[150, 250, 350], gamma=0.1)
 
     # create the estimator
-    estimator = TorchEstimator(num_workers=2,
+    estimator = TorchEstimator(num_workers=1,
                                model=model,
                                optimizer=optimizer,
                                loss=loss,
@@ -62,19 +60,15 @@ def test_torch_estimator(ray_cluster):
                                feature_columns=["x", "y"],
                                label_column="z",
                                batch_size=1000,
-                               num_epochs=2)
+                               num_epochs=2,
+                               use_gpu=False)
 
     # train the model
     estimator.fit_on_spark(train_df)
     # evaluate the model
     estimator.evaluate_on_spark(test_df)
 
-    # get the model
-    model = estimator.get_model()
-    print(list(model.parameters()))
-
     estimator.shutdown()
-    context.stop_spark()
 
 
 if __name__ == "__main__":

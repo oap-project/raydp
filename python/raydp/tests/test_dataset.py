@@ -3,7 +3,6 @@ import sys
 import pandas as pd
 import pytest
 
-import raydp
 import raydp.parallel as parallel
 
 
@@ -58,8 +57,8 @@ def test_from_items(ray_cluster):
     assert results == list(range(9))
 
 
-def test_from_spark(ray_cluster):
-    spark = raydp.init_spark("test", 1, 1, "500 M")
+def test_from_spark(spark_on_ray_small):
+    spark = spark_on_ray_small
     df = spark.range(0, 10)
     ds = parallel.from_spark_df(df, 2)
     assert ds.repeatable()

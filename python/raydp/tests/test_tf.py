@@ -15,20 +15,20 @@
 # limitations under the License.
 #
 
-import sys
-
 import pyspark
 import pytest
+import sys
+
 import tensorflow.keras as keras
+
 from pyspark.sql.functions import rand
 
-from raydp import context
 from raydp.tf import TFEstimator
 from raydp.utils import random_split
 
 
-def test_tf_estimator(ray_cluster):
-    spark = context.init_spark("test", 2, 1, "500M")
+def test_tf_estimator(spark_on_ray_small):
+    spark = spark_on_ray_small
 
     # ---------------- data process with Spark ------------
     # calculate z = 3 * x + 4 * y + 5
@@ -52,7 +52,7 @@ def test_tf_estimator(ray_cluster):
     optimizer = keras.optimizers.Adam(0.01)
     loss = keras.losses.MeanSquaredError()
 
-    estimator = TFEstimator(num_workers=2,
+    estimator = TFEstimator(num_workers=1,
                             model=model,
                             optimizer=optimizer,
                             loss=loss,
@@ -60,13 +60,13 @@ def test_tf_estimator(ray_cluster):
                             feature_columns=["x", "y"],
                             label_column="z",
                             batch_size=1000,
-                            num_epochs=2)
+                            num_epochs=2,
+                            use_gpu=False)
 
     estimator.fit_on_spark(train_df)
     estimator.evaluate_on_spark(test_df)
 
     estimator.shutdown()
-    context.stop_spark()
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
-from .estimator import PandasTFDataset, TFEstimator, TFDataset
+from .dataset import PandasTFDataset, TFDataset
+from .estimator import TFEstimator
 
 __all__ = ["PandasTFDataset", "TFEstimator", "TFDataset"]
