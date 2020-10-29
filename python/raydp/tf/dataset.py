@@ -163,7 +163,7 @@ class TFDataset(_Dataset):
         batch_size = config["batch_size"]
         if self._shuffle:
             dataset = dataset.shuffle(buffer_size=batch_size, seed=world_rank)
-        dataset = dataset.batch(batch_size).repeat()
+        dataset = dataset.batch(batch_size)
         return dataset
 
     def setup_dataset(self, world_rank: Optional[int]) -> tf.data.Dataset:
@@ -171,6 +171,7 @@ class TFDataset(_Dataset):
             it = self._data_set.get_shard(world_rank)
         else:
             it = self._data_set.collect()
+        it = it.repeat()
 
         make_generator = self._make_ds_generator(it)
         output_shapes = self._feature_shapes.copy()
