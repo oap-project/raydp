@@ -35,7 +35,7 @@ class EstimatorInterface(ABC):
         pass
 
     @abstractmethod
-    def evaluate(self, df: PandasDataset, **kwargs) -> "numpy.array":
+    def predict(self, df: PandasDataset, **kwargs) -> "numpy.array":
         pass
 
     @abstractmethod
