@@ -1,13 +1,14 @@
-From 0fd20b06c3f6c13b2e87f2f128fe030afad6940e Mon Sep 17 00:00:00 2001
+From fa1a0b0bd83e12824b0816a670b60089e85e5d5e Mon Sep 17 00:00:00 2001
 From: Xianyang Liu <xianyang.liu@intel.com>
-Date: Sun, 30 Aug 2020 21:51:17 +0800
+Date: Fri, 20 Nov 2020 10:44:11 +0800
 Subject: [PATCH] support promote & get_ownership
 
 ---
  .../ray/runtime/object/NativeObjectStore.java |  4 ++++
  ...io_ray_runtime_object_NativeObjectStore.cc | 20 +++++++++++++++++++
  .../io_ray_runtime_object_NativeObjectStore.h | 20 +++++++++++++++++++
- 3 files changed, 44 insertions(+)
+ src/ray/core_worker/lib/java/jni_utils.h      |  4 ++--
+ 4 files changed, 46 insertions(+), 2 deletions(-)
 
 diff --git a/java/runtime/src/main/java/io/ray/runtime/object/NativeObjectStore.java b/java/runtime/src/main/java/io/ray/runtime/object/NativeObjectStore.java
 index fe39413b3..50c397e3b 100644
@@ -15,7 +16,7 @@ index fe39413b3..50c397e3b 100644
 +++ b/java/runtime/src/main/java/io/ray/runtime/object/NativeObjectStore.java
 @@ -98,4 +98,8 @@ public class NativeObjectStore extends ObjectStore {
    private static native void nativeRemoveLocalReference(byte[] workerId, byte[] objectId);
- 
+
    private static native Map<byte[], long[]> nativeGetAllReferenceCounts();
 +
 +  public static native void nativePromoteObjectToPlasma(byte[] objectId);
@@ -29,7 +30,7 @@ index b806c369d..c9dd6fe7b 100644
 @@ -171,6 +171,26 @@ Java_io_ray_runtime_object_NativeObjectStore_nativeGetAllReferenceCounts(JNIEnv
        });
  }
- 
+
 +JNIEXPORT void JNICALL
 +Java_io_ray_runtime_object_NativeObjectStore_nativePromoteObjectToPlasma(JNIEnv *env, jclass,
 +        jbyteArray objectId) {
@@ -60,7 +61,7 @@ index bc9719b48..a6c4b545a 100644
 @@ -94,6 +94,26 @@ JNIEXPORT jobject JNICALL
  Java_io_ray_runtime_object_NativeObjectStore_nativeGetAllReferenceCounts(JNIEnv *,
                                                                           jclass);
- 
+
 +
 +
 +/*
@@ -84,6 +85,21 @@ index bc9719b48..a6c4b545a 100644
  #ifdef __cplusplus
  }
  #endif
+diff --git a/src/ray/core_worker/lib/java/jni_utils.h b/src/ray/core_worker/lib/java/jni_utils.h
+index 67207dc60..0470b2457 100644
+--- a/src/ray/core_worker/lib/java/jni_utils.h
++++ b/src/ray/core_worker/lib/java/jni_utils.h
+@@ -338,8 +338,8 @@ inline jobject NativeVectorToJavaList(
+       env->NewObject(java_array_list_class, java_array_list_init_with_capacity,
+                      (jint)native_vector.size());
+   RAY_CHECK_JAVA_EXCEPTION(env);
+-  for (const auto &item : native_vector) {
+-    auto element = element_converter(env, item);
++  for (auto it = native_vector.begin(); it != native_vector.end(); ++it){
++    auto element = element_converter(env, *it);
+     env->CallVoidMethod(java_list, java_list_add, element);
+     RAY_CHECK_JAVA_EXCEPTION(env);
+     env->DeleteLocalRef(element);
 -- 
 2.24.3 (Apple Git-128)
 
