@@ -23,7 +23,7 @@ import java.util.function.{Function => JFunction}
 import java.util.{List, UUID}
 
 import io.ray.api.{ObjectRef, Ray}
-import io.ray.runtime.`object`.NativeObjectStore
+import io.ray.runtime.RayRuntimeInternal
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.apache.spark.raydp.RayDPUtils
@@ -59,10 +59,10 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
     // add the objectRef to the objectRefHolder to avoid reference GC
     queue.add(objectRef)
     val objectRefImpl = RayDPUtils.convert(objectRef)
-    val objectId = objectRefImpl.getId().getBytes()
-    NativeObjectStore.nativePromoteObjectToPlasma(objectId)
-    val addressInfo = NativeObjectStore.nativeGetOwnershipInfo(objectId)
-    RecordBatch(addressInfo, objectId, numRecords)
+    val objectId = objectRefImpl.getId
+    val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
+    val addressInfo = runtime.getObjectStore.promoteAndGetOwnershipInfo(objectId)
+    RecordBatch(addressInfo, objectId.getBytes, numRecords)
   }
 
   /**

@@ -16,7 +16,7 @@
 #
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, NoReturn
 
 
 class Cluster(ABC):
@@ -76,10 +76,8 @@ class Cluster(ABC):
 class ClusterMaster(ABC):
 
     @abstractmethod
-    def start_up(self) -> str:
-        """
-        :return: error message, return None if succeeded
-        """
+    def start_up(self) -> NoReturn:
+        pass
 
     @abstractmethod
     def get_master_url(self) -> str:

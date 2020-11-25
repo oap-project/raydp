@@ -32,18 +32,21 @@ from raydp.utils import convert_to_spark, parse_memory_size
 
 
 class _SparkContext(ContextDecorator):
-    """
-    A class used to create the Spark cluster and get the Spark session.
+    """A class used to create the Spark cluster and get the Spark session.
+
+    :param app_name the Spark application name
+    :param num_executors the number of executor requested
+    :param executor_cores the CPU cores for each executor
+    :param executor_memory the memory size (eg: 10KB, 10MB..) for each executor
+    :param configs the extra Spark configs need to set
     """
     def __init__(self,
                  app_name: str,
                  num_executors: int,
                  executor_cores: int,
                  executor_memory: Union[str, int],
-                 spark_home: str = None,
                  configs: Dict[str, str] = None):
         self._app_name = app_name
-        self._spark_home = spark_home
         self._num_executors = num_executors
         self._executor_cores = executor_cores
 
@@ -112,7 +115,7 @@ def init_spark(app_name: str,
 
     if not ray.is_initialized():
         # ray has not initialized, init local
-        ray.init(include_java=True)
+        ray.init()
 
     with _spark_context_lock:
         global _global_spark_context

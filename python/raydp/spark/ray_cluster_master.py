@@ -16,22 +16,25 @@
 #
 
 import json
+import logging
 import os
 import shutil
 import signal
 import struct
 import tempfile
+import time
 from subprocess import Popen, PIPE
 
+import pyspark
 import ray
 import ray.services
-import time
-import pyspark
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
 from raydp.services import ClusterMaster
 
 RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
+
+logger = logging.getLogger(__name__)
 
 
 class RayClusterMaster(ClusterMaster):
@@ -41,12 +44,15 @@ class RayClusterMaster(ClusterMaster):
         self._host = None
         self._started_up = False
 
-    def start_up(self, popen_kwargs=None) -> str:
+    def start_up(self, popen_kwargs=None):
+        if self._started_up:
+            logger.warning("The RayClusterMaster has started already. Do not call it twice")
+            return
         extra_classpath = os.pathsep.join(self._prepare_jvm_classpath())
         self._gateway = self._launch_gateway(extra_classpath, popen_kwargs)
         self._app_master_java_bridge = self._gateway.entry_point.getAppMasterBridge()
         self._set_properties()
-        self._host = ray.services.get_node_ip_address()
+        self._host = ray._private.services.get_node_ip_address()
         self._create_app_master(extra_classpath)
         self._started_up = True
 
@@ -133,9 +139,8 @@ class RayClusterMaster(ClusterMaster):
 
         options["ray.run-mode"] = "CLUSTER"
         options["ray.node-ip"] = node.node_ip_address
-        options["ray.redis.address"] = node.redis_address
+        options["ray.address"] = node.redis_address
         options["ray.redis.password"] = node.redis_password
-        # options["ray.redis.head-password"] = node.redis_password
         options["ray.logging.dir"] = node.get_logs_dir_path()
         options["ray.session-dir"] = node.get_session_dir_path()
         options["ray.raylet.node-manager-port"] = node.node_manager_port

@@ -26,7 +26,7 @@ class AppMasterJavaBridge {
   private var instance: RayAppMaster = null
 
   def setProperties(properties: String): Unit = {
-    implicit val formats = org.json4s.DefaultFormats
+    implicit val formats: DefaultFormats.type = org.json4s.DefaultFormats
     val parsed = parse(properties).extract[Map[String, String]]
     parsed.foreach{ case (key, value) =>
       System.setProperty(key, value)
