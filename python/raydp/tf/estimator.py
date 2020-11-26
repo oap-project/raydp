@@ -15,18 +15,20 @@
 # limitations under the License.
 #
 
-from typing import Any, Dict, List, NoReturn, Optional, Union
+import json
+import os
+from typing import Any, List, NoReturn, Optional, Union
 
 import tensorflow as tf
 import tensorflow.keras as keras
+from ray.util.data import MLDataset
 from ray.util.sgd.tf import TFTrainer
+from ray.util.sgd.tf.tf_dataset import TFMLDataset
 from tensorflow import DType, TensorShape
 
-from raydp.context import save_to_ray
 from raydp.estimator import EstimatorInterface
-from raydp.parallel import PandasDataset as ParallelPandasDataset
-from raydp.spark.interfaces import SparkEstimatorInterface
-from raydp.tf.dataset import PandasTFDataset, TFDataset
+from raydp.spark import create_ml_dataset_from_spark
+from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
 
 
 class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
@@ -46,9 +48,9 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  num_epochs: int = 1,
                  shuffle: bool = True,
                  **extra_config):
-        """
-        A scikit-learn like API to distributed training Tensorflow Keras model. In the backend it
-        leverage the ray.sgd.TorchTrainer.
+        """A scikit-learn like API to distributed training Tensorflow Keras model.
+
+        In the backend it leverage the ray.sgd.TorchTrainer.
         :param num_workers: the number of workers for distributed model training
         :param model: the model, it should be instance of tensorflow.keras.Model. We do not support
                       multiple output models.
@@ -139,17 +141,19 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
 
         self._trainer: TFTrainer = None
 
-    def fit(self, ds: ParallelPandasDataset, **kwargs) -> NoReturn:
+    def _create_tf_ds(self, ds: MLDataset) -> TFMLDataset:
+        return ds.to_tf(self._feature_columns,
+                        self._feature_shapes,
+                        self._feature_types,
+                        self._label_column,
+                        self._label_shape,
+                        self._label_type)
+
+    def fit(self,
+            train_ds: MLDataset,
+            evaluate_ds: Optional[MLDataset] = None) -> NoReturn:
         if "fit_config" not in self._config:
             self._config["fit_config"] = {}
-        if "steps_per_epoch" not in self._config["fit_config"]:
-            def count_fn(it) -> int:
-                count = 0
-                for pdf in it:
-                    count += pdf.shape[0]
-                return count
-            minimum_records = min(ds.apply(count_fn))
-            self._config["fit_config"]["steps_per_epoch"] = minimum_records // self._batch_size
 
         def model_creator(config):
             # https://github.com/ray-project/ray/issues/5914
@@ -162,63 +166,51 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
             return model
 
-        data_set = TFDataset(ds,
-                             self._feature_columns,
-                             self._feature_types,
-                             self._feature_shapes,
-                             self._label_column,
-                             self._label_type,
-                             self._label_shape,
-                             self._shuffle)
+        train_ds = train_ds.batch(self._batch_size)
+        train_tf_ds = self._create_tf_ds(train_ds)
+
+        if evaluate_ds is not None:
+            evaluate_ds = evaluate_ds.batch(self._batch_size)
+            evaluate_tf_ds = self._create_tf_ds(evaluate_ds)
+        else:
+            evaluate_tf_ds = None
 
         def data_creator(config):
-            return data_set.setup(config), None
+            if "TF_CONFIG" in os.environ:
+                tf_config = json.loads(os.environ["TF_CONFIG"])
+                world_rank = tf_config["task"]["index"]
+            else:
+                world_rank = -1
+            batch_size = config["batch_size"]
+            # TODO make get_shard arguments configurable
+            train_data = train_tf_ds.get_shard(
+                world_rank, shuffle=self._shuffle).repeat().batch(batch_size)
+            evaluate_data = None
+            if evaluate_tf_ds is not None:
+                evaluate_data = evaluate_tf_ds.get_shard(world_rank).batch(batch_size)
+            return train_data, evaluate_data
 
         self._trainer = TFTrainer(model_creator, data_creator, self._config, self._num_workers)
         for i in range(self._num_epochs):
             stats = self._trainer.train()
             print(f"Epoch-{i}: {stats}")
 
-    def fit_on_spark(self, df, **kwargs) -> NoReturn:
-        super(TFEstimator, self).fit_on_spark(df, **kwargs)
-        ds = save_to_ray(df, self._num_workers)
-        self.fit(ds)
+        if evaluate_tf_ds is not None:
+            print(self._trainer.validate())
 
-    def evaluate(self, df: ParallelPandasDataset, **kwargs) -> NoReturn:
-        if self._trainer is None:
-            raise Exception("Must call fit first")
-        dataset = TFDataset(df,
-                            self._feature_columns,
-                            self._feature_types,
-                            self._feature_shapes,
-                            self._label_column,
-                            self._label_type,
-                            self._label_shape,
-                            self._shuffle)
-        config = self._config
-        tf_dataset: tf.data.Dataset = dataset.setup(config)
-        model: keras.Model = self._trainer.get_model()
-        result = model.evaluate(tf_dataset)
-        print(result)
-
-    def evaluate_on_spark(self, df, **kwargs) -> NoReturn:
-        super(TFEstimator, self).evaluate_on_spark(df)
-        if self._trainer is None:
-            raise Exception("Must call fit first")
-        pdf = df.toPandas()
-        dataset = PandasTFDataset(pdf,
-                                  self._feature_columns,
-                                  self._feature_types,
-                                  self._feature_shapes,
-                                  self._label_column,
-                                  self._label_type,
-                                  self._label_shape,
-                                  self._shuffle)
-        config = self._config
-        tf_dataset: tf.data.Dataset = dataset.setup(config)
-        model: keras.Model = self._trainer.get_model()
-        result = model.evaluate(tf_dataset)
-        print(result)
+    def fit_on_spark(self,
+                     train_df: DF,
+                     evaluate_df: OPTIONAL_DF = None,
+                     fs_directory: Optional[str] = None,
+                     compression: Optional[str] = None) -> NoReturn:
+        super(TFEstimator, self).fit_on_spark(train_df, evaluate_df)
+        train_ds = create_ml_dataset_from_spark(
+            train_df, self._num_workers, self._batch_size, fs_directory, compression)
+        evaluate_ds = None
+        if evaluate_df is not None:
+            evaluate_ds = create_ml_dataset_from_spark(
+                evaluate_df, self._num_workers, self._batch_size, fs_directory, compression)
+        return self.fit(train_ds, evaluate_ds)
 
     def get_model(self) -> Any:
         assert self._trainer, "Trainer has not been created"

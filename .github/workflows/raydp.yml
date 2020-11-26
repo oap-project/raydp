@@ -42,6 +42,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install wheel pytest koalas tensorflow torch tabulate
+          pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/9481ecd180fb11db14394ff33bcbc8fe23ba1b51/ray-1.1.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
       - name: Cache Patched Spark
         id: cache-spark
         uses: actions/cache@v2
@@ -66,7 +67,6 @@ jobs:
           export RAYDP_BUILD_RAY=1
           ./build.sh
           pip install ~/raydp_dist/pyspark-3.0.0*.whl
-          pip install dist/ray-*.whl
           pip install dist/raydp-*.whl
       - name: Test with pytest
         run: |

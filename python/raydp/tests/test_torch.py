@@ -64,9 +64,7 @@ def test_torch_estimator(spark_on_ray_small):
                                use_gpu=False)
 
     # train the model
-    estimator.fit_on_spark(train_df)
-    # evaluate the model
-    estimator.evaluate_on_spark(test_df)
+    estimator.fit_on_spark(train_df, test_df)
 
     estimator.shutdown()
 

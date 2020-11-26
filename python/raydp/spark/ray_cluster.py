@@ -16,23 +16,15 @@
 #
 
 import glob
-from collections import Iterator
-from typing import Any, Dict, Iterable, List, NoReturn
+from typing import Any, Dict
 
-import pandas as pd
-import pyarrow as pa
-import pyspark
-import ray
 from pyspark.sql.session import SparkSession
 
-import raydp.parallel.general_dataset as parallel_dataset
-from raydp.parallel import PandasDataset
-from raydp.utils import divide_blocks
 from .ray_cluster_master import RayClusterMaster, RAYDP_CP
-from .spark_cluster import SparkCluster
+from raydp.services import Cluster
 
 
-class RayCluster(SparkCluster):
+class SparkCluster(Cluster):
     def __init__(self):
         super().__init__(None)
         self._app_master_bridge = None
@@ -72,47 +64,6 @@ class RayCluster(SparkCluster):
             spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
         return self._spark_session
 
-    def save_to_ray(self, df: pyspark.sql.DataFrame, num_shards: int) -> PandasDataset:
-        # call java function from python
-        df = df.repartition(num_shards)
-        sql_context = df.sql_ctx
-        jvm = sql_context.sparkSession.sparkContext._jvm
-        jdf = df._jdf
-        object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
-        records = object_store_writer.save()
-
-        worker = ray.worker.global_worker
-
-        blocks: List[ray.ObjectRef] = []
-        block_sizes: List[int] = []
-        for record in records:
-            owner_address = record.ownerAddress()
-            object_id = ray.ObjectID(record.objectId())
-            num_records = record.numRecords()
-            # Register the ownership of the ObjectRef
-            worker.core_worker.deserialize_and_register_object_ref(
-                object_id.binary(), ray.ObjectRef.nil(), owner_address)
-
-            blocks.append(object_id)
-            block_sizes.append(num_records)
-
-        divided_blocks = divide_blocks(block_sizes, num_shards)
-        record_batch_set: List[RecordBatch] = []
-        for i in range(num_shards):
-            indexes = divided_blocks[i]
-            object_ids = [blocks[index] for index in indexes]
-            record_batch_set.append(RecordBatch(object_ids))
-
-        # TODO: we should specify the resource spec for each shard
-        ds = parallel_dataset.from_iterators(generators=record_batch_set,
-                                             name="spark_df")
-
-        def resolve_fn(it: "Iterable[RecordBatch]") -> "Iterator[RecordBatch]":
-            for item in it:
-                item.resolve()
-                yield item
-        return ds.transform(resolve_fn, ".RecordBatch#resolve()").flatten().to_pandas(None)
-
     def stop(self):
         if self._spark_session is not None:
             self._spark_session.stop()
@@ -121,46 +72,3 @@ class RayCluster(SparkCluster):
         if self._app_master_bridge is not None:
             self._app_master_bridge.stop()
             self._app_master_bridge = None
-
-
-class RecordBatch:
-    def __init__(self, object_ids: List[ray.ObjectRef]):
-        self._object_ids: List[ray.ObjectRef] = object_ids
-        self._resolved: bool = False
-
-    def _fetch_objects_without_deserialization(self, object_ids, timeout=None) -> NoReturn:
-        """
-        This is just fetch object from remote object store to local and without deserialization.
-        :param object_ids: Object ID of the object to get or a list of object IDs to
-            get.
-        :param timeout (Optional[float]): The maximum amount of time in seconds to
-            wait before returning.
-        """
-        is_individual_id = isinstance(object_ids, ray.ObjectID)
-        if is_individual_id:
-            object_ids = [object_ids]
-
-        if not isinstance(object_ids, list):
-            raise ValueError("'object_ids' must either be an object ID "
-                             "or a list of object IDs.")
-
-        worker = ray.worker.global_worker
-        worker.check_connected()
-        timeout_ms = int(timeout * 1000) if timeout else -1
-        worker.core_worker.get_objects(object_ids, worker.current_task_id, timeout_ms)
-
-    def resolve(self):
-        if self._resolved:
-            return
-        self._fetch_objects_without_deserialization(self._object_ids)
-        self._resolved = True
-
-    def __iter__(self) -> "Iterator[pd.DataFrame]":
-        for i in range(len(self._object_ids)):
-            object_id = self._object_ids[i]
-            assert object_id is not None
-            data = ray.get(object_id)
-            reader = pa.ipc.open_stream(data)
-            tb = reader.read_all()
-            df: pd.DataFrame = tb.to_pandas()
-            yield df

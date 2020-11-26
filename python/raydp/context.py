@@ -16,19 +16,15 @@
 #
 
 import atexit
-import ray
-
 from contextlib import ContextDecorator
 from threading import RLock
 from typing import Dict, Union, Optional
 
-from pyspark.sql import DataFrame
+import ray
 from pyspark.sql import SparkSession
 
-from raydp.parallel import PandasDataset
-from raydp.spark import RayCluster
 from raydp.spark import SparkCluster
-from raydp.utils import convert_to_spark, parse_memory_size
+from raydp.utils import parse_memory_size
 
 
 class _SparkContext(ContextDecorator):
@@ -63,7 +59,7 @@ class _SparkContext(ContextDecorator):
     def _get_or_create_spark_cluster(self) -> SparkCluster:
         if self._spark_cluster is not None:
             return self._spark_cluster
-        self._spark_cluster = RayCluster()
+        self._spark_cluster = SparkCluster()
         return self._spark_cluster
 
     def get_or_create_session(self):
@@ -133,24 +129,6 @@ def stop_spark():
         if _global_spark_context is not None:
             _global_spark_context.stop()
             _global_spark_context = None
-
-
-def save_to_ray(df: Union[DataFrame, "koalas.DataFrame"],
-                num_shards: int) -> PandasDataset:
-    """
-    Save the pyspark.sql.DataFrame or koalas.DataFrame to Ray ObjectStore and return
-    a SharedDataset which could fit into the 'Estimator' for distributed model training.
-    :param df: ether pyspark.sql.DataFrame or koalas.DataFrame
-    :param num_shards: the number of shard when stored
-    :return: a PandasDataset
-    """
-    with _spark_context_lock:
-        global _global_spark_context
-        if _global_spark_context is None:
-            raise Exception("You should init the Spark context firstly.")
-        # convert to Spark sql DF
-        df, _ = convert_to_spark(df)
-        return _global_spark_context._get_or_create_spark_cluster().save_to_ray(df, num_shards)
 
 
 atexit.register(stop_spark)

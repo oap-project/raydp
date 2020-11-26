@@ -63,8 +63,7 @@ def test_tf_estimator(spark_on_ray_small):
                             num_epochs=2,
                             use_gpu=False)
 
-    estimator.fit_on_spark(train_df)
-    estimator.evaluate_on_spark(test_df)
+    estimator.fit_on_spark(train_df, test_df)
 
     estimator.shutdown()
 

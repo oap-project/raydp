@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-from .dataset import TorchDataset, TorchPandasDataset, TorchIterablePandasDataset
 from .estimator import TorchEstimator
 
-__all__ = ["TorchDataset", "TorchEstimator", "TorchIterablePandasDataset", "TorchPandasDataset"]
+__all__ = ["TorchEstimator"]
