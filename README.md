@@ -26,7 +26,7 @@ Install ray with master branch and the given commit: `9481ecd180fb11db14394ff33b
 # python 3.7x linux
 pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/9481ecd180fb11db14394ff33bcbc8fe23ba1b51/ray-1.1.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
 # python 3.7x MacOS
-pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/9481ecd180fb11db14394ff33bcbc8fe23ba1b51/ray-1.1.0.dev0-cp37-cp37m-macosx_10_13.whl
+pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/9481ecd180fb11db14394ff33bcbc8fe23ba1b51/ray-1.1.0.dev0-cp37-cp37m-macosx_10_13_intel.whl
 ```
 
 You can build with the following command:

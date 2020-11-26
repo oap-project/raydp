@@ -131,13 +131,18 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._label_type = label_type
         self._label_shape = label_shape
         self._batch_size = batch_size
+        self._extra_config = extra_config
 
-        _config = {"batch_size": batch_size}
-        if extra_config is not None:
-            _config.update(extra_config)
-        self._config = _config
+        config = {"batch_size": self._batch_size, "shuffle": shuffle}
+        if self._extra_config:
+            if "config" in self._extra_config:
+                self._extra_config["config"].update(config)
+            else:
+                self._extra_config["config"] = config
+        else:
+            self._extra_config = {"config": config}
+
         self._num_epochs: int = num_epochs
-        self._shuffle: bool = shuffle
 
         self._trainer: TFTrainer = None
 
@@ -152,8 +157,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def fit(self,
             train_ds: MLDataset,
             evaluate_ds: Optional[MLDataset] = None) -> NoReturn:
-        if "fit_config" not in self._config:
-            self._config["fit_config"] = {}
+        super(TFEstimator, self).fit(train_ds, evaluate_ds)
 
         def model_creator(config):
             # https://github.com/ray-project/ray/issues/5914
@@ -184,13 +188,16 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             batch_size = config["batch_size"]
             # TODO make get_shard arguments configurable
             train_data = train_tf_ds.get_shard(
-                world_rank, shuffle=self._shuffle).repeat().batch(batch_size)
+                world_rank, shuffle=config.get("shuffle", False)).repeat().batch(batch_size)
             evaluate_data = None
             if evaluate_tf_ds is not None:
                 evaluate_data = evaluate_tf_ds.get_shard(world_rank).batch(batch_size)
             return train_data, evaluate_data
 
-        self._trainer = TFTrainer(model_creator, data_creator, self._config, self._num_workers)
+        self._trainer = TFTrainer(model_creator=model_creator,
+                                  data_creator=data_creator,
+                                  num_replicas=self._num_workers,
+                                  **self._extra_config)
         for i in range(self._num_epochs):
             stats = self._trainer.train()
             print(f"Epoch-{i}: {stats}")
@@ -204,6 +211,9 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                      fs_directory: Optional[str] = None,
                      compression: Optional[str] = None) -> NoReturn:
         super(TFEstimator, self).fit_on_spark(train_df, evaluate_df)
+        train_df = self._check_and_convert(train_df)
+        if evaluate_df is not None:
+            evaluate_df = self._check_and_convert(evaluate_df)
         train_ds = create_ml_dataset_from_spark(
             train_df, self._num_workers, self._batch_size, fs_directory, compression)
         evaluate_ds = None

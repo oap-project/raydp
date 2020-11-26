@@ -40,7 +40,16 @@ def test_torch_estimator(spark_on_ray_small):
 
     # ---------------- ray sgd -------------------------
     # create the model
-    model = torch.nn.Sequential(torch.nn.Linear(2, 1))
+    class LinearModel(torch.nn.Module):
+        def __init__(self):
+            super(LinearModel, self).__init__()
+            self.linear = torch.nn.Linear(2, 1)
+
+        def forward(self, x, y):
+            x = torch.cat([x, y], dim=1)
+            return self.linear(x)
+
+    model = LinearModel()
     # create the optimizer
     optimizer = torch.optim.Adam(model.parameters())
     # create the loss

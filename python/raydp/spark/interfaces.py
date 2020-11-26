@@ -18,13 +18,17 @@
 from typing import NoReturn
 from typing import Optional, Union
 
-from raydp.utils import df_type_check, convert_to_spark
+from raydp.utils import convert_to_spark
 
 DF = Union["pyspark.sql.DataFrame", "koalas.DataFrame"]
 OPTIONAL_DF = Union[Optional["pyspark.sql.DataFrame"], Optional["koalas.DataFrame"]]
 
 
 class SparkEstimatorInterface:
+    def _check_and_convert(self, df):
+        train_df, _ = convert_to_spark(df)
+        return train_df
+
     def fit_on_spark(self,
                      train_df: DF,
                      evaluate_df: OPTIONAL_DF = None) -> NoReturn:
@@ -33,8 +37,3 @@ class SparkEstimatorInterface:
         :param train_df the DataFrame which the model will train on.
         :param evaluate_df the optional DataFrame which the model evaluate on it
         """
-        df_type_check(train_df)
-        train_df, _ = convert_to_spark(train_df)
-        if evaluate_df is not None:
-            df_type_check(evaluate_df)
-            evaluate_df, _ = convert_to_spark(evaluate_df)

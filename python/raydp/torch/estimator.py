@@ -176,7 +176,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             def setup(self, config):
                 # create model
                 if isinstance(outer._model, torch.nn.Module):
-                    model = outer._model()
+                    model = outer._model
                 elif callable(outer._model):
                     model = outer._model(config)
                 else:
@@ -217,8 +217,12 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                 else:
                     lr_scheduler = None
 
-                self.model, self.optimizer, self.criterion = self.register(
+                registered = self.register(
                     models=model, optimizers=optimizer, criterion=loss, schedulers=lr_scheduler)
+                if lr_scheduler is not None:
+                    self.model, self.optimizer, self.criterion, self.scheduler = registered
+                else:
+                    self.model, self.optimizer, self.criterion = registered
 
                 # create dataset
                 batch_size = config["batch_size"]
@@ -232,20 +236,21 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                 else:
                     evaluate_loader = None
 
-                self.register_data(train_loader, evaluate_loader)
+                self.register_data(train_loader=train_loader, validation_loader=evaluate_loader)
 
         self._trainer = TorchTrainer(num_workers=self._num_workers,
                                      training_operator_cls=TorchEstimatorOperator,
                                      add_dist_sampler=False,
+                                     scheduler_step_freq=self._scheduler_step_freq,
                                      **self._extra_config)
 
     def _create_tf_ds(self, ds: MLDataset) -> TorchMLDataset:
-        return ds.to_tf(self._feature_columns,
-                        self._feature_shapes,
-                        self._feature_types,
-                        self._label_column,
-                        self._label_shape,
-                        self._label_type)
+        return ds.to_torch(self._feature_columns,
+                           self._feature_shapes,
+                           self._feature_types,
+                           self._label_column,
+                           self._label_shape,
+                           self._label_type)
 
     def fit(self,
             train_ds: MLDataset,
@@ -255,7 +260,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             reduce_results=True,
             max_retries=3,
             info=None) -> NoReturn:
-
+        super(TorchEstimator, self).fit(train_ds, evaluate_ds)
         train_ds = train_ds.batch(self._batch_size)
         train_tf_ds = self._create_tf_ds(train_ds)
 
@@ -290,6 +295,9 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                      max_retries=3,
                      info=None):
         super(TorchEstimator, self).fit_on_spark(train_df, evaluate_df)
+        train_df = self._check_and_convert(train_df)
+        if evaluate_df is not None:
+            evaluate_df = self._check_and_convert(evaluate_df)
         train_ds = create_ml_dataset_from_spark(
             train_df, self._num_workers, self._batch_size, fs_directory, compression)
         evaluate_ds = None
