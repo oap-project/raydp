@@ -61,6 +61,10 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param metrics: the metrics list. It could be None, a list of keras.metrics.Metric instance
                         or a list of str.
         :param feature_columns: the feature columns name.
+               The inputs of the model will be match the feature columns.
+               .. code-block:: python
+                   feature_columns = ["x", "y", "z"]
+                   # the input to the model will be (x_batch_tensor, y_batch_tensor, z_batch_tensor)
         :param feature_types: the type for each feature input. It must match the length of the
                               feature_columns if provided. It will be tf.float32 by default.
         :param feature_shapes: the shape for each feature input. It must match the length of the
@@ -71,7 +75,10 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param batch_size: the batch size
         :param num_epochs: the number of epochs
         :param shuffle: whether input dataset should be shuffle, True by default.
-        :param extra_config: extra config will fit into TFTrainer.
+        :param extra_config: extra config will fit into TFTrainer. You can also set
+               the get_shard config with
+               {"get_shard": {batch_ms=0, num_async=5, shuffle_buffer_size=2, seed=0}}.
+               You can refer to the MLDataset.get_repeatable_shard for the parameters.
         """
         self._num_workers: int = num_workers
 
@@ -186,12 +193,15 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             else:
                 world_rank = -1
             batch_size = config["batch_size"]
-            # TODO make get_shard arguments configurable
+            get_shard_config = config.get("get_shard", {})
+            if "shuffle" in config:
+                get_shard_config["shuffle"] = config["shuffle"]
             train_data = train_tf_ds.get_shard(
-                world_rank, shuffle=config.get("shuffle", False)).repeat().batch(batch_size)
+                world_rank, **get_shard_config).repeat().batch(batch_size)
             evaluate_data = None
             if evaluate_tf_ds is not None:
-                evaluate_data = evaluate_tf_ds.get_shard(world_rank).batch(batch_size)
+                evaluate_data = evaluate_tf_ds.get_shard(
+                    world_rank, **get_shard_config).batch(batch_size)
             return train_data, evaluate_data
 
         self._trainer = TFTrainer(model_creator=model_creator,

@@ -63,8 +63,6 @@ jobs:
         run: |
           git config --global user.name "raydp"
           git config --global user.email "raydp@intel.com"
-          export INSTALL_BAZEL=1
-          export RAYDP_BUILD_RAY=1
           ./build.sh
           pip install ~/raydp_dist/pyspark-3.0.0*.whl
           pip install dist/raydp-*.whl

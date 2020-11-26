@@ -63,8 +63,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                       optimizer=optimizer_creator,
                                       loss=torch.nn.MSELoss,
                                       lr_scheduler=scheduler_creator)
-           estimator.fit(train_df)
-           estimator.evaluate(test_df)
+           estimator.fit_on_spark(train_df, test_df)
 
     """
     def __init__(self,
@@ -98,22 +97,12 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                determine when ``scheduler.step`` is called. If "batch",
                ``step`` will be called after every optimizer step. If "epoch",
                ``step`` will be called after one pass of the DataLoader.
-        :param feature_columns: the feature columns when fit on Spark DataFrame or koalas.DataFrame
-        :param feature_shapes: the feature shapes matching the feature columns. All feature will
-               be treated as a scalar value and packet into one torch.Tensor if this is not
-               provided. Otherwise, each feature column will be one torch.Tensor and with the
-               provided shapes (0 means scalar tensor.).
+        :param feature_columns: the feature columns when fit on Spark DataFrame or koalas.DataFrame.
+               The inputs of the model will be match the feature columns.
                .. code-block:: python
-
-                   feature_columns = ["a", "b", "c"]
-
-                   # All feature will be treated as a scalar value and packet into one torch.Tensor
-                   feature_shapes = None # torch.Size([3])
-
-                   # reshape to given type
-                   feature_shapes = [5, 1, 1] # (torch.Size([5]), torch.Size([1]), torch.Size([1]))
-                   feature_shapes = [5, 0, 0] # (torch.Size([5]), torch.Size(), torch.Size())
-
+                   feature_columns = ["x", "y", "z"]
+                   # the input to the model will be [x_batch_tensor, y_batch_tensor, z_batch_tensor]
+        :param feature_shapes: the feature shapes matching the feature columns.
         :param feature_types: the feature types matching the feature columns. All feature will be
                cast into torch.float by default. Otherwise, cast into the provided type.
         :param label_column: the label column when fit on Spark DataFrame or koalas.DataFrame
@@ -123,7 +112,10 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param num_epochs: the total number of epochs will be train
         :param shuffle: whether shuffle the data
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
-        :param extra_config: the extra config will be set to torch.sgd.TorchTrainer
+        :param extra_config: the extra config will be set to torch.sgd.TorchTrainer. You can also set
+               the get_shard config with
+               {"config": {"get_shard": {batch_ms=0, num_async=5, shuffle_buffer_size=2, seed=0}}}.
+               You can refer to the MLDataset.get_repeatable_shard for the parameters.
         """
         self._num_workers = num_workers
         self._model = model
@@ -226,12 +218,18 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
 
                 # create dataset
                 batch_size = config["batch_size"]
-                train_data = train_ds.get_shard(
-                    self.world_rank, shuffle=outer._shuffle)
+                get_shard_config = config.get("get_shard", {})
+                if "shuffle" in config:
+                    get_shard_config["shuffle"] = config["shuffle"]
+                if not self._is_distributed:
+                    world_rank = -1
+                else:
+                    world_rank = self.world_rank
+                train_data = train_ds.get_shard(world_rank, **get_shard_config)
                 train_loader = DataLoader(train_data, batch_size=batch_size)
 
                 if evaluate_ds is not None:
-                    evaluate_data = evaluate_ds.get_shard(self.world_rank, shuffle=outer._shuffle)
+                    evaluate_data = evaluate_ds.get_shard(self.world_rank, **get_shard_config)
                     evaluate_loader = DataLoader(evaluate_data, batch_size=batch_size)
                 else:
                     evaluate_loader = None
