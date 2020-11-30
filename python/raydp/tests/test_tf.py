@@ -61,10 +61,10 @@ def test_tf_estimator(spark_on_ray_small):
                             label_column="z",
                             batch_size=1000,
                             num_epochs=2,
-                            use_gpu=False)
+                            use_gpu=False,
+                            config={"fit_config": {"steps_per_epoch": 100}})
 
-    estimator.fit_on_spark(train_df)
-    estimator.evaluate_on_spark(test_df)
+    estimator.fit_on_spark(train_df, test_df)
 
     estimator.shutdown()
 

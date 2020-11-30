@@ -16,25 +16,24 @@
 #
 
 from typing import NoReturn
-from typing import Union
+from typing import Optional, Union
 
-from raydp.utils import df_type_check
+from raydp.utils import convert_to_spark
+
+DF = Union["pyspark.sql.DataFrame", "koalas.DataFrame"]
+OPTIONAL_DF = Union[Optional["pyspark.sql.DataFrame"], Optional["koalas.DataFrame"]]
 
 
 class SparkEstimatorInterface:
-    def fit_on_spark(self,
-                     df: Union["pyspark.sql.DataFrame", "koalas.DataFrame"],
-                     **kwargs) -> NoReturn:
-        """
-        Fit the model on the df. The df should be ether spark DataFrame or koalas DataFrame.
-        """
-        df_type_check(df)
+    def _check_and_convert(self, df):
+        train_df, _ = convert_to_spark(df)
+        return train_df
 
-    def evaluate_on_spark(self,
-                          df: Union["pyspark.sql.DataFrame", "koalas.DataFrame"],
-                          **kwargs) -> NoReturn:
+    def fit_on_spark(self,
+                     train_df: DF,
+                     evaluate_df: OPTIONAL_DF = None) -> NoReturn:
+        """Fit and evaluate the model on the Spark or koalas DataFrame.
+
+        :param train_df the DataFrame which the model will train on.
+        :param evaluate_df the optional DataFrame which the model evaluate on it
         """
-        Evaluate on the trained model. The df should be ether spark DataFrame or koalas
-        DataFrame. This should be called after call fit.
-        """
-        df_type_check(df)

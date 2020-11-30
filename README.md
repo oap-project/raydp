@@ -16,20 +16,24 @@ RayDP provides high level scikit-learn style Estimator APIs for distributed trai
 
 ## Build and Install
 
-> **Note**: RayDP depends on Ray and Apache Spark. However, we have to do some modification of the source code for those two frameworks due to the following reasons. **We will patch those modification to upstream later**. 
+> **Note**: RayDP depends on Ray and Apache Spark. However, we have to do some modification of the source code for Spark due to the following reasons. **We will patch those modification to upstream later**. 
 >
 > * In Spark 3.0 and 3.0.1 version, pyspark does not support user defined resource manager.
-> * In Ray 0.8.7 version, we can not easily exchange ray ObjectRef between different language workers.
 
+Install ray with master branch and the given commit: `9481ecd180fb11db14394ff33bcbc8fe23ba1b51`. You can follow the this [page](https://docs.ray.io/en/master/installation.html#installing-from-a-specific-commit) to install. The following is example to install the given commit ray:
 
+```python
+# python 3.7x linux
+pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/9481ecd180fb11db14394ff33bcbc8fe23ba1b51/ray-1.1.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
+# python 3.7x MacOS
+pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/9481ecd180fb11db14394ff33bcbc8fe23ba1b51/ray-1.1.0.dev0-cp37-cp37m-macosx_10_13_intel.whl
+```
 
 You can build with the following command:
 
 ```shell
 # build patched spark, based on spark 3.0
 export RAYDP_BUILD_PYSPARK=1
-# build patched ray, based on ray 0.8.7
-export RAYDP_BUILD_RAY=1
 ${RAYDP_HOME}/.build.sh
 ```
 

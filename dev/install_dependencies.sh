@@ -30,8 +30,4 @@ ${CURRENT_DIR}/build_pyspark_with_patch.sh
 pip install ${DIST_PATH}/pyspark-*
 export SPARK_HOME=${DIST_PATH}/spark
 
-# build and install ray
-${CURRENT_DIR}/build_ray_with_patch.sh
-pip install ${DIST_PATH}/ray-0.8.7-*
-
 set +ex

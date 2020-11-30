@@ -16,9 +16,9 @@
 #
 
 from abc import ABC, abstractmethod
-from typing import Any, NoReturn
+from typing import Any, NoReturn, Optional
 
-from raydp.parallel import PandasDataset
+from ray.util.data import MLDataset
 
 
 class EstimatorInterface(ABC):
@@ -27,36 +27,37 @@ class EstimatorInterface(ABC):
     """
 
     @abstractmethod
-    def fit(self, ds: PandasDataset, **kwargs) -> NoReturn:
-        pass
+    def fit(self,
+            train_ds: MLDataset,
+            evaluate_ds: Optional[MLDataset] = None) -> NoReturn:
+        """Train or evaluate the model.
 
-    @abstractmethod
-    def evaluate(self, df: PandasDataset, **kwargs) -> NoReturn:
+        :param train_ds: the model will train on the MLDataset
+        :param evaluate_ds: if this is provided, the model will evaluate on the MLDataset
+        """
         pass
 
     @abstractmethod
     def get_model(self) -> Any:
-        """
-        Get the trained model
+        """Get the trained model
+
         :return the model
         """
 
     @abstractmethod
     def save(self, file_path) -> NoReturn:
-        """
-        Save the trained model to the given file path
+        """Save the trained model to the given file path
+
         :param file_path: the file path
         """
 
     @abstractmethod
     def restore(self, file_path) -> NoReturn:
-        """
-        Restore the model
+        """Restore the model
+
         :param file_path: the model saved file path
         """
 
     @abstractmethod
     def shutdown(self) -> NoReturn:
-        """
-        Shutdown the estimator
-        """
+        """Shutdown the estimator"""

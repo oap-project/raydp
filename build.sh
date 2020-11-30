@@ -37,16 +37,10 @@ then
 fi
 
 BUILD_PYSPARK=${RAYDP_BUILD_PYSPARK:-0}
-BUILD_RAY=${RAYDP_BUILD_RAY:-0}
 
 if [[ ${BUILD_PYSPARK} == 1 ]];
 then
   ${CURRENT_DIR}/dev/build_pyspark_with_patch.sh
-fi
-
-if [[ ${BUILD_RAY} == 1 ]];
-then
-  ${CURRENT_DIR}/dev/build_ray_with_patch.sh
 fi
 
 CORE_DIR="${CURRENT_DIR}/core"
