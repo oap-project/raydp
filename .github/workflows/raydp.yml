@@ -76,7 +76,7 @@ jobs:
       - name: Lint
         run: |
           pip install pylint
-          pylint python/raydp/
+          pylint --rcfile=python/pylintrc python/raydp
       - name: Test with pytest
         run: |
           pytest python/raydp/tests/
