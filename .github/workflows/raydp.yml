@@ -50,6 +50,7 @@ jobs:
               pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/91d54ef621e16fc69e7f86800ded3ee60fd8b7f9/ray-1.1.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
           elif [ "$RUNNER_OS" == "macOS" ]; then
               pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/91d54ef621e16fc69e7f86800ded3ee60fd8b7f9/ray-1.1.0.dev0-cp37-cp37m-macosx_10_13_intel.whl
+          fi
 
       - name: Cache patched Spark
         id: cache-spark
