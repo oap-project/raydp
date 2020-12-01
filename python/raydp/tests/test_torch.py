@@ -61,7 +61,7 @@ def test_torch_estimator(spark_on_ray_small):
             optimizer, milestones=[150, 250, 350], gamma=0.1)
 
     # create the estimator
-    estimator = TorchEstimator(num_workers=1,
+    estimator = TorchEstimator(num_workers=2,
                                model=model,
                                optimizer=optimizer,
                                loss=loss,

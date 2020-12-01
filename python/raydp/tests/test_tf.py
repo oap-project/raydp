@@ -52,7 +52,7 @@ def test_tf_estimator(spark_on_ray_small):
     optimizer = keras.optimizers.Adam(0.01)
     loss = keras.losses.MeanSquaredError()
 
-    estimator = TFEstimator(num_workers=1,
+    estimator = TFEstimator(num_workers=2,
                             model=model,
                             optimizer=optimizer,
                             loss=loss,
