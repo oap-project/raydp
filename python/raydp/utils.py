@@ -77,13 +77,13 @@ def random_split(df, weights, seed=None):
         return splits
     else:
         # convert back to koalas DataFrame
-        import databricks.koalas as ks
+        import databricks.koalas as ks  # pylint: disable=C0415
         return [ks.DataFrame(split) for split in splits]
 
 
 def _df_helper(df, spark_callback, koalas_callback):
     try:
-        import pyspark
+        import pyspark  # pylint: disable=C0415
     except Exception:
         pass
     else:
@@ -91,7 +91,7 @@ def _df_helper(df, spark_callback, koalas_callback):
             return spark_callback(df)
 
     try:
-        import databricks.koalas as ks
+        import databricks.koalas as ks  # pylint: disable=C0415
     except Exception:
         pass
     else:

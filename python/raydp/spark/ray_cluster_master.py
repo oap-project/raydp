@@ -126,7 +126,8 @@ class RayClusterMaster(ClusterMaster):
         gateway = JavaGateway(gateway_parameters=GatewayParameters(
             port=gateway_port, auto_convert=True))
 
-        # Store a reference to the Popen object for use by the caller (e.g., in reading stdout/stderr)
+        # Store a reference to the Popen object for use by the caller
+        # (e.g., in reading stdout/stderr)
         gateway.proc = proc
 
         return gateway

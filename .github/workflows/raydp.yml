@@ -26,7 +26,11 @@ on:
 jobs:
   build-and-test:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
 
     steps:
       - uses: actions/checkout@v2
@@ -42,8 +46,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install wheel pytest koalas tensorflow torch tabulate
-          pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/17a6b9bbe7f53c87d4b1afaedf06287ea3a03ba0/ray-1.1.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
-      - name: Cache Patched Spark
+          if [ "$RUNNER_OS" == "Linux" ]; then
+              pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/91d54ef621e16fc69e7f86800ded3ee60fd8b7f9/ray-1.1.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+              pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/91d54ef621e16fc69e7f86800ded3ee60fd8b7f9/ray-1.1.0.dev0-cp37-cp37m-macosx_10_13_intel.whl
+
+      - name: Cache patched Spark
         id: cache-spark
         uses: actions/cache@v2
         env:
@@ -59,13 +67,15 @@ jobs:
           dev/build_pyspark_with_patch.sh
           mkdir ~/raydp_dist
           mv dist/pyspark-3.0.0*.whl ~/raydp_dist
-      - name: Build and install package
+      - name: Build and install
         run: |
-          git config --global user.name "raydp"
-          git config --global user.email "raydp@intel.com"
           ./build.sh
           pip install ~/raydp_dist/pyspark-3.0.0*.whl
           pip install dist/raydp-*.whl
+      - name: Lint
+        run: |
+          pip install pylint
+          pylint python/raydp/
       - name: Test with pytest
         run: |
           pytest python/raydp/tests/

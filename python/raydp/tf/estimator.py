@@ -164,11 +164,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def fit(self,
             train_ds: MLDataset,
             evaluate_ds: Optional[MLDataset] = None) -> NoReturn:
-        super(TFEstimator, self).fit(train_ds, evaluate_ds)
+        super().fit(train_ds, evaluate_ds)
 
         def model_creator(config):
             # https://github.com/ray-project/ray/issues/5914
-            import tensorflow.keras as keras
+            import tensorflow.keras as keras  # pylint: disable=C0415, W0404
 
             model: keras.Model = keras.models.model_from_json(self._serialized_model)
             optimizer = keras.optimizers.get(self._serialized_optimizer)
@@ -220,7 +220,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                      evaluate_df: OPTIONAL_DF = None,
                      fs_directory: Optional[str] = None,
                      compression: Optional[str] = None) -> NoReturn:
-        super(TFEstimator, self).fit_on_spark(train_df, evaluate_df)
+        super().fit_on_spark(train_df, evaluate_df)
         train_df = self._check_and_convert(train_df)
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
