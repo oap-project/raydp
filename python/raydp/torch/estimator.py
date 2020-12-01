@@ -112,8 +112,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param num_epochs: the total number of epochs will be train
         :param shuffle: whether shuffle the data
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
-        :param extra_config: the extra config will be set to torch.sgd.TorchTrainer. You can also set
-               the get_shard config with
+        :param extra_config: the extra config will be set to torch.sgd.TorchTrainer. You can also
+               set the get_shard config with
                {"config": {"get_shard": {batch_ms=0, num_async=5, shuffle_buffer_size=2, seed=0}}}.
                You can refer to the MLDataset.get_repeatable_shard for the parameters.
         """
@@ -200,8 +200,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                     loss = outer._loss(config)
                 else:
                     raise Exception(
-                        "Unsupported parameter, we only support torch.nn.modules.loss._Loss subclass "
-                        ", subclass instance or a function(dict -> loss)")
+                        "Unsupported parameter, we only support torch.nn.modules.loss._Loss "
+                        "subclass, subclass instance or a function(dict -> loss)")
 
                 # create lr scheduler
                 if outer._lr_scheduler_creator:
@@ -258,7 +258,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             reduce_results=True,
             max_retries=3,
             info=None) -> NoReturn:
-        super(TorchEstimator, self).fit(train_ds, evaluate_ds)
+        super().fit(train_ds, evaluate_ds)
         train_ds = train_ds.batch(self._batch_size)
         train_tf_ds = self._create_tf_ds(train_ds)
 
@@ -292,7 +292,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                      reduce_results=True,
                      max_retries=3,
                      info=None):
-        super(TorchEstimator, self).fit_on_spark(train_df, evaluate_df)
+        super().fit_on_spark(train_df, evaluate_df)
         train_df = self._check_and_convert(train_df)
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)

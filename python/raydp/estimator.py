@@ -35,7 +35,6 @@ class EstimatorInterface(ABC):
         :param train_ds: the model will train on the MLDataset
         :param evaluate_ds: if this is provided, the model will evaluate on the MLDataset
         """
-        pass
 
     @abstractmethod
     def get_model(self) -> Any:
