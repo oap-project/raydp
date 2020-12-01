@@ -42,14 +42,14 @@ def spark_session(request):
 @pytest.fixture(scope="function")
 def ray_cluster(request):
     ray.shutdown()
-    ray.init(_redis_password="123", include_dashboard=False)
+    ray.init(num_cpus=4, _redis_password="123", include_dashboard=False)
     request.addfinalizer(lambda: ray.shutdown())
 
 
 @pytest.fixture(scope="function")
 def spark_on_ray_small(request):
     ray.shutdown()
-    ray.init(_redis_password="123", include_dashboard=False)
+    ray.init(num_cpus=4, _redis_password="123", include_dashboard=False)
     spark = raydp.init_spark("test", 1, 1, "500 M")
 
     def stop_all():
