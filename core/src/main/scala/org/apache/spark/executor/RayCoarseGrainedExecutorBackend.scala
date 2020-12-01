@@ -210,7 +210,7 @@ class RayCoarseGrainedExecutorBackend(
       // set the tmp dir for the executor, it will be deleted when executor stop
       val workerTmpDir = new File(workingDir, "_tmp")
       workerTmpDir.mkdir()
-      assert(workerTmpDir.exists() & workerTmpDir.isDirectory)
+      assert(workerTmpDir.exists() && workerTmpDir.isDirectory)
       SparkEnv.get.driverTmpDir = Some(workerTmpDir.getAbsolutePath)
 
       env.rpcEnv.setupEndpoint("Executor", backendCreateFn(env.rpcEnv, env, cfg.resourceProfile))
