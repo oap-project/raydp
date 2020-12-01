@@ -198,10 +198,15 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                 get_shard_config["shuffle"] = config["shuffle"]
             train_data = train_tf_ds.get_shard(
                 world_rank, **get_shard_config).repeat().batch(batch_size)
+            options = tf.data.Options()
+            options.experimental_distribute.auto_shard_policy = \
+                tf.data.experimental.AutoShardPolicy.OFF
+            train_data = train_data.with_options(options)
             evaluate_data = None
             if evaluate_tf_ds is not None:
                 evaluate_data = evaluate_tf_ds.get_shard(
                     world_rank, **get_shard_config).batch(batch_size)
+                evaluate_data = evaluate_data.with_options(options)
             return train_data, evaluate_data
 
         self._trainer = TFTrainer(model_creator=model_creator,
