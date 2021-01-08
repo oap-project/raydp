@@ -10,7 +10,7 @@ Building docker image with the following command, and this will create a image t
 ./build-docker.sh --pyspark-wheel path-to-pyspark-wheel --raydp-wheel path-to-raydp-wheel
 ```
 
-Then you can push the built image to repository or spread the k8s worker nodes. 
+Then you can push the built image to repository or spread to the k8s worker nodes.
 
 ## Start up Ray cluster
 ```shell
@@ -21,7 +21,7 @@ The above command will print the steps that you can attach or submit job to the 
 ```shell
 ray attach ${RAYDP_HOME}/docker/example.yaml
 ```
-After you attach to the head node, you can program as normally. The following is an example.
+After you attached to the head node, you can program as normally. The following is an example.
 ```python
 import ray
 import raydp
