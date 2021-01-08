@@ -1,4 +1,4 @@
-!/bin/bash
+#!/bin/bash
 
 while [[ $# -gt 0 ]]
 do
@@ -20,5 +20,5 @@ shift
 done
 
 docker build --build-arg PYSPARK_WHEEL_PATH=${PYSPARK_WHEEL} \
-             --build-arg RAYDP_WHEEL_PATH=${PYSPARK_WHEEL} \
+             --build-arg RAYDP_WHEEL_PATH=${RAYDP_WHEEL} \
              -t intel-bigdata/raydp:latest .
