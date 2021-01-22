@@ -32,7 +32,7 @@ class AppMasterJavaBridge {
       System.setProperty(key, value)
     }
     // Use the same session dir as the python side
-    RayConfig.getInstance().setSessionDir(System.getProperty("ray.session-dir"))
+    RayConfig.create().setSessionDir(System.getProperty("ray.session-dir"))
   }
 
   def startUpAppMaster(extra_cp: String): Unit = {
