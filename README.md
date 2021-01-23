@@ -20,13 +20,15 @@ RayDP provides high level scikit-learn style Estimator APIs for distributed trai
 >
 > * In Spark 3.0 and 3.0.1 version, pyspark does not support user defined resource manager.
 
-Install ray with master branch and the given commit: `91d54ef621e16fc69e7f86800ded3ee60fd8b7f9`. You can follow the this [page](https://docs.ray.io/en/master/installation.html#installing-from-a-specific-commit) to install. The following is example to install the given commit ray:
+Install ray with the latest nigthly build. You can follow the this
+[page](https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl)
+to install. The following is example to install the given commit ray:
 
 ```python
 # python 3.7x linux
-pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/91d54ef621e16fc69e7f86800ded3ee60fd8b7f9/ray-1.1.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
+pip install https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
 # python 3.7x MacOS
-pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/91d54ef621e16fc69e7f86800ded3ee60fd8b7f9/ray-1.1.0.dev0-cp37-cp37m-macosx_10_13_intel.whl
+pip install https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-macosx_10_13_intel.whl
 ```
 
 You can build with the following command:

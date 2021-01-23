@@ -19,8 +19,21 @@
     <fasterxml.jackson.version>2.10.0</fasterxml.jackson.version>
     <jersey.version>2.30</jersey.version>
     <scala.binary.version>2.12</scala.binary.version>
-    <ray.version>1.0.1</ray.version>
+    <ray.version> 1.1.0-SNAPSHOT </ray.version>
   </properties>
+
+  <repositories>
+    <repository>
+      <id>sonatype</id>
+      <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
 
   <dependencies>
     <!-- https://mvnrepository.com/artifact/org.apache.spark/spark-sql -->
@@ -44,7 +57,6 @@
       <version>${ray.version}</version>
       <scope>provided</scope>
     </dependency>
-
     <dependency>
       <groupId>io.ray</groupId>
       <artifactId>ray-runtime</artifactId>
