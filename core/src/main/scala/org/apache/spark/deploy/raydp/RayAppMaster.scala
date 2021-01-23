@@ -38,11 +38,11 @@ class RayAppMaster(host: String,
   init()
 
   def this() = {
-    this(RayConfig.getInstance().nodeIp, 0, "")
+    this(RayConfig.create().nodeIp, 0, "")
   }
 
   def this(actor_extra_classpath: String) = {
-    this(RayConfig.getInstance().nodeIp, 0, actor_extra_classpath)
+    this(RayConfig.create().nodeIp, 0, actor_extra_classpath)
   }
 
   def init(): Unit = {

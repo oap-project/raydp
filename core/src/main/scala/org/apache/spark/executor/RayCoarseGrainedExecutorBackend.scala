@@ -38,7 +38,7 @@ class RayCoarseGrainedExecutorBackend(
     val executorId: String,
     val appMasterURL: String) extends Logging {
 
-  val nodeIp = RayConfig.getInstance().nodeIp
+  val nodeIp = RayConfig.create().nodeIp
 
   private val temporaryRpcEnvName = "ExecutorTemporaryRpcEnv"
   private var temporaryRpcEnv: Option[RpcEnv] = None
@@ -111,7 +111,7 @@ class RayCoarseGrainedExecutorBackend(
 
   def createWorkingDir(appId: String): Unit = {
     // create the application dir
-    val app_dir = new File(RayConfig.getInstance().sessionDir, appId)
+    val app_dir = new File(RayConfig.create().sessionDir, appId)
     var remainingTimes = 3
     var continue = true
     while (continue && remainingTimes > 0) {
