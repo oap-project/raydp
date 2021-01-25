@@ -20,7 +20,6 @@ from typing import Any, Callable, List, NoReturn, Optional, Union
 
 import torch
 from ray.util.data import MLDataset
-from ray.util.sgd.torch.torch_dataset import TorchMLDataset
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
 from ray.util.sgd.torch.training_operator import TrainingOperator
 from torch.nn.modules.loss import _Loss as TLoss
@@ -29,6 +28,7 @@ from torch.utils.data.dataloader import DataLoader
 from raydp.estimator import EstimatorInterface
 from raydp.spark import create_ml_dataset_from_spark
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
+from .dataset import create_data_set, TorchDataLoader, TorchDataset
 
 
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
@@ -132,11 +132,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._batch_size = batch_size
         self._num_epochs = num_epochs
         self._shuffle = shuffle
-        self._num_processes_for_data_loader = num_processes_for_data_loader
+        self._num_processes_for_data_loader = num_processes_for_data_loader or 1
         self._extra_config = extra_config
-
-        if self._num_processes_for_data_loader > 0:
-            raise TypeError("multiple processes for data loader has not supported")
 
         config = {"batch_size": self._batch_size, "shuffle": self._shuffle}
         if self._extra_config:
@@ -160,7 +157,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             assert len(self._feature_columns) == len(self._feature_shapes), \
                 "The feature_shapes size must match the feature_columns"
 
-    def _create_trainer(self, train_ds: TorchMLDataset, evaluate_ds: Optional[TorchMLDataset]):
+    def _create_trainer(self, train_ds: TorchDataset, evaluate_ds: Optional[TorchDataset]):
         outer = self
 
         class TorchEstimatorOperator(TrainingOperator):
@@ -218,19 +215,19 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
 
                 # create dataset
                 batch_size = config["batch_size"]
-                get_shard_config = config.get("get_shard", {})
-                if "shuffle" in config:
-                    get_shard_config["shuffle"] = config["shuffle"]
-                if not self._is_distributed:
-                    world_rank = -1
-                else:
-                    world_rank = self.world_rank
-                train_data = train_ds.get_shard(world_rank, **get_shard_config)
-                train_loader = DataLoader(train_data, batch_size=batch_size)
+                shuffle = config["shuffle"]
+                train_data = train_ds
+                if self._is_distributed:
+                    train_data = train_ds.get_shard(self.world_rank)
+                train_loader = TorchDataLoader(
+                    train_data, batch_size=batch_size, shuffle=shuffle, pin_memory=True)
 
                 if evaluate_ds is not None:
-                    evaluate_data = evaluate_ds.get_shard(self.world_rank, **get_shard_config)
-                    evaluate_loader = DataLoader(evaluate_data, batch_size=batch_size)
+                    evaluate_data = evaluate_ds
+                    if self._is_distributed:
+                        evaluate_data = evaluate_ds.get_shard(self.world_rank)
+                    evaluate_loader = DataLoader(evaluate_data, batch_size=batch_size,
+                                                 shuffle=shuffle, pin_memory=True)
                 else:
                     evaluate_loader = None
 
@@ -242,14 +239,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                      scheduler_step_freq=self._scheduler_step_freq,
                                      **self._extra_config)
 
-    def _create_tf_ds(self, ds: MLDataset) -> TorchMLDataset:
-        return ds.to_torch(self._feature_columns,
-                           self._feature_shapes,
-                           self._feature_types,
-                           self._label_column,
-                           self._label_shape,
-                           self._label_type)
-
     def fit(self,
             train_ds: MLDataset,
             evaluate_ds: Optional[MLDataset] = None,
@@ -259,16 +248,21 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             max_retries=3,
             info=None) -> NoReturn:
         super().fit(train_ds, evaluate_ds)
-        train_ds = train_ds.batch(self._batch_size)
-        train_tf_ds = self._create_tf_ds(train_ds)
+        num_partitions = self._num_workers * self._num_processes_for_data_loader
+        train_ds = train_ds.repartition(num_partitions)
+        train_ds = create_data_set(train_ds, self._num_workers, self._feature_columns,
+                                   self._feature_shapes, self._feature_types, self._label_column,
+                                   self._label_shape, self._label_type)
 
         if evaluate_ds is not None:
-            evaluate_ds = evaluate_ds.batch(self._batch_size)
-            evaluate_tf_ds = self._create_tf_ds(evaluate_ds)
+            evaluate_ds = evaluate_ds.repartition(num_partitions)
+            evaluate_ds = create_data_set(evaluate_ds, self._num_workers, self._feature_columns,
+                                          self._feature_shapes, self._feature_types,
+                                          self._label_column, self._label_shape, self._label_type)
         else:
-            evaluate_tf_ds = None
+            evaluate_ds = None
 
-        self._create_trainer(train_tf_ds, evaluate_tf_ds)
+        self._create_trainer(train_ds, evaluate_ds)
         assert self._trainer is not None
         for i in range(self._num_epochs):
             stats = self._trainer.train(
@@ -278,9 +272,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                 max_retries=max_retries,
                 info=info)
             print(f"Epoch-{i}: {stats}")
-
-        if evaluate_tf_ds is not None:
-            print(self._trainer.validate(num_steps, profile, reduce_results, info))
 
     def fit_on_spark(self,
                      train_df: DF,
@@ -296,14 +287,14 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         train_df = self._check_and_convert(train_df)
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
+        num_partitions = self._num_workers * self._num_processes_for_data_loader
         train_ds = create_ml_dataset_from_spark(
-            train_df, self._num_workers, self._batch_size, fs_directory, compression)
+            train_df, num_partitions, self._batch_size, fs_directory, compression)
         evaluate_ds = None
         if evaluate_df is not None:
             evaluate_ds = create_ml_dataset_from_spark(
-                evaluate_df, self._num_workers, self._batch_size, fs_directory, compression)
-        return self.fit(
-            train_ds, evaluate_ds, num_steps, profile, reduce_results, max_retries, info)
+                evaluate_df, num_partitions, self._batch_size, fs_directory, compression)
+        return self.fit(train_ds, evaluate_ds)
 
     def get_model(self):
         assert self._trainer is not None, "Must call fit first"

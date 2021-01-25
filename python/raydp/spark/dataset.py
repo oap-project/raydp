@@ -30,7 +30,6 @@ from raydp.utils import divide_blocks
 
 def create_ml_dataset_from_spark(df: sql.DataFrame,
                                  num_shards: int,
-                                 batch_size: int,
                                  fs_directory: Optional[str] = None,
                                  compression: Optional[str] = None) -> MLDataset:
     """ Create a MLDataset from Spark DataFrame
@@ -39,7 +38,6 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
 
     :param df: the pyspark.sql.DataFrame
     :param num_shards: the number of shards will be created for the MLDataset
-    :param batch_size: the batch size for the MLDataset
     :param fs_directory: an optional distributed file system directory for cache the
            DataFrame. We will write the DataFrame to the given directory with parquet
            format if this is provided. Otherwise, we will write the DataFrame to ray
@@ -57,7 +55,7 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
                                         name="Spark DataFrame",
                                         repeat=False)
         ds = ml_dataset.from_parallel_iter(
-            it, need_convert=False, batch_size=batch_size, repeated=False)
+            it, need_convert=False, batch_size=0, repeated=False)
         return ds
     else:
         # fs_directory has provided, we write the Spark DataFrame as Parquet files
