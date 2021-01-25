@@ -23,7 +23,6 @@ from ray.util.data import MLDataset
 from ray.util.sgd.torch.torch_trainer import TorchTrainer
 from ray.util.sgd.torch.training_operator import TrainingOperator
 from torch.nn.modules.loss import _Loss as TLoss
-from torch.utils.data.dataloader import DataLoader
 
 from raydp.estimator import EstimatorInterface
 from raydp.spark import create_ml_dataset_from_spark
@@ -226,8 +225,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                     evaluate_data = evaluate_ds
                     if self._is_distributed:
                         evaluate_data = evaluate_ds.get_shard(self.world_rank)
-                    evaluate_loader = DataLoader(evaluate_data, batch_size=batch_size,
-                                                 shuffle=shuffle, pin_memory=True)
+                    evaluate_loader = TorchDataLoader(evaluate_data, batch_size=batch_size,
+                                                      shuffle=shuffle, pin_memory=True)
                 else:
                     evaluate_loader = None
 
@@ -289,11 +288,11 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             evaluate_df = self._check_and_convert(evaluate_df)
         num_partitions = self._num_workers * self._num_processes_for_data_loader
         train_ds = create_ml_dataset_from_spark(
-            train_df, num_partitions, self._batch_size, fs_directory, compression)
+            train_df, num_partitions, fs_directory, compression)
         evaluate_ds = None
         if evaluate_df is not None:
             evaluate_ds = create_ml_dataset_from_spark(
-                evaluate_df, num_partitions, self._batch_size, fs_directory, compression)
+                evaluate_df, num_partitions, fs_directory, compression)
         return self.fit(train_ds, evaluate_ds)
 
     def get_model(self):
