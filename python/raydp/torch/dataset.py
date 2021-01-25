@@ -140,9 +140,10 @@ class TorchDataLoader(DataLoader):
         while True:
             try:
                 cur_ts = next(it)
-                # shuffle the tensor
-                indexes = torch.randperm(cur_ts[0].shape[0])
-                cur_ts = [ts[indexes] for ts in cur_ts]
+                if self.shuffle:
+                    # shuffle the tensor
+                    indexes = torch.randperm(cur_ts[0].shape[0])
+                    cur_ts = [ts[indexes] for ts in cur_ts]
 
                 # rebatch the tensor to the given batch_size
                 cur_index = 0
@@ -151,6 +152,10 @@ class TorchDataLoader(DataLoader):
                         cur_index + self.batch_size) < cur_size:
                     if cur_ts is None or cur_index == cur_size:
                         cur_ts = next(it)
+                        if self.shuffle:
+                            # shuffle the tensor
+                            indexes = torch.randperm(cur_ts[0].shape[0])
+                            cur_ts = [ts[indexes] for ts in cur_ts]
                         cur_index = 0
                         cur_size = cur_ts[0].shape[0]
                     if return_ts is not None:
