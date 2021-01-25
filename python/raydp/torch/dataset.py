@@ -40,7 +40,7 @@ def _convert_to_tensor(df, feature_columns: List[Any],
         label_tensor = label_tensor.view(-1, label_shape)
     else:
         label_tensor = label_tensor.view(-1, 1)
-    return feature_tensor, label_tensor
+    return (*feature_tensor, label_tensor)
 
 
 def create_data_set(
@@ -114,7 +114,7 @@ class TorchDataset(IterableDataset):
         shard_ids = []
         i = shard_index
         step = self._num_shards
-        while i <= self._ds.num_shards():
+        while i < self._ds.num_shards():
             shard_ids.append(i)
             i += step
         ds = self._ds.select_shards(shard_ids)
@@ -133,6 +133,7 @@ class TorchDataLoader(DataLoader):
         self.pin_memory = pin_memory and torch.cuda.is_available()
 
     def __iter__(self):
+        pin_fn = torch.utils.data._utils.pin_memory.pin_memory
         it = iter(self.dataset)
         torch.manual_seed(self.epoch + self.seed)
         return_ts = None
@@ -140,38 +141,38 @@ class TorchDataLoader(DataLoader):
             try:
                 cur_ts = next(it)
                 # shuffle the tensor
-                cur_ts = cur_ts[torch.randperm(cur_ts.shape[0])]
+                indexes = torch.randperm(cur_ts[0].shape[0])
+                cur_ts = [ts[indexes] for ts in cur_ts]
 
                 # rebatch the tensor to the given batch_size
                 cur_index = 0
-                cur_size = cur_ts.shape[0]
+                cur_size = cur_ts[0].shape[0]
                 while cur_ts is not None or (
                         cur_index + self.batch_size) < cur_size:
                     if cur_ts is None or cur_index == cur_size:
                         cur_ts = next(it)
                         cur_index = 0
-                        cur_size = cur_ts.shape[0]
+                        cur_size = cur_ts[0].shape[0]
                     if return_ts is not None:
-                        ri = cur_index + self.batch_size - return_ts.shape[0]
+                        ri = cur_index + self.batch_size - return_ts[0].shape[0]
                         ri = min(ri, cur_size)
-                        tmp = cur_ts[cur_index: ri]
-                        return_ts = torch.cat([return_ts, tmp], dim=0)
+                        tmp = [ts[cur_index: ri] for ts in cur_ts]
+                        return_ts = [torch.cat([rts, t], dim=0) for rts, t in zip(return_ts, tmp)]
                         cur_index = ri
                     else:
                         ri = cur_index + self.batch_size
                         ri = min(ri, cur_size)
-                        return_ts = cur_ts[cur_index:ri]
+                        return_ts = [ts[cur_index: ri] for ts in cur_ts]
                         cur_index = ri
-                    if return_ts.shape[0] == self.batch_size:
+                    if return_ts[0].shape[0] == self.batch_size:
                         if self.pin_memory:
-                            return_ts =\
-                                torch.utils.data._utils.pin_memory.pin_memory(return_ts)
-                        yield return_ts
+                            return_ts = [pin_fn(ts) for ts in return_ts]
+                        yield (*return_ts,)
                         return_ts = None
             except StopIteration:
                 break
 
         if return_ts is not None:
             if self.pin_memory:
-                return_ts = torch.utils.data._utils.pin_memory.pin_memory(return_ts)
-            yield return_ts
+                return_ts = [pin_fn(ts) for ts in return_ts]
+            yield (*return_ts,)
