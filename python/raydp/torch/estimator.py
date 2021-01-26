@@ -16,6 +16,7 @@
 #
 
 import inspect
+import os
 from typing import Any, Callable, List, NoReturn, Optional, Union
 
 import torch
@@ -67,6 +68,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     """
     def __init__(self,
                  num_workers: int = 1,
+                 num_cpus_per_worker: int = 1,
                  model: Union[torch.nn.Module, Callable] = None,
                  optimizer: Union[torch.optim.Optimizer, Callable] = None,
                  loss: Union[TLoss, Callable] = None,
@@ -117,6 +119,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                You can refer to the MLDataset.get_repeatable_shard for the parameters.
         """
         self._num_workers = num_workers
+        self._num_cpus_per_worker = num_cpus_per_worker
         self._model = model
         self._optimizer = optimizer
         self._loss = loss
@@ -162,6 +165,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         class TorchEstimatorOperator(TrainingOperator):
 
             def setup(self, config):
+                os.environ["OMP_NUM_THREADS"] = str(outer._num_cpus_per_worker)
                 # create model
                 if isinstance(outer._model, torch.nn.Module):
                     model = outer._model
@@ -233,6 +237,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                 self.register_data(train_loader=train_loader, validation_loader=evaluate_loader)
 
         self._trainer = TorchTrainer(num_workers=self._num_workers,
+                                     num_cpus_per_worker=self._num_cpus_per_worker,
                                      training_operator_cls=TorchEstimatorOperator,
                                      add_dist_sampler=False,
                                      scheduler_step_freq=self._scheduler_step_freq,
