@@ -16,7 +16,6 @@
 #
 
 import inspect
-import os
 from typing import Any, Callable, List, NoReturn, Optional, Union
 
 import torch
@@ -165,7 +164,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         class TorchEstimatorOperator(TrainingOperator):
 
             def setup(self, config):
-                os.environ["OMP_NUM_THREADS"] = str(outer._num_cpus_per_worker)
+                torch.set_num_interop_threads(2)
+                torch.set_num_threads(outer._num_cpus_per_worker)
                 # create model
                 if isinstance(outer._model, torch.nn.Module):
                     model = outer._model
