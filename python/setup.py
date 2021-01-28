@@ -33,7 +33,7 @@ JARS_TARGET = os.path.join(TEMP_PATH, "jars")
 
 if len(JARS_PATH) == 0:
     print("Can't find core module jars, you need to build the jars with 'mvn clean package'"
-          " under core directly first.", file=sys.stderr)
+          " under core directory first.", file=sys.stderr)
     sys.exit(-1)
 else:
     JARS_PATH = JARS_PATH[0]
@@ -53,7 +53,7 @@ try:
     install_requires = [
         "numpy",
         "typing",
-        "pandas",
+        "pandas == 1.1.4",
         "psutil",
         "pyarrow >= 0.10",
     ]
