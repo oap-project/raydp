@@ -117,9 +117,12 @@ def test_divide_blocks():
 
     divided_blocks = utils.divide_blocks(blocks, world_size)
     assert len(divided_blocks) == 3
-    blocks_0 = [blocks[i] for i in divided_blocks[0]]
-    blocks_1 = [blocks[i] for i in divided_blocks[1]]
-    blocks_2 = [blocks[i] for i in divided_blocks[2]]
+    blocks_0 = [blocks[i] for i in divided_blocks[0][0]]
+    assert sum(blocks_0) == divided_blocks[0][1]
+    blocks_1 = [blocks[i] for i in divided_blocks[1][0]]
+    assert sum(blocks_1) == divided_blocks[1][1]
+    blocks_2 = [blocks[i] for i in divided_blocks[2][0]]
+    assert sum(blocks_2) == divided_blocks[2][1]
     assert sum(blocks_0) == sum(blocks_1) == sum(blocks_2)
 
     blocks = [5, 1, 2, 3, 5, 6, 2, 2, 2]
@@ -127,9 +130,11 @@ def test_divide_blocks():
 
     divided_blocks = utils.divide_blocks(blocks, world_size)
     assert len(divided_blocks) == 3
-    blocks_0 = [blocks[i] for i in divided_blocks[0]]
-    blocks_1 = [blocks[i] for i in divided_blocks[1]]
-    blocks_2 = [blocks[i] for i in divided_blocks[2]]
+    blocks_0 = [blocks[i] for i in divided_blocks[0][0]]
+    assert sum(blocks_0) == divided_blocks[0][1]
+    blocks_1 = [blocks[i] for i in divided_blocks[1][0]]
+    assert sum(blocks_1) == divided_blocks[1][1]
+    blocks_2 = [blocks[i] for i in divided_blocks[2][0]]
     assert sum(blocks_1) == sum(blocks_2)
     assert sum(blocks_0) == (sum(blocks_1) + 1)
 

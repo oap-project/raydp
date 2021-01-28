@@ -18,7 +18,7 @@
 import atexit
 import re
 import signal
-from typing import Dict, List
+from typing import List, Tuple
 
 import psutil
 
@@ -146,31 +146,36 @@ def parse_memory_size(memory_size: str) -> int:
 
 def divide_blocks(
         blocks: List[int],
-        world_size: int) -> Dict[int, List[int]]:
+        world_size: int) -> List[Tuple[List[int], int]]:
     """
     Divide the blocks into world_size partitions, and return the divided block indexes for the
     given work_rank
     :param blocks: the blocks and each item is the given block size
     :param world_size: total world size
-    :return: a dict, the key is the world rank, and the value the block indexes
+    :return: a list of pair, the first value is the block indexes assign to the given rank and
+            the total size of those blocks
     """
     if len(blocks) < world_size:
         raise Exception("do not have enough blocks to divide")
-    results = {}
-    tmp_queue = {}
+    results = []
     for i in range(world_size):
-        results[i] = []
-        tmp_queue[i] = 0
-    indexes = range(len(blocks))
-    blocks_with_indexes = dict(zip(indexes, blocks))
+        results.append(([], 0))
+    block_indexes = range(len(blocks))
+    blocks_with_indexes = dict(zip(block_indexes, blocks))
     blocks_with_indexes = dict(sorted(blocks_with_indexes.items(),
                                       key=lambda item: item[1],
                                       reverse=True))
-    for i, block in blocks_with_indexes.items():
-        rank = sorted(tmp_queue, key=lambda x: tmp_queue[x])[0]
-        results[rank].append(i)
-        tmp_queue[rank] = tmp_queue[rank] + block
 
-    for i, indexes in results.items():
-        results[i] = sorted(indexes)
+    def get_item(key):
+        return results[key][1]
+
+    world_indexes = range(world_size)
+    for i, size in blocks_with_indexes.items():
+        rank = sorted(world_indexes, key=get_item)[0]
+        indexes, s = results[rank]
+        indexes.append(i)
+        results[rank] = (indexes, s + size)
+
+    for i in world_indexes:
+        results[i] = (sorted(results[i][0]), results[i][1])
     return results

@@ -89,22 +89,25 @@ def _save_spark_df_to_object_store(df: sql.DataFrame,
         block_sizes.append(num_records)
 
     divided_blocks = divide_blocks(block_sizes, num_shards)
+    max_records = max([pair[1] for pair in divided_blocks])
     record_batch_set: List[RecordBatchShard] = []
     for i in range(num_shards):
-        indexes = divided_blocks[i]
+        indexes = divided_blocks[i][0]
         object_ids = [blocks[index] for index in indexes]
-        record_batch_set.append(RecordBatchShard(i, object_ids))
+        record_batch_set.append(RecordBatchShard(i, object_ids, max_records))
     return record_batch_set
 
 
 class RecordBatchShard(_SourceShard):
     def __init__(self,
                  shard_id: int,
-                 object_ids: List[ray.ObjectRef]):
+                 object_ids: List[ray.ObjectRef],
+                 num_of_records: int):
         if not isinstance(object_ids, list):
             object_ids = [object_ids]
         self._object_ids: List[ray.ObjectRef] = object_ids
         self._shard_id = shard_id
+        self._num_of_records = num_of_records
         self._resolved: bool = False
 
     def resolve(self, timeout: Optional[float] = None) -> NoReturn:
@@ -129,10 +132,19 @@ class RecordBatchShard(_SourceShard):
         return self._shard_id
 
     def __iter__(self):
-        for obj in self._object_ids:
+        i = 0
+        current_records = 0
+        blocks_len = len(self._object_ids)
+        while current_records < self._num_of_records:
+            obj = self._object_ids[i]
             assert obj is not None
             data = ray.get(obj)
             reader = pa.ipc.open_stream(data)
             tb = reader.read_all()
             df: pd.DataFrame = tb.to_pandas()
+            if (current_records + df.shape[0]) > self._num_of_records:
+                rindex = self._num_of_records - current_records
+                df = df[0: rindex]
             yield df
+            i = (i + 1) % blocks_len
+            current_records += df.shape[0]
