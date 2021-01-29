@@ -166,6 +166,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             def setup(self, config):
                 torch.set_num_interop_threads(2)
                 torch.set_num_threads(outer._num_cpus_per_worker)
+                print(torch.nn.parallel.distributed._dump_DDP_relevant_env_vars())
                 # create model
                 if isinstance(outer._model, torch.nn.Module):
                     model = outer._model
