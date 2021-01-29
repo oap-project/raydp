@@ -298,7 +298,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         if evaluate_df is not None:
             evaluate_ds = create_ml_dataset_from_spark(
                 evaluate_df, num_partitions, fs_directory, compression)
-        return self.fit(train_ds, evaluate_ds)
+        return self.fit(
+            train_ds, evaluate_ds, num_steps, profile, reduce_results, max_retries, info)
 
     def get_model(self):
         assert self._trainer is not None, "Must call fit first"

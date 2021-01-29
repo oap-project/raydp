@@ -1,5 +1,6 @@
 import functools
-from typing import Any, List, Iterable, Optional
+from collections import Iterable
+from typing import Any, List, Optional
 
 import numpy as np
 import torch
@@ -63,9 +64,9 @@ def create_data_set(
 
         assert len(feature_columns) == len(feature_shapes), \
             "The feature_shapes size must match the feature_columns"
-        for i in range(len(feature_shapes)):
-            if not isinstance(feature_shapes[i], Iterable):
-                feature_shapes[i] = [feature_shapes[i]]
+        for i, feature_shape in enumerate(feature_shapes):
+            if not isinstance(feature_shape, Iterable):
+                feature_shapes[i] = [feature_shape]
     else:
         feature_shapes = [None] * len(feature_columns)
 
