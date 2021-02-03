@@ -57,11 +57,11 @@ class SparkCluster(Cluster):
         extra_conf["spark.executor.cores"] = str(executor_cores)
         extra_conf["spark.executor.memory"] = str(executor_memory)
         extra_conf["spark.jars"] = ",".join(glob.glob(RAYDP_CP))
-        driver_cp_key = "spark.driver.extraClassPath"
-        if driver_cp_key in extra_conf:
-            extra_conf[driver_cp_key] = ":".join(glob.glob(RAYDP_CP)) + ":" + extra_conf[driver_cp_key]
+        driver_cp = "spark.driver.extraClassPath"
+        if driver_cp in extra_conf:
+            extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP)) + ":" + extra_conf[driver_cp]
         else:
-            extra_conf[driver_cp_key] = ":".join(glob.glob(RAYDP_CP))
+            extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP))
         spark_builder = SparkSession.builder
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
