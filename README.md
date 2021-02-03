@@ -46,7 +46,7 @@ ray.init()
 spark = raydp.init_spark(app_name="RayDP example",
                          num_executors=2,
                          executor_cores=2,
-                         executor_memory="4GB"
+                         executor_memory="4GB")
                          
 # Spark DataFrame Code 
 df = spark.read.parquet(…) 
