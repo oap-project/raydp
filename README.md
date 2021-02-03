@@ -41,6 +41,7 @@ To start a Spark job on Ray, you can use the `raydp.init_spark` API. You can wri
 ```python
 import ray
 import raydp
+from raydp.torch import TorchEstimator
 
 ray.init()
 spark = raydp.init_spark(app_name="RayDP example",
