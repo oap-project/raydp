@@ -177,6 +177,7 @@ class RayClusterMaster(ClusterMaster):
 
         if self._gateway is not None:
             self._gateway.shutdown()
+            self._gateway.proc.terminate()
             self._gateway = None
 
         self._started_up = False

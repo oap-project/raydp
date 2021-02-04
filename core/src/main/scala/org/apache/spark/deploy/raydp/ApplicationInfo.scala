@@ -23,7 +23,7 @@ import io.ray.api.ActorHandle
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.internal.Logging
 import org.apache.spark.resource.ResourceInformation
-import org.apache.spark.rpc.RpcEndpointRef
+import org.apache.spark.rpc.{RpcAddress, RpcEndpointRef}
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
@@ -45,6 +45,7 @@ private[spark] class ApplicationInfo(
 
   var state: ApplicationState.Value = _
   var executors: HashMap[String, ExecutorDesc] = _
+  var addressToExecutorId: HashMap[RpcAddress, String] = _
   var executorIdToHandler: HashMap[String, ActorHandle[RayCoarseGrainedExecutorBackend]] = _
   var removedExecutors: ArrayBuffer[ExecutorDesc] = _
   var coresGranted: Int = _
@@ -60,6 +61,7 @@ private[spark] class ApplicationInfo(
   private def init(): Unit = {
     state = ApplicationState.WAITING
     executors = new HashMap[String, ExecutorDesc]
+    addressToExecutorId = new HashMap[RpcAddress, String]
     executorIdToHandler = new HashMap[String, ActorHandle[RayCoarseGrainedExecutorBackend]]
     endTime = -1L
     nextExecutorId = 0
@@ -92,10 +94,24 @@ private[spark] class ApplicationInfo(
     }
   }
 
+  def markExecutorStarted(executorId: String, address: RpcAddress): Unit = {
+    addressToExecutorId(address) = executorId
+  }
+
+  def kill(address: RpcAddress): Boolean = {
+    if (addressToExecutorId.contains(address)) {
+      kill(addressToExecutorId(address))
+    } else {
+      false
+    }
+  }
+
   def kill(executorId: String): Boolean = {
     if (executors.contains(executorId)) {
       val exec = executors(executorId)
-      registeredExecutors -= 1
+      if (exec.registered) {
+        registeredExecutors -= 1
+      }
       removedExecutors += executors(executorId)
       executors -= executorId
       coresGranted -= exec.cores

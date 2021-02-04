@@ -23,7 +23,7 @@ import java.net.URL
 
 import io.ray.runtime.config.RayConfig
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.deploy.raydp.RegisterExecutor
+import org.apache.spark.deploy.raydp.{ExecutorStarted, RegisterExecutor}
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
 import org.apache.spark.resource.ResourceProfile
@@ -212,6 +212,9 @@ class RayCoarseGrainedExecutorBackend(
       workerTmpDir.mkdir()
       assert(workerTmpDir.exists() && workerTmpDir.isDirectory)
       SparkEnv.get.driverTmpDir = Some(workerTmpDir.getAbsolutePath)
+
+      val appMasterRef = env.rpcEnv.setupEndpointRefByURI(appMasterURL)
+      appMasterRef.ask(ExecutorStarted(executorId))
 
       env.rpcEnv.setupEndpoint("Executor", backendCreateFn(env.rpcEnv, env, cfg.resourceProfile))
 
