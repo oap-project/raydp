@@ -161,7 +161,6 @@ class RayCoarseGrainedSchedulerBackend(
   private class AppMasterClient(
       appDesc: ApplicationDescription,
       override val rpcEnv: RpcEnv) extends ThreadSafeRpcEndpoint with Logging {
-    private var appMasterRef: Option[RpcEndpointRef] = None
 
     override def onStart(): Unit = {
       try {
@@ -177,7 +176,7 @@ class RayCoarseGrainedSchedulerBackend(
       case RegisteredApplication(id, ref) =>
         appId.set(id)
         launcherBackend.setAppId(id)
-        appMasterRef = Some(ref)
+        appMasterRef.set(ref)
         registrationBarrier.release()
     }
 
@@ -216,12 +215,13 @@ class RayCoarseGrainedSchedulerBackend(
     }
   }
 
-   private def stop(finalState: SparkAppHandle.State): Unit = {
+  private def stop(finalState: SparkAppHandle.State): Unit = {
     if (stopped.compareAndSet(false, true)) {
       try {
-        super.stop()
-        appMasterRef.set(null)
+        super.stop() // this will stop all executors
+        appMasterRef.get.send(UnregisterApplication(appId.get))
       } finally {
+        appMasterRef.set(null)
         launcherBackend.setState(finalState)
         launcherBackend.close()
       }

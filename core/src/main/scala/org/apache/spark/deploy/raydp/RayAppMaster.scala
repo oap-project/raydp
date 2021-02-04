@@ -102,6 +102,10 @@ class RayAppMaster(host: String,
         logInfo("Registered app " + appDescription.name + " with ID " + app.id)
         driver.send(RegisteredApplication(app.id, self))
         schedule()
+
+      case UnregisterApplication(appId) =>
+        assert(appInfo != null && appInfo.id == appId)
+        appInfo.markFinished(ApplicationState.FINISHED)
     }
 
     override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
@@ -111,6 +115,10 @@ class RayAppMaster(host: String,
           setUpExecutor(executorId)
         }
         context.reply(success)
+
+      case ExecutorStarted(executorId) =>
+        appInfo.markExecutorStarted(executorId, context.senderAddress)
+        context.reply(true)
 
       case RequestExecutors(appId, requestedTotal) =>
         assert(appInfo != null && appInfo.id == appId)
@@ -130,6 +138,10 @@ class RayAppMaster(host: String,
           }
         }
         context.reply(success)
+    }
+
+    override def onDisconnected(remoteAddress: RpcAddress): Unit = {
+      appInfo.kill(remoteAddress)
     }
 
     private def createApplication(

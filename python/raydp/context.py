@@ -116,9 +116,13 @@ def init_spark(app_name: str,
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is None:
-            _global_spark_context = _SparkContext(
-                app_name, num_executors, executor_cores, executor_memory, configs)
-            return _global_spark_context.get_or_create_session()
+            try:
+                _global_spark_context = _SparkContext(
+                    app_name, num_executors, executor_cores, executor_memory, configs)
+                return _global_spark_context.get_or_create_session()
+            except:
+                _global_spark_context = None
+                raise
         else:
             raise Exception("The spark environment has inited.")
 
