@@ -24,7 +24,7 @@ from shutil import copy2, rmtree
 from setuptools import find_packages
 from setuptools import setup
 
-VERSION = "0.1"
+VERSION = "0.2.0.dev0"
 
 ROOT_DIR = os.path.dirname(__file__)
 
