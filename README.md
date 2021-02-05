@@ -2,7 +2,7 @@
 
 RayDP brings popular big data frameworks including [Apache Spark](https://github.com/apache/spark) to [Ray](https://github.com/ray-project/ray/) ecosystem and integrates with other Ray libraries seamlessly. RayDP makes it simple to build distributed end-to-end data analytics and AI pipeline on Ray by using Spark for data preprocessing, RayTune for hyperparameter tunning, RaySGD for distributed deep learning, RLlib for reinforcement learning and RayServe for model serving.
 
-![stack](doc/stack.png)
+![stack](https://github.com/oap-project/raydp/blob/master/doc/stack.png)
 
 ## Key Features
 
@@ -14,28 +14,22 @@ RayDP enables you to start a Spark job on Ray in your python program without a n
 
 RayDP provides high level scikit-learn style Estimator APIs for distributed training. The Estimator APIs allow you to train a deep neural network directly on a Spark DataFrame, leveraging Ray’s ability to scale out across the cluster. The Estimator APIs are wrappers of RaySGD and hide the complexity of converting a Spark DataFrame to a PyTorch/Tensorflow dataset and distributing the training.
 
-## Build and Install
+## Installation
 
 
-Install PySpark 3.0.0 or 3.0.1. Install ray with the latest nigthly by following this
-[page](https://docs.ray.io/en/master/installation.html#daily-releases-nightlies). Below is an example for python 3.7x:
-
-```python
-pip install pyspark==3.0.1
-# python 3.7x linux
-pip install https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
-# python 3.7x MacOS
-pip install https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-macosx_10_13_intel.whl
+You can install latest RayDP using pip. RayDP requires Ray (>=1.1.0) and PySpark (3.0.0 or 3.0.1).
+```shell
+pip install raydp
 ```
 
-Build and install RayDP using the following commands:
+If you'd like to build and install the latest master, use the following command:
 
 ```shell
 ./build.sh
 pip install dist/raydp*.whl
 ```
 
-## Get Started
+## Getting Started
 To start a Spark job on Ray, you can use the `raydp.init_spark` API. You can write Spark, PyTorch/Tensorflow, Ray code in the same python program to easily implement an end to end pipeline.
 
 ```python
