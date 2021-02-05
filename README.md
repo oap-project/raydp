@@ -16,42 +16,39 @@ RayDP provides high level scikit-learn style Estimator APIs for distributed trai
 
 ## Build and Install
 
-> **Note**: RayDP depends on Ray and Apache Spark. However, we have to do some modification of the source code for Spark due to the following reasons. **We will patch those modification to upstream later**. 
->
-> * In Spark 3.0 and 3.0.1 version, pyspark does not support user defined resource manager.
 
-Install ray with the latest nigthly build. You can follow the this
-[page](https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl)
-to install. The following is example to install the given commit ray:
+Install PySpark 3.0.0 or 3.0.1. Install ray with the latest nigthly by following this
+[page](https://docs.ray.io/en/master/installation.html#daily-releases-nightlies). Below is an example for python 3.7x:
 
 ```python
+pip install pyspark==3.0.1
 # python 3.7x linux
 pip install https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
 # python 3.7x MacOS
 pip install https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-macosx_10_13_intel.whl
 ```
 
-You can build with the following command:
+Build and install RayDP using the following commands:
 
 ```shell
-# build patched spark, based on spark 3.0
-export RAYDP_BUILD_PYSPARK=1
-${RAYDP_HOME}/.build.sh
+./build.sh
+pip install dist/raydp*.whl
 ```
 
-You can find all the `whl` file under `${RAYDP_HOME}/dist`.
-
 ## Get Started
+To start a Spark job on Ray, you can use the `raydp.init_spark` API. You can write Spark, PyTorch/Tensorflow, Ray code in the same python program to easily implement an end to end pipeline.
 
-Write Spark, PyTorch/Tensorflow, Ray code in the same python program using RayDP.
 ```python
 import ray
 import raydp
 from raydp.torch import TorchEstimator
 
-ray.init(…) 
-spark = raydp.init_spark(…)
-
+ray.init()
+spark = raydp.init_spark(app_name="RayDP example",
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory="4GB")
+                         
 # Spark DataFrame Code 
 df = spark.read.parquet(…) 
 train_df = df.withColumn(…)
@@ -60,7 +57,7 @@ train_df = df.withColumn(…)
 model = torch.nn.Sequential(torch.nn.Linear(2, 1)) 
 optimizer = torch.optim.Adam(model.parameters())
 
-# Sklearn style Estimator API in RayDP for distributed training 
+# You can use the RayDP Estimator API or libraries like RaySGD for distributed training.
 estimator = TorchEstimator(model=model, optimizer=optimizer, ...) 
 estimator.fit_on_spark(train_df)
 
