@@ -17,7 +17,7 @@ RayDP provides high level scikit-learn style Estimator APIs for distributed trai
 ## Installation
 
 
-RayDP requires PySpark (3.0.1) and Ray (>=1.1.0). You can install latest RayDP using pip.
+You can install latest RayDP using pip. RayDP requires Ray (>=1.1.0) and PySpark (3.0.0 or 3.0.1).
 ```shell
 pip install raydp
 ```

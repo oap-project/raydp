@@ -50,7 +50,7 @@ popd # core dir
 
 PYTHON_DIR="${CURRENT_DIR}/python"
 pushd ${PYTHON_DIR}
-python setup.py sdist bdist_wheel
+python setup.py bdist_wheel
 cp ${PYTHON_DIR}/dist/raydp-* ${DIST_PATH}
 popd # python dir
 
