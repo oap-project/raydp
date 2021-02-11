@@ -56,7 +56,11 @@ class SparkCluster(Cluster):
         extra_conf["spark.executor.instances"] = str(num_executors)
         extra_conf["spark.executor.cores"] = str(executor_cores)
         extra_conf["spark.executor.memory"] = str(executor_memory)
-        extra_conf["spark.jars"] = ",".join(glob.glob(RAYDP_CP))
+        try:
+            extra_jars = [extra_conf["spark.jars"]]
+        except KeyError:
+            extra_jars = []
+        extra_conf["spark.jars"] = ",".join(glob.glob(RAYDP_CP) + extra_jars)
         driver_cp = "spark.driver.extraClassPath"
         if driver_cp in extra_conf:
             extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP)) + ":" + extra_conf[driver_cp]
