@@ -14,3 +14,7 @@ target/
 .vscode
 
 examples/.ipynb_checkpoints/
+
+# Vim temp files
+*.swp
+*.swo
