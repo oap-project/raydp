@@ -39,7 +39,7 @@ def test_spark_remote(ray_cluster):
                                           executor_memory="500MB")
 
         def run(self):
-            return self.spark.range(0, 100).count
+            return self.spark.range(0, 100).count()
 
         def stop(self):
             self.spark.stop()
