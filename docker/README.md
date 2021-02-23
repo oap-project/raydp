@@ -4,10 +4,10 @@
 Firstly, you should build RayDP following the ${RAYDP_HOME}/README.md
 
 ## Build docker image
-Building docker image with the following command, and this will create a image tag with `intel-bigdata/raydp:latest`
+Building docker image with the following command, and this will create a image tag with `oap-project/raydp:latest`
 ```shell
 # under ${RAYDP_HOME}/docker
-./build-docker.sh --pyspark-wheel path-to-pyspark-wheel --raydp-wheel path-to-raydp-wheel
+./build-docker.sh --raydp-wheel path-to-raydp-wheel
 ```
 
 Then you can push the built image to repository or spread to the k8s worker nodes.
