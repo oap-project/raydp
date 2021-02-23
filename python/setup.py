@@ -87,9 +87,9 @@ try:
         python_requires='>=3.6',
         classifiers=[
             'License :: OSI Approved :: Apache Software License',
+            'Programming Language :: Python :: 3.6',
             'Programming Language :: Python :: 3.7',
-            'Programming Language :: Python :: 3.8',
-            'Programming Language :: Python :: 3.9']
+            'Programming Language :: Python :: 3.8']
     )
 finally:
     rmtree(os.path.join(TEMP_PATH, "jars"))
