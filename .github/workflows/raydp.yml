@@ -26,18 +26,19 @@ on:
 jobs:
   build-and-test:
 
-    runs-on: ${{ matrix.os }}
-
     strategy:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
+        python-version: [ 3.7, 3.8, 3.9 ]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Python 3.7
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.7
+          python-version: ${{ matrix.python-version }}
       - name: Set up JDK 1.8
         uses: actions/setup-java@v1
         with:
@@ -45,33 +46,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install wheel pytest koalas tensorflow torch tabulate
-          if [ "$RUNNER_OS" == "Linux" ]; then
-              pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/91d54ef621e16fc69e7f86800ded3ee60fd8b7f9/ray-1.1.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-              pip install https://ray-wheels.s3-us-west-2.amazonaws.com/master/91d54ef621e16fc69e7f86800ded3ee60fd8b7f9/ray-1.1.0.dev0-cp37-cp37m-macosx_10_13_intel.whl
-          fi
+          pip install wheel pytest koalas tensorflow torch tabulate ray==1.1.0
 
-      - name: Cache patched Spark
-        id: cache-spark
-        uses: actions/cache@v2
-        env:
-          cache-name: cache-spark
-        with:
-          path: ~/raydp_dist
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('dev/spark.patch') }}
-      - name: Build pathced Spark
-        if: steps.cache-spark.outputs.cache-hit != 'true'
-        run: |
-          git config --global user.name "raydp"
-          git config --global user.email "raydp@intel.com"
-          dev/build_pyspark_with_patch.sh
-          mkdir ~/raydp_dist
-          mv dist/pyspark-3.0.0*.whl ~/raydp_dist
       - name: Build and install
         run: |
           ./build.sh
-          pip install ~/raydp_dist/pyspark-3.0.0*.whl
           pip install dist/raydp-*.whl
       - name: Lint
         run: |
