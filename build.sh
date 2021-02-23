@@ -36,18 +36,13 @@ then
   mkdir ${DIST_PATH}
 fi
 
-BUILD_PYSPARK=${RAYDP_BUILD_PYSPARK:-0}
-
-if [[ ${BUILD_PYSPARK} == 1 ]];
-then
-  ${CURRENT_DIR}/dev/build_pyspark_with_patch.sh
-fi
-
+# build core part
 CORE_DIR="${CURRENT_DIR}/core"
 pushd ${CORE_DIR}
 mvn clean package -q -DskipTests
 popd # core dir
 
+# build python part
 PYTHON_DIR="${CURRENT_DIR}/python"
 pushd ${PYTHON_DIR}
 python setup.py bdist_wheel

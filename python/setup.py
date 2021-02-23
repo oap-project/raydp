@@ -72,7 +72,7 @@ try:
         author_email="raydp-dev@googlegroups.com",
         license="Apache 2.0",
         url="https://github.com/oap-project/raydp",
-        keywords=("raydp spark ray distributed data-processing"),
+        keywords="raydp spark ray distributed data-processing",
         description="RayDP: Distributed Data Processing on Ray",
         long_description=io.open(
             os.path.join(ROOT_DIR, os.path.pardir, "README.md"),
@@ -89,8 +89,7 @@ try:
             'License :: OSI Approved :: Apache Software License',
             'Programming Language :: Python :: 3.6',
             'Programming Language :: Python :: 3.7',
-            'Programming Language :: Python :: 3.8',
-            'Programming Language :: Python :: 3.9']
+            'Programming Language :: Python :: 3.8']
     )
 finally:
     rmtree(os.path.join(TEMP_PATH, "jars"))
