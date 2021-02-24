@@ -17,27 +17,27 @@
 # limitations under the License.
 #
 
+if [[ $# -lt 2 ]]]; then
+    echo "Usage: build-docker.sh --raydp-wheel raydp-wheel"
+    exit 1
+fi
+
 while [[ $# -gt 0 ]]
 do
 key="$1"
 case $key in
-    --pyspark-wheel)
-    shift
-    PYSPARK_WHEEL=$1
-    ;;
     --raydp-wheel)
     shift
     RAYDP_WHEEL=$1
     ;;
     *)
-    echo "Usage: build-docker.sh --pyspark-wheel path-to-pyspark-wheel --raydp-wheel path-to-raydp-wheel"
+    echo "Usage: build-docker.sh --raydp-wheel raydp-wheel"
     exit 1
 esac
 shift
 done
 
-docker build --build-arg PYSPARK_WHEEL_PATH=${PYSPARK_WHEEL} \
-             --build-arg RAYDP_WHEEL_PATH=${RAYDP_WHEEL} \
+docker build --build-arg RAYDP_WHEEL_PATH=${RAYDP_WHEEL} \
              --build-arg HTTP_PROXY=${http_proxy} \
              --build-arg HTTPS_PROXY=${https_proxy} \
-             -t intel-bigdata/raydp:latest .
+             -t oap-project/raydp:latest .

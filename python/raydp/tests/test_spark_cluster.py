@@ -18,12 +18,37 @@
 import sys
 
 import pytest
+import ray
+
+import raydp
 
 
 def test_spark(spark_on_ray_small):
     spark = spark_on_ray_small
     result = spark.range(0, 10).count()
     assert result == 10
+
+
+def test_spark_remote(ray_cluster):
+    @ray.remote
+    class SparkRemote:
+        def __init__(self):
+            self.spark = raydp.init_spark(app_name="test_spark_remote",
+                                          num_executors=1,
+                                          executor_cores=1,
+                                          executor_memory="500MB")
+
+        def run(self):
+            return self.spark.range(0, 100).count()
+
+        def stop(self):
+            self.spark.stop()
+            raydp.stop_spark()
+
+    driver = SparkRemote.remote()
+    result = ray.get(driver.run.remote())
+    assert result == 100
+    ray.get(driver.stop.remote())
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ import struct
 import tempfile
 import time
 from subprocess import Popen, PIPE
+import glob
 
 import pyspark
 import ray
@@ -65,8 +66,9 @@ class RayClusterMaster(ClusterMaster):
         cp_list.append(ray_cp)
         # find pyspark jars path
         spark_home = os.path.dirname(pyspark.__file__)
-        spark_jars = os.path.join(spark_home, "jars/*")
-        cp_list.append(spark_jars)
+        spark_jars_dir = os.path.join(spark_home, "jars/*")
+        spark_jars = [jar for jar in glob.glob(spark_jars_dir) if "slf4j-log4j" not in jar]
+        cp_list.extend(spark_jars)
         return cp_list
 
     def _launch_gateway(self, class_path, popen_kwargs=None):
