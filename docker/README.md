@@ -6,8 +6,8 @@ Firstly, you should build RayDP following the ${RAYDP_HOME}/README.md
 ## Build docker image
 Building docker image with the following command, and this will create a image tag with `oap-project/raydp:latest`
 ```shell
-# under ${RAYDP_HOME}/docker
-./build-docker.sh --raydp-wheel path-to-raydp-wheel
+# under ${RAYDP_HOME}/docker and copy raydp-wheel to current folder
+./build-docker.sh --raydp-wheel raydp-wheel
 ```
 
 Then you can push the built image to repository or spread to the k8s worker nodes.

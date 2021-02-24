@@ -17,6 +17,11 @@
 # limitations under the License.
 #
 
+if [[ $# -lt 2 ]]]; then
+    echo "Usage: build-docker.sh --raydp-wheel raydp-wheel"
+    exit 1
+fi
+
 while [[ $# -gt 0 ]]
 do
 key="$1"
@@ -26,7 +31,7 @@ case $key in
     RAYDP_WHEEL=$1
     ;;
     *)
-    echo "Usage: build-docker.sh --raydp-wheel path-to-raydp-wheel"
+    echo "Usage: build-docker.sh --raydp-wheel raydp-wheel"
     exit 1
 esac
 shift
