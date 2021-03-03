@@ -21,7 +21,7 @@ import torch
 import raydp
 from raydp.torch import TorchEstimator
 
-def test_torch_estimator(spark_session):
+def test_torch_estimator(spark_on_ray_small):
     ##prepare the data
     customers = [
         (1,'James', 21, 6),
@@ -31,8 +31,8 @@ def test_torch_estimator(spark_session):
         (5, "Robert", 41, 5),
         (6, "Sandra", 45, 8)
     ]
-    df = spark_session.createDataFrame(customers, ["cID", "name", "age", "grade"])
-    
+    df = spark_on_ray_small.createDataFrame(customers, ["cID", "name", "age", "grade"])
+
     ##create model
     model = torch.nn.Sequential(torch.nn.Linear(1, 2), torch.nn.Linear(2,1))
     optimizer = torch.optim.Adam(model.parameters())
