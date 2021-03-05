@@ -32,6 +32,29 @@ pip install dist/raydp*.whl
 ## Getting Started
 To start a Spark job on Ray, you can use the `raydp.init_spark` API. You can write Spark, PyTorch/Tensorflow, Ray code in the same python program to easily implement an end to end pipeline.
 
+### Classic Spark Word Count Example
+After we use RayDP to initialize a Spark cluster, of course we can use Spark as usual. 
+```python
+import ray
+import raydp
+
+ray.init(address='auto')
+
+spark = raydp.init_spark('word_count',
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory='1G')
+
+df = spark.createDataFrame([('look',), ('spark',), ('tutorial',), ('spark',), ('look', ), ('python', )], ['word'])
+df.show()
+word_count = df.groupBy('word').count()
+word_count.show()
+
+raydp.stop_spark()
+```
+
+### Integration with PyTorch
+However, combined with other ray components, such as raysgd and ray serve, we can easily build an end-to-end deep learning pipeline. In this example. we show how to use our estimator API, which is a wrapper around raysgd, to perform data preprocessing using Spark, and train a model using PyTorch.
 ```python
 import ray
 import raydp
@@ -55,6 +78,7 @@ optimizer = torch.optim.Adam(model.parameters())
 estimator = TorchEstimator(model=model, optimizer=optimizer, ...) 
 estimator.fit_on_spark(train_df)
 
+raydp.stop_spark()
 ```
 
 You can find more examples under the `examples` folder.
