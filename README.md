@@ -43,13 +43,14 @@ ray.init(address='auto')
 spark = raydp.init_spark('word_count',
                          num_executors=2,
                          executor_cores=2,
-                         executor_memory='1GB')
-wordsDF = spark.createDataFrame([('look',), ('spark',), ('tutorial',), 
-                                ('spark',), ('look', ), ('python', )], ['word'])
-wordsDF.show()
-wordCountsDF = (wordsDF
-                .groupBy('word').count())
-wordCountsDF.show()
+                         executor_memory='1G')
+
+df = spark.createDataFrame([('look',), ('spark',), ('tutorial',), ('spark',), ('look', ), ('python', )], ['word'])
+df.show()
+word_count = df.groupBy('word').count()
+word_count.show()
+
+raydp.stop_spark()
 ```
 
 ### Integration with PyTorch
@@ -77,6 +78,7 @@ optimizer = torch.optim.Adam(model.parameters())
 estimator = TorchEstimator(model=model, optimizer=optimizer, ...) 
 estimator.fit_on_spark(train_df)
 
+raydp.stop_spark()
 ```
 
 You can find more examples under the `examples` folder.
