@@ -43,10 +43,11 @@ mvn clean package -q -DskipTests
 popd # core dir
 
 # build python part
+RAYDP_PACKAGE_NAME=${RAYDP_PACKAGE_NAME:-raydp}
 PYTHON_DIR="${CURRENT_DIR}/python"
 pushd ${PYTHON_DIR}
 python setup.py bdist_wheel
-cp ${PYTHON_DIR}/dist/raydp-* ${DIST_PATH}
+cp ${PYTHON_DIR}/dist/${RAYDP_PACKAGE_NAME}-* ${DIST_PATH}
 popd # python dir
 
 set +ex

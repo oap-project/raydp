@@ -20,11 +20,16 @@ import io
 import os
 import sys
 from shutil import copy2, rmtree
+from datetime import datetime
 
 from setuptools import find_packages
 from setuptools import setup
 
-VERSION = "0.2.0.dev0"
+package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
+if package_name == 'raydp_nightly':
+    VERSION = datetime.today().strftime('%Y%m%d')
+else:
+    VERSION = "0.2.0.dev0"
 
 ROOT_DIR = os.path.dirname(__file__)
 
@@ -66,7 +71,7 @@ try:
     _packages.append("raydp.jars")
 
     setup(
-        name="raydp",
+        name=package_name,
         version=VERSION,
         author="RayDP Developers",
         author_email="raydp-dev@googlegroups.com",

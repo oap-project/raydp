@@ -18,8 +18,8 @@
 name: RayDP PyPi
 
 on: 
-  push:
-    branches: [ master ]
+  schedule:
+    - cron: '0 0 * * *'
   # can manually trigger the workflow
   workflow_dispatch:
 
@@ -36,6 +36,8 @@ jobs:
       with:
         python-version: 3.7
     - name: Build wheel
+      env:
+        RAYDP_PACKAGE_NAME: raydp_nightly
       run: pip install wheel && ./build.sh
     - name: Upload
       uses: pypa/gh-action-pypi-publish@master
