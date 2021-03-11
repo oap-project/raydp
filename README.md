@@ -22,6 +22,11 @@ You can install latest RayDP using pip. RayDP requires Ray (>=1.1.0) and PySpark
 pip install raydp
 ```
 
+Or you can install our nightly build:
+```shell
+pip install raydp-nightly
+```
+
 If you'd like to build and install the latest master, use the following command:
 
 ```shell
