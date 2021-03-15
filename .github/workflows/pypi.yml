@@ -26,7 +26,7 @@ on:
 jobs:
   build-and-publish:
     # do not run in forks
-    # if: ${{ github.repository_owner == 'oap-project' }}
+    if: ${{ github.repository_owner == 'oap-project' }}
     name: build wheel and upload
     runs-on: ubuntu-latest
     steps:
@@ -47,17 +47,15 @@ jobs:
           days=$(( ( $(date --utc +%s) - $timestamp ) / 86400 ))
           echo $days
           if [ $days -eq 0 ]; then
-              echo COMMIT_SINCE_LAST_UPLOAD=true >> $GITHUB_ENV
+              echo COMMIT_TODAY=true >> $GITHUB_ENV
           fi
     - name: Build wheel
-      if: env.COMMIT_SINCE_LAST_UPLOAD == 'true'
+      if: env.COMMIT_TODAY == 'true'
       env:
         RAYDP_PACKAGE_NAME: raydp_nightly
       run: pip install wheel && ./build.sh
     - name: Upload
-      if: env.COMMIT_SINCE_LAST_UPLOAD == 'true'
+      if: env.COMMIT_TODAY == 'true'
       uses: pypa/gh-action-pypi-publish@master
       with:
-        # password: ${{ secrets.PYPI_API_TOKEN }}
-        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        repository_url: https://test.pypi.org/legacy/
+        password: ${{ secrets.PYPI_API_TOKEN }}
