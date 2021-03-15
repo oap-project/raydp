@@ -24,23 +24,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-commit-date:
-    name: check commit date is today
-    steps:
-    - name: days since the commit date
-      run: |
-          :
-          timestamp=$(git log --no-walk --date=unix --format=%cd $GITHUB_SHA)
-          echo $GITHUB_SHA
-          days=$(( ( $(date --utc +%s) - $timestamp ) / 86400 ))
-          echo $days
-          if [ $days -eq 0 ]; then
-              echo COMMIT_SINCE_LAST_UPLOAD=true >> $GITHUB_ENV
-          fi
   build-and-publish:
     # do not run in forks
     # if: ${{ github.repository_owner == 'oap-project' }}
-    if: env.COMMIT_SINCE_LAST_UPLOAD == 'true'
     name: build wheel and upload
     runs-on: ubuntu-latest
     steps:
@@ -53,11 +39,23 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
+    - name: days since the commit date
+      run: |
+          :
+          timestamp=$(git log --no-walk --date=unix --format=%cd $GITHUB_SHA)
+          echo $GITHUB_SHA
+          days=$(( ( $(date --utc +%s) - $timestamp ) / 86400 ))
+          echo $days
+          if [ $days -eq 0 ]; then
+              echo COMMIT_SINCE_LAST_UPLOAD=true >> $GITHUB_ENV
+          fi
     - name: Build wheel
+      if: env.COMMIT_SINCE_LAST_UPLOAD == 'true'
       env:
         RAYDP_PACKAGE_NAME: raydp_nightly
       run: pip install wheel && ./build.sh
     - name: Upload
+      if: env.COMMIT_SINCE_LAST_UPLOAD == 'true'
       uses: pypa/gh-action-pypi-publish@master
       with:
         # password: ${{ secrets.PYPI_API_TOKEN }}
