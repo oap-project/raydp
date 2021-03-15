@@ -24,9 +24,21 @@ on:
   workflow_dispatch:
 
 jobs:
+  check-commit-date:
+    name: check commit date is today
+    run: |
+         :
+         timestamp=$(git log --no-walk --date=unix --format=%cd $GITHUB_SHA)
+         echo $GITHUB_SHA
+         days=$(( ( $(date --utc +%s) - $timestamp ) / 86400 ))
+         echo $days
+         if [ $days -eq 0 ]; then
+            echo COMMIT_SINCE_LAST_UPLOAD=true >> $GITHUB_ENV
+         fi
   build-and-publish:
     # do not run in forks
-    if: ${{ github.repository_owner == 'oap-project' }}
+    # if: ${{ github.repository_owner == 'oap-project' }}
+    if: env.COMMIT_SINCE_LAST_UPLOAD == 'true'
     name: build wheel and upload
     runs-on: ubuntu-latest
     steps:
@@ -46,5 +58,6 @@ jobs:
     - name: Upload
       uses: pypa/gh-action-pypi-publish@master
       with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
-        skip_existing: true
+        # password: ${{ secrets.PYPI_API_TOKEN }}
+        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        repository_url: https://test.pypi.org/legacy/
