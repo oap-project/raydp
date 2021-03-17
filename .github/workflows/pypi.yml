@@ -43,9 +43,7 @@ jobs:
       run: |
           :
           timestamp=$(git log --no-walk --date=unix --format=%cd $GITHUB_SHA)
-          echo $GITHUB_SHA
           days=$(( ( $(date --utc +%s) - $timestamp ) / 86400 ))
-          echo $days
           if [ $days -eq 0 ]; then
               echo COMMIT_TODAY=true >> $GITHUB_ENV
           fi
