@@ -8,11 +8,11 @@ dist/
 
 dev/.tmp_dir/
 target/
+*.jar
 
 .DS_Store
 
 .vscode
-
 examples/.ipynb_checkpoints/
 
 # Vim temp files
