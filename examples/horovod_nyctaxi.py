@@ -1,5 +1,4 @@
 import argparse
-from examples.data_process import NYC_TRAIN_CSV
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

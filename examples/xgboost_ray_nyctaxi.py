@@ -22,6 +22,7 @@ data = spark.read.format("csv").option("header", "true") \
         .load(NYC_TRAIN_CSV)
 # Set spark timezone for processing datetime
 spark.conf.set("spark.sql.session.timeZone", "UTC")
+# Transform the dataset
 data = nyc_taxi_preprocess(data)
 # Split data into train_dataset and test_dataset
 train_df, test_df = random_split(data, [0.9, 0.1])
@@ -31,12 +32,12 @@ test_dataset = create_ml_dataset_from_spark(test_df, 2, 32)
 # Then convert them into DMatrix used by xgboost
 dtrain = RayDMatrix(train_dataset, label='fare_amount')
 dtest = RayDMatrix(test_dataset, label='fare_amount')
+# Configure the XGBoost model
 config = {
     "tree_method": "hist",
     "eval_metric": ["logloss", "error"],
 }
 evals_result = {}
-
 # Train the model
 bst = train(
         config,
@@ -48,6 +49,5 @@ bst = train(
 # print evaluation stats
 print("Final validation error: {:.4f}".format(
         evals_result["eval"]["error"][-1]))
-
 raydp.stop_spark()
 ray.shutdown()
