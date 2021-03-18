@@ -1,7 +1,7 @@
 import pandas as pd, numpy as np
 from pyspark.sql.functions import *
 
-NYC_TRAIN_CSV = '/home/lzhi/Downloads/nyctaxi/nyc_train.csv'
+NYC_TRAIN_CSV = 'your_path_to_csv'
 
 def clean_up(data):
     data = data.filter(col('pickup_longitude')<=-72) \

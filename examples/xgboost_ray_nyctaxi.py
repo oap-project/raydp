@@ -11,6 +11,7 @@ from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 
 # connect to ray cluster
 ray.init(address='auto')
+# ray.init()
 # After ray.init, you can use the raydp api to get a spark session
 app_name = "NYC Taxi Fare Prediction with RayDP"
 num_executors = 4
