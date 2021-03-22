@@ -20,12 +20,6 @@ parser.add_argument(
     metavar='N',
     help='input batch size for training (default: 64)')
 parser.add_argument(
-    '--test-batch-size',
-    type=int,
-    default=1000,
-    metavar='N',
-    help='input batch size for testing (default: 1000)')
-parser.add_argument(
     '--epochs',
     type=int,
     default=5,
@@ -43,12 +37,6 @@ parser.add_argument(
     default=10,
     metavar='N',
     help='how many batches to wait before logging training status')
-parser.add_argument(
-    '--num-batches-per-commit',
-    type=int,
-    default=1,
-    help='number of batches per commit of the elastic state object'
-)
 
 args = parser.parse_args()
 
