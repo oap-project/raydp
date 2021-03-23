@@ -18,11 +18,11 @@
 import glob
 from typing import Any, Dict
 
+import ray
 from pyspark.sql.session import SparkSession
 
-from .ray_cluster_master import RayClusterMaster, RAYDP_CP
 from raydp.services import Cluster
-import ray
+from .ray_cluster_master import RayClusterMaster, RAYDP_CP
 
 
 class SparkCluster(Cluster):
