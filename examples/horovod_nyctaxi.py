@@ -121,8 +121,8 @@ def train_fn(dataset, num_features):
 if __name__ == '__main__':
     # connect to ray cluster
     import ray
-    ray.init(address='auto')
-    # ray.init()
+    # ray.init(address='auto')
+    ray.init()
     # Start horovod workers on Ray
     from horovod.ray import RayExecutor
     settings = RayExecutor.create_settings(500)
