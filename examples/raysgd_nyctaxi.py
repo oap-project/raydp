@@ -1,6 +1,7 @@
 import ray
 from ray.util.sgd.torch import TrainingOperator
 from ray.util.sgd import TorchTrainer
+from ray import tune
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -77,7 +78,7 @@ class CustomOperator(TrainingOperator):
     def setup(self, config):
         nyc_model = NYC_Model(len(features))
         criterion = nn.SmoothL1Loss()
-        optimizer = torch.optim.Adam(nyc_model.parameters(), lr=0.001)
+        optimizer = torch.optim.Adam(nyc_model.parameters(), lr=config['lr'])
         # A quick work-around for https://github.com/ray-project/ray/issues/14352
         self.model, self.optimizer, self.criterion = self.register(
             models=[nyc_model], optimizers=[optimizer], criterion=criterion)
@@ -90,16 +91,34 @@ class CustomOperator(TrainingOperator):
         val_loader = DataLoader(test_shard, batch_size=32)
         self.register_data(train_loader=train_loader, validation_loader=val_loader)
 
-trainer = TorchTrainer(training_operator_cls=CustomOperator,
-                       num_workers=num_executors,
-                       add_dist_sampler=False,
-                       num_cpus_per_worker=2)
-for i in range(100):
-    stats = trainer.train()
-    print(stats)
-    val_stats = trainer.validate()
-    print(val_stats)
+# You can either train the model like this
 
-trainer.shutdown()
+# trainer = TorchTrainer(training_operator_cls=CustomOperator,
+#                        num_workers=num_executors,
+#                        add_dist_sampler=False,
+#                        num_cpus_per_worker=2)
+# for i in range(100):
+#     stats = trainer.train()
+#     print(stats)
+#     val_stats = trainer.validate()
+#     print(val_stats)
+# trainer.shutdown()
+
+# Or you can perform a hyperparameter search using Ray Tune
+
+TorchTrainable = TorchTrainer.as_trainable(
+                    training_operator_cls=CustomOperator,
+                    num_workers=num_executors,
+                    add_dist_sampler=False,
+                    use_gpu=False,
+                    num_cpus_per_worker=2
+                 )
+analysis = tune.run(
+                TorchTrainable,
+                config={"lr": tune.grid_search([0.01, 0.1])},
+                stop={"training_iteration": 2}
+)
+print(analysis.results_df)
+
 raydp.stop_spark()
 ray.shutdown()
