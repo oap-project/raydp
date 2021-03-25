@@ -126,7 +126,7 @@ if __name__ == '__main__':
     # Start horovod workers on Ray
     from horovod.ray import RayExecutor
     settings = RayExecutor.create_settings(500)
-    executor = RayExecutor(settings, num_hosts=1, num_slots=2, cpus_per_slot=1)
+    executor = RayExecutor(settings, num_hosts=1, num_slots=1, cpus_per_slot=1)
     executor.start()
     # torch_ds, num_features = executor.execute_single(process_data)
     torch_ds, num_features = process_data()

@@ -68,7 +68,7 @@ nyc_model = NYC_Model(len(features))
 criterion = nn.SmoothL1Loss()
 optimizer = torch.optim.Adam(nyc_model.parameters(), lr=0.001)
 # Create a distributed estimator based on the raydp api
-estimator = TorchEstimator(num_workers=2, model=nyc_model, optimizer=optimizer, loss=criterion,
+estimator = TorchEstimator(num_workers=1, model=nyc_model, optimizer=optimizer, loss=criterion,
                            feature_columns=features, label_column="fare_amount", batch_size=256,
                            num_epochs=30)
 # Train the model

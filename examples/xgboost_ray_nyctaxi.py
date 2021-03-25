@@ -45,7 +45,7 @@ bst = train(
         dtrain,
         evals=[(dtest, "eval")],
         evals_result=evals_result,
-        ray_params=RayParams(max_actor_restarts=1, num_actors=2, cpus_per_actor=1),
+        ray_params=RayParams(max_actor_restarts=1, num_actors=1, cpus_per_actor=1),
         num_boost_round=10)
 # print evaluation stats
 print("Final validation error: {:.4f}".format(

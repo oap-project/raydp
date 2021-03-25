@@ -56,7 +56,7 @@ model = keras.models.Model(inTensor, fc6)
 # Then create the tensorflow estimator provided by Raydp
 adam = keras.optimizers.Adam(lr=0.001)
 loss = keras.losses.MeanSquaredError()
-estimator = TFEstimator(num_workers=2, model=model, optimizer=adam, loss=loss, metrics=["mae"],
+estimator = TFEstimator(num_workers=1, model=model, optimizer=adam, loss=loss, metrics=["mae"],
                         feature_columns=features, label_column="fare_amount", batch_size=256, num_epochs=30,
                         config={"fit_config": {"steps_per_epoch": train_df.count() // 256}})
 
