@@ -46,7 +46,7 @@ jobs:
       - name: Install extra dependencies for macOS
         if: matrix.os == 'macos-latest'
         run: |
-          brew install libuv
+          brew install libuv libomp
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
