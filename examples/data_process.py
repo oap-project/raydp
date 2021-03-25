@@ -1,7 +1,10 @@
-import pandas as pd, numpy as np
+from os.path import dirname, realpath
+
+import numpy as np
 from pyspark.sql.functions import *
 
-NYC_TRAIN_CSV = 'your_path_to_csv'
+# change this to where the dataset is
+NYC_TRAIN_CSV = dirname(realpath(__file__)) + '/fake_nyctaxi.csv'
 
 def clean_up(data):
     data = data.filter(col('pickup_longitude')<=-72) \

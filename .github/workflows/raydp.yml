@@ -66,6 +66,7 @@ jobs:
           pytest python/raydp/tests/
       - name: Test Examples
         run: |
+          python examples/random_nyctaxi.py
           python examples/pytorch_nyctaxi.py
           python examples/tensorflow_nyctaxi.py
           python examples/horovod_nyctaxi.py
