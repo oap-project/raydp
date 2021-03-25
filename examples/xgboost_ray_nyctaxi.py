@@ -10,13 +10,13 @@ from raydp.spark import create_ml_dataset_from_spark
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 
 # connect to ray cluster
-# ray.init(address='auto')
-ray.init()
+ray.init(address='auto')
+# ray.init()
 # After ray.init, you can use the raydp api to get a spark session
 app_name = "NYC Taxi Fare Prediction with RayDP"
-num_executors = 4
+num_executors = 1
 cores_per_executor = 1
-memory_per_executor = "2GB"
+memory_per_executor = "500M"
 spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
 data = spark.read.format("csv").option("header", "true") \
         .option("inferSchema", "true") \
@@ -45,7 +45,7 @@ bst = train(
         dtrain,
         evals=[(dtest, "eval")],
         evals_result=evals_result,
-        ray_params=RayParams(max_actor_restarts=1, num_actors=2, cpus_per_actor=8),
+        ray_params=RayParams(max_actor_restarts=1, num_actors=2, cpus_per_actor=1),
         num_boost_round=10)
 # print evaluation stats
 print("Final validation error: {:.4f}".format(

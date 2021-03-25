@@ -71,9 +71,9 @@ class NYC_Model(nn.Module):
 
 def process_data():
     app_name = "NYC Taxi Fare Prediction with RayDP"
-    num_executors = 4
+    num_executors = 1
     cores_per_executor = 1
-    memory_per_executor = "2GB"
+    memory_per_executor = "500M"
     # Use RayDP to perform data processing
     spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
     data = spark.read.format("csv").option("header", "true") \
@@ -121,12 +121,12 @@ def train_fn(dataset, num_features):
 if __name__ == '__main__':
     # connect to ray cluster
     import ray
-    # ray.init(address='auto')
-    ray.init()
+    ray.init(address='auto')
+    # ray.init()
     # Start horovod workers on Ray
     from horovod.ray import RayExecutor
     settings = RayExecutor.create_settings(500)
-    executor = RayExecutor(settings, num_hosts=1, num_slots=2, cpus_per_slot=2)
+    executor = RayExecutor(settings, num_hosts=1, num_slots=2, cpus_per_slot=1)
     executor.start()
     # torch_ds, num_features = executor.execute_single(process_data)
     torch_ds, num_features = process_data()

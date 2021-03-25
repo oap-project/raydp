@@ -9,14 +9,14 @@ from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 
 # Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
 # For more config info in ray, please refer the ray doc. https://docs.ray.io/en/latest/package-ref.html
-# ray.init(address="auto")
-ray.init()
+ray.init(address="auto")
+# ray.init()
 
 # After initialize ray cluster, you can use the raydp api to get a spark session
 app_name = "NYC Taxi Fare Prediction with RayDP"
-num_executors = 4
+num_executors = 1
 cores_per_executor = 1
-memory_per_executor = "2GB"
+memory_per_executor = "500M"
 spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
 
 # Then you can code as you are using spark
