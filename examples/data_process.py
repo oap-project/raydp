@@ -92,4 +92,3 @@ def nyc_taxi_preprocess(data):
     data = add_time_features(data)
     data = add_distance_features(data)
     return drop_col(data)
-    
