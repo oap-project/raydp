@@ -26,7 +26,7 @@ on:
 jobs:
   build-and-publish:
     # do not run in forks
-    if: ${{ startsWith(github.ref, 'refs/tags') && (github.repository_owner == 'oap-project') }}
+    if: ${{ github.repository_owner == 'oap-project' }}
     name: build wheel and upload
     runs-on: ubuntu-latest
     steps:
@@ -39,12 +39,21 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
+    - name: days since the commit date
+      run: |
+          :
+          timestamp=$(git log --no-walk --date=unix --format=%cd $GITHUB_SHA)
+          days=$(( ( $(date --utc +%s) - $timestamp ) / 86400 ))
+          if [ $days -eq 0 ]; then
+              echo COMMIT_TODAY=true >> $GITHUB_ENV
+          fi
     - name: Build wheel
+      if: env.COMMIT_TODAY == 'true'
       env:
         RAYDP_PACKAGE_NAME: raydp_nightly
       run: pip install wheel && ./build.sh
     - name: Upload
+      if: env.COMMIT_TODAY == 'true'
       uses: pypa/gh-action-pypi-publish@master
       with:
         password: ${{ secrets.PYPI_API_TOKEN }}
-        skip_existing: true

@@ -51,5 +51,15 @@ def test_spark_remote(ray_cluster):
     ray.get(driver.stop.remote())
 
 
+def test_spark_driver_and_executor_hostname(spark_on_ray_small):
+    conf = spark_on_ray_small.conf
+    node_ip_address = ray.services.get_node_ip_address()
+
+    driver_host_name = conf.get("spark.driver.host")
+    assert node_ip_address == driver_host_name
+    driver_bind_address = conf.get("spark.driver.bindAddress")
+    assert node_ip_address == driver_bind_address
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))

@@ -20,13 +20,14 @@ import io
 import os
 import sys
 from shutil import copy2, rmtree
+from datetime import datetime
 
 from setuptools import find_packages
 from setuptools import setup
 
 package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
 if package_name == 'raydp_nightly':
-    VERSION = 'dev'
+    VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
 else:
     VERSION = "0.2.0.dev0"
 
@@ -63,7 +64,7 @@ try:
         "psutil",
         "pyarrow >= 0.10",
         "ray >= 1.1.0",
-        "pyspark >= 3.0.0, < 3.1.0"
+        "pyspark >= 3.0.0"
     ]
 
     _packages = find_packages()

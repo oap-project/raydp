@@ -18,10 +18,11 @@
 import glob
 from typing import Any, Dict
 
+import ray
 from pyspark.sql.session import SparkSession
 
-from .ray_cluster_master import RayClusterMaster, RAYDP_CP
 from raydp.services import Cluster
+from .ray_cluster_master import RayClusterMaster, RAYDP_CP
 
 
 class SparkCluster(Cluster):
@@ -56,6 +57,9 @@ class SparkCluster(Cluster):
         extra_conf["spark.executor.instances"] = str(num_executors)
         extra_conf["spark.executor.cores"] = str(executor_cores)
         extra_conf["spark.executor.memory"] = str(executor_memory)
+        driver_node_ip = ray.services.get_node_ip_address()
+        extra_conf["spark.driver.host"] = str(driver_node_ip)
+        extra_conf["spark.driver.bindAddress"] = str(driver_node_ip)
         try:
             extra_jars = [extra_conf["spark.jars"]]
         except KeyError:
