@@ -133,4 +133,3 @@ if __name__ == '__main__':
     executor.run(train_fn, args=[torch_ds, num_features])
     raydp.stop_spark()
     ray.shutdown()
-    
