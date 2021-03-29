@@ -123,16 +123,12 @@ if __name__ == '__main__':
     import ray
     # ray.init(address='auto')
     ray.init()
-    print(ray.available_resources())
     torch_ds, num_features = process_data()
-    print(ray.available_resources())
     # Start horovod workers on Ray
     from horovod.ray import RayExecutor
     settings = RayExecutor.create_settings(500)
     executor = RayExecutor(settings, num_hosts=1, num_slots=1, cpus_per_slot=1)
-    print(ray.available_resources())
     executor.start()
-    print(ray.available_resources())
     executor.run(train_fn, args=[torch_ds, num_features])
     raydp.stop_spark()
     ray.shutdown()
