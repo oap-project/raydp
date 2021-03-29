@@ -82,7 +82,7 @@ def process_data():
     # Set spark timezone for processing datetime
     spark.conf.set("spark.sql.session.timeZone", "UTC")
     data = nyc_taxi_preprocess(data)
-    ds = create_ml_dataset_from_spark(data, 2, args.batch_size)
+    ds = create_ml_dataset_from_spark(data, 1, args.batch_size)
     features = [field.name for field in list(data.schema) if field.name != "fare_amount"]
     return ds.to_torch(feature_columns=features, label_column="fare_amount"), len(features)
 
@@ -123,13 +123,16 @@ if __name__ == '__main__':
     import ray
     # ray.init(address='auto')
     ray.init()
+    print(ray.available_resources())
+    torch_ds, num_features = process_data()
+    print(ray.available_resources())
     # Start horovod workers on Ray
     from horovod.ray import RayExecutor
     settings = RayExecutor.create_settings(500)
     executor = RayExecutor(settings, num_hosts=1, num_slots=1, cpus_per_slot=1)
+    print(ray.available_resources())
     executor.start()
-    # torch_ds, num_features = executor.execute_single(process_data)
-    torch_ds, num_features = process_data()
+    print(ray.available_resources())
     executor.run(train_fn, args=[torch_ds, num_features])
     raydp.stop_spark()
     ray.shutdown()
