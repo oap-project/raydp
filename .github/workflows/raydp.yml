@@ -62,16 +62,14 @@ jobs:
         run: |
           pip install pylint
           pylint --rcfile=python/pylintrc python/raydp
-      - name: Test Examples
-        run: |
-          ray start --head
-          python examples/random_nyctaxi.py
-          python examples/pytorch_nyctaxi.py
-          # python examples/tensorflow_nyctaxi.py
-          python examples/horovod_nyctaxi.py
-          python examples/xgboost_ray_nyctaxi.py
-          python examples/raysgd_nyctaxi.py
-          ray stop
       - name: Test with pytest
         run: |
           pytest python/raydp/tests/
+      - name: Test Examples
+        run: |
+          python examples/random_nyctaxi.py
+          python examples/pytorch_nyctaxi.py
+          python examples/tensorflow_nyctaxi.py
+          python examples/horovod_nyctaxi.py
+          python examples/xgboost_ray_nyctaxi.py
+          python examples/raysgd_nyctaxi.py
