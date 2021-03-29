@@ -70,7 +70,7 @@ jobs:
           ray start --head
           python examples/random_nyctaxi.py
           python examples/pytorch_nyctaxi.py
-          python examples/tensorflow_nyctaxi.py
+          # python examples/tensorflow_nyctaxi.py
           python examples/horovod_nyctaxi.py
           python examples/xgboost_ray_nyctaxi.py
           python examples/raysgd_nyctaxi.py
