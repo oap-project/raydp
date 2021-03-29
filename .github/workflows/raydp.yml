@@ -62,9 +62,6 @@ jobs:
         run: |
           pip install pylint
           pylint --rcfile=python/pylintrc python/raydp
-      - name: Test with pytest
-        run: |
-          pytest python/raydp/tests/
       - name: Test Examples
         run: |
           ray start --head
@@ -75,3 +72,6 @@ jobs:
           python examples/xgboost_ray_nyctaxi.py
           python examples/raysgd_nyctaxi.py
           ray stop
+      - name: Test with pytest
+        run: |
+          pytest python/raydp/tests/
