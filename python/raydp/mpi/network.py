@@ -20,7 +20,7 @@ import socket
 import struct
 import sys
 import time
-from typing import Any, Callable
+from typing import Any, Callable, List
 
 import ray.cloudpickle as cloudpickle
 
@@ -126,7 +126,7 @@ class BlockedDriver(NetWorkBase):
     def server_address(self):
         return self.conn.getsockname()
 
-    def broadcast(self, value):
+    def broadcast(self, value, conns: List[socket.socket]):
         raise NotImplementedError
 
 

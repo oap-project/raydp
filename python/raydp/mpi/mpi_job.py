@@ -21,7 +21,7 @@ import subprocess
 import sys
 import time
 from threading import Thread
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import ray
 
@@ -35,7 +35,6 @@ class NetworkDriver(network.BlockedDriver):
                  timeout: int, max_wait_timeout: int, world_size: int) -> None:
         super().__init__(job_id, host, port, timeout, max_wait_timeout)
         self.world_size = world_size
-        self.workers = {}
 
     def _network_init(self):
         conn = super()._network_init()
@@ -81,34 +80,44 @@ class NetworkDriver(network.BlockedDriver):
                     f"Waiting {n}({connected} connected) connection failed, exception: {e}")
             connected += 1
 
-    def add_client_conn(self, conn: socket.socket, address):
-        """Add one client connection"""
-        self.workers[address] = conn
-
-    def broadcast(self, value: Any):
+    def broadcast(self, value: Any, conns: List[socket.socket]):
         """Broadcast value to all clients"""
-        for conn in self.workers.values():
+        for conn in conns:
             self._send_value(conn, value)
 
-    def broadcast_with_reply(self, value: Any, reply_handler: Callable):
+    def broadcast_with_reply(self,
+                             value: Any,
+                             conns: List[socket.socket],
+                             reply_handler: Callable):
         """Broadcast value to all clients and wait for the reply
         
         :param value: the value to broadcast
+        :param conns: the client connections to broadcast
         :param reply_handler: the reply handler function
         """
-        for conn in self.workers.values():
-            self._send_value(conn, value)
-        for conn in self.workers.values():
+        self.broadcast(value, conns)
+        for conn in conns:
             reply = self._recv_value(conn)
             reply_handler(conn, reply)
 
     def close(self):
-        if self.workers:
-            [worker.shutdown() for worker in self.workers]
-            self.workers = None
         if self.conn is not None:
             self.conn.shutdown()
             self.conn = None
+
+
+class MPIWorkerMeta:
+    def __init__(self,
+                 dummy_host: str = None,
+                 rank: int = None,
+                 conn: socket.socket = None,
+                 peer: ray.actor.ActorHandle = None,
+                 command: List = None):
+        self.dummy_host = dummy_host
+        self.rank = rank
+        self.conn = conn
+        self.peer = peer
+        self.command = command
 
 
 @ray.remote
@@ -120,12 +129,23 @@ class MPIWorkerPeer:
         self.mpi_worker_spawn_command: str = mpi_worker_spawn_command
         self.spawn_thread = None
 
-    def startup(self):
+    def startup(self,
+                job_id: str,
+                driver_host: str,
+                driver_port: int):
+        # prepare the env
+        env = os.environ.copy()
+        env[constants.MPI_JOB_ID] = job_id
+        env[constants.MPI_DRIVER_HOST] = driver_host
+        env[constants.MPI_DRIVER_PORT] = str(driver_port)
+        env[constants.MPI_WORKER_PEER_NAME] = self.name
         # spawn the MPI worker process
+
         def spawn_fn():
             subprocess.run(self.mpi_worker_spawn_command,
                            check=True,
-                           shell=True)
+                           shell=True,
+                           env=env)
         self.spawn_thread = Thread(target=spawn_fn)
         self.spawn_thread.start()
 
@@ -145,13 +165,33 @@ class MPIJob:
         self.world_size = world_size
         self.num_cpus_per_worker = num_cpus_per_worker
         self.mpi_script_prepare_fn = mpi_script_prepare_fn
-        self.workers = []
+        self.workers: Dict[str, MPIWorkerMeta] = {}
 
-        host = ray.services.get_node_ip_address()
-        self.network_driver = NetworkDriver(self.job_name, host, 0, 10)
-        self.mpi_run_thread = None
+        self.network_driver: NetworkDriver = None
+        self.mpi_run_thread: Thread = None
+        self.func_id = 0
+        self.started = False
 
-        self.dummy_host_to_conn = None
+    def _reset(self):
+        if not self.started:
+            return
+        # send stop to all mpi workers
+        if self.workers:
+            valid_conns = [meta.conn for meta in self.workers.values() if meta.conn is not None]
+            self.network_driver.broadcast(protocol.Stop(self.job_name), valid_conns)
+            # stop peer
+            ray.get([meta.peer.stop.remote()
+                     for meta in self.workers.values() if meta.peer is not None])
+        # stop mpirun
+        if self.mpi_run_thread is not None:
+            self.mpi_run_thread.join(1)
+            self.mpi_run_thread = None
+        self.workers = {}
+        if self.network_driver:
+            self.network_driver.close()
+            self.network_driver = None
+        self.func_id = 0
+        self.started = False
 
     def _start_mpirun(self):
         # prepare the mpirun script
@@ -172,7 +212,7 @@ class MPIJob:
         env[constants.MPI_JOB_ID] = self.job_name
         address = self.network_driver.server_address()
         env[constants.MPI_DRIVER_HOST] = address[0]
-        env[constants.MPI_DIRVER_PORT] = address[1]
+        env[constants.MPI_DRIVER_PORT] = address[1]
         
         # start up the mpirun in sepearete thread
         def mpi_run_fn():
@@ -184,54 +224,80 @@ class MPIJob:
         self.mpi_run_thread.start()
 
         # wait for the agent register
-        dummy_host_to_conn = {}
+
         def handle_rsh_agent_register(conn: socket.socket,
-                                      address: Tuple,
-                                      register_msg: protocol.WorkerRegister):
-            assert register_msg.name.startswith("rsh_agent_")
-            dummy_host = register_msg.name[len("rsh_agent_"):]
-            assert dummy_host not in dummy_host_to_conn
-            dummy_host_to_conn[dummy_host] = (conn, address)
+                                      conn_address: Tuple,
+                                      register_msg: protocol.AgentRegister):
+            assert register_msg.job_id == self.job_name
+            dummy_host = register_msg.name
+            name = f"mpi_{dummy_host}_peer"
+            assert name not in self.workers
+            worker_meta = MPIWorkerMeta()
+            worker_meta.dummy_host = dummy_host
+            worker_meta.command = register_msg.command
+            self.workers[name] = worker_meta
+
         self.network_driver.wait_connection(self.world_size, handle_rsh_agent_register)
-        return dummy_host_to_conn
+        assert len(self.workers) == self.world_size
 
     def start(self):
-        if self.dummy_host_conn is not None:
+        if self.started:
             return
 
-        self.dummy_host_to_conn = self._start_mpirun()
-        
-        workers = []
-        # create the WorkerPeer actor
-        for i in range(self.world_size):
-            name = f"mpi_{self.job_name}_{i}"
-            worker = MPIWorkerPeer.options(name=name,
-                                           num_cpus=self.num_cpus_per_worker
-                                           ).remote(self.mpi_job_command)
-            workers.append(worker)
-    
+        try:
+            # start network server
+            host = ray.services.get_node_ip_address()
+            self.network_driver = NetworkDriver(self.job_name, host, 0, 10)
+            # start mpirun
+            self._start_mpirun()
+
+            # create the WorkerPeer actor
+            for name, meta in self.workers.items():
+                worker = MPIWorkerPeer.options(name=name,
+                                               num_cpus=self.num_cpus_per_worker
+                                               ).remote(name, meta.command)
+                meta.peer = worker
+            # startup mpi worker processes
+            ray.get([meta.peer.startup.remote() for meta in self.workers.values()])
+
+            # wait mpi worker processes connect
+            registered_worker = set()
+
+            def handle_worker_register(conn: socket.socket,
+                                       conn_address: Tuple,
+                                       register_msg: protocol.WorkerRegister):
+                assert register_msg.job_id == self.job_name
+                assert register_msg.rank not in registered_worker
+                meta = self.workers[register_msg.peer_name]
+                meta.rank = register_msg.rank
+                meta.conn = conn
+                registered_worker.add(register_msg.rank)
+
+            self.network_driver.wait_connection(self.world_size, handle_worker_register)
+            assert len(registered_worker) == self.world_size
+
+        except Exception as e:
+            self._reset()
+            raise e
+
+    def _wrap_func(self, func: Callable) -> protocol.RunFunction:
+        func = protocol.RunFunction(self.job_name, self.func_id, func)
+        self.func_id += 1
+        return func
+
     def run(self, mpi_func: Callable) -> None:
         assert self.network_driver is not None
-        self.network_driver.broadcast(protocol.RunFunction(mpi_func))
+        self.network_driver.broadcast(self._wrap_func(mpi_func))
 
     def run_with_reply(self, mpi_func) -> List[Any]:
         assert self.network_driver is not None
 
         results = []
+
         def reply_handler(conn: socket.socket, reply: Any):
             results.append(reply)
-        self.network_driver.broadcast_with_reply(protocol.RunFunction(mpi_func), reply_handler)
+        self.network_driver.broadcast_with_reply(self._wrap_func(mpi_func), reply_handler)
         return results
         
     def stop(self):
-        if self.network_driver is None:
-            return
-        # broadcast mpi processes to stop
-        self.network_driver.broadcast(protocol.Stop())
-        # stop mpi processes peer
-        ray.get([worker.stop.remote() for worker in self.workers])
-        # stop socket
-        self.network_driver.stop()
-        self.network_driver = None
-        self.workers = []
-        self.mpi_run_thread = None
+        self._reset()

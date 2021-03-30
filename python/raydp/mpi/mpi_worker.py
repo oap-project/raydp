@@ -49,8 +49,10 @@ class MPIWorker(network.BlockedWorker):
                  driver_host: str,
                  driver_port: int,
                  timeout: int,
-                 max_wait_timeout: int) -> None:
+                 max_wait_timeout: int,
+                 peer_name: str) -> None:
         super().__init__(name, job_id, driver_host, driver_port, timeout, max_wait_timeout)
+        self.peer_name = peer_name
         self.expected_func_id = 0
 
     def register(self):
@@ -60,11 +62,12 @@ class MPIWorker(network.BlockedWorker):
                 assert not ray.is_initialized()
                 ray.init(address=reply.ray_address,
                          _redis_password=reply.redis_password)
-                peer_actor = ray.get_actor(reply.peer_name)
+                peer_actor = ray.get_actor(self.peer_name)
                 worker_context.peer_actor = peer_actor
             worker_context.job_id = self.job_id
             worker_context.rank = get_rank()
-        self.ask(protocol.WorkerRegister(self.job_id,  self.name), register_handler)
+        self.ask(protocol.WorkerRegister(self.job_id,  get_rank(), self.peer_name),
+                 register_handler)
 
     def process_command(self) -> bool:
         value = self.recv()
@@ -92,12 +95,13 @@ if __name__ == "__main__":
     job_id = network.get_environ_value(constants.MPI_JOB_ID)
     driver_host = network.get_environ_value(constants.MPI_DRIVER_HOST)
     driver_port = int(network.get_environ_value(constants.MPI_DRIVER_PORT))
+    peer_name = network.get_environ_value(constants.MPI_WORKER_PEER_NAME)
 
     timeout = os.environ.get(constants.NETWORK_TIME_OUT, 0)
     max_wait_timeout = os.environ.get(constants.MAXIMUM_WAIT_TIME_OUT, 0)
 
     client = MPIWorker(job_id, str(get_rank()), driver_host, driver_port,
-                       timeout, max_wait_timeout)
+                       timeout, max_wait_timeout, peer_name)
 
     # register to driver
     client.register()

@@ -37,32 +37,31 @@ class AgentRegister(Protocol):
 
 
 class WorkerRegister(Protocol):
-    def __init__(self, job_id: str, rank: int) -> None:
+    def __init__(self, job_id: str, rank: int, peer_name: str) -> None:
         """mpi process register to driver
 
         :param job_id: the unique job id
         :param rank: the rank id
+        :param peer_name: the peer actor name
         """
         super(WorkerRegister, self).__init__(job_id)
         self.rank = rank
+        self.peer_name = peer_name
 
 
 class WorkerRegistered(Protocol):
     def __init__(self,
                  job_id: str,
                  ray_address: str,
-                 redis_password: str,
-                 peer_name: str) -> None:
+                 redis_password: str) -> None:
         """Driver send back the registered message to MPI processes
 
         :param ray_address: the ray address to connect
         :param redis_password: the ray redis password
-        :param peer_name: the peer actor name
         """
         super(WorkerRegistered, self).__init__(job_id)
         self.ray_address = ray_address
         self.redis_password = redis_password
-        self.peer_name = peer_name
 
 
 class RunFunction(Protocol):
