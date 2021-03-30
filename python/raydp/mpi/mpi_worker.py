@@ -97,8 +97,8 @@ if __name__ == "__main__":
     driver_port = int(network.get_environ_value(constants.MPI_DRIVER_PORT))
     peer_name = network.get_environ_value(constants.MPI_WORKER_PEER_NAME)
 
-    timeout = os.environ.get(constants.NETWORK_TIME_OUT, 0)
-    max_wait_timeout = os.environ.get(constants.MAXIMUM_WAIT_TIME_OUT, 0)
+    timeout = int(os.environ.get(constants.NETWORK_TIME_OUT, "1"))
+    max_wait_timeout = int(os.environ.get(constants.MAXIMUM_WAIT_TIME_OUT, "1"))
 
     client = MPIWorker(job_id, str(get_rank()), driver_host, driver_port,
                        timeout, max_wait_timeout, peer_name)

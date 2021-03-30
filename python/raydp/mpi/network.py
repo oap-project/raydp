@@ -25,7 +25,7 @@ from typing import Any, Callable, List
 import ray.cloudpickle as cloudpickle
 
 
-def get_environ_value(key: str):
+def get_environ_value(key: str) -> str:
     """Get value from environ, raise exception if the key not existed"""
     assert key in os.environ, f"{key} should be set in the environ"
     return os.environ[key]
@@ -49,7 +49,7 @@ class NetWorkBase:
         self.host = host
         self.port = port
         self.timeout = timeout
-        self.max_wait_timeout = max_wait_timeout if max_wait_timeout > 0 else sys.maxsize
+        self.max_wait_timeout = max_wait_timeout if max_wait_timeout > 0 else timeout
 
         assert self.max_wait_timeout >= self.timeout
 
@@ -63,7 +63,7 @@ class NetWorkBase:
 
     def _recv_value(self, conn: socket.socket) -> Any:
         # receive the serialized value length
-        buffer_len = self._recv_all(conn, 4)
+        buffer_len = self._recv_all(conn, 4, self.max_wait_timeout)
         buffer_len = struct.unpack(">I", buffer_len)[0]
         # receive the serialized value
         buffer = self._recv_all(conn, buffer_len, self.max_wait_timeout)

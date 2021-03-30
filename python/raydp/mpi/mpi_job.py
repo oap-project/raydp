@@ -123,22 +123,27 @@ class MPIWorkerMeta:
 @ray.remote
 class MPIWorkerPeer:
     def __init__(self,
+                 job_id: str,
                  name: str,
                  mpi_worker_spawn_command: str) -> None:
+        self.job_id = job_id
         self.name = name
         self.mpi_worker_spawn_command: str = mpi_worker_spawn_command
         self.spawn_thread = None
 
     def startup(self,
-                job_id: str,
                 driver_host: str,
-                driver_port: int):
+                driver_port: int,
+                network_timeout: int = 1,
+                op_timeout: int = 1):
         # prepare the env
         env = os.environ.copy()
-        env[constants.MPI_JOB_ID] = job_id
-        env[constants.MPI_DRIVER_HOST] = driver_host
+        env[constants.MPI_JOB_ID] = self.job_id
+        env[constants.MPI_DRIVER_HOST] = str(driver_host)
         env[constants.MPI_DRIVER_PORT] = str(driver_port)
         env[constants.MPI_WORKER_PEER_NAME] = self.name
+        env[constants.NETWORK_TIME_OUT] = str(network_timeout)
+        env[constants.MAXIMUM_WAIT_TIME_OUT] = str(op_timeout)
         # spawn the MPI worker process
 
         def spawn_fn():
@@ -160,11 +165,17 @@ class MPIJob:
                  job_name: str,
                  world_size: int,
                  num_cpus_per_worker: int,
-                 mpi_script_prepare_fn: Callable = None) -> None:
+                 mpi_script_prepare_fn: Callable = None,
+                 network_timeout: int = 1,
+                 op_timeout: int = 1,
+                 ) -> None:
         self.job_name = job_name
         self.world_size = world_size
         self.num_cpus_per_worker = num_cpus_per_worker
         self.mpi_script_prepare_fn = mpi_script_prepare_fn
+        self.network_timeout = op_timeout
+        self.op_timeout = op_timeout
+
         self.workers: Dict[str, MPIWorkerMeta] = {}
 
         self.network_driver: NetworkDriver = None
@@ -211,9 +222,11 @@ class MPIJob:
         env = os.environ.copy()
         env[constants.MPI_JOB_ID] = self.job_name
         address = self.network_driver.server_address()
-        env[constants.MPI_DRIVER_HOST] = address[0]
-        env[constants.MPI_DRIVER_PORT] = address[1]
-        
+        env[constants.MPI_DRIVER_HOST] = str(address[0])
+        env[constants.MPI_DRIVER_PORT] = str(address[1])
+        env[constants.NETWORK_TIME_OUT] = str(self.network_timeout)
+        env[constants.MAXIMUM_WAIT_TIME_OUT] = str(self.op_timeout)
+
         # start up the mpirun in sepearete thread
         def mpi_run_fn():
             subprocess.run(default_script,
@@ -247,7 +260,8 @@ class MPIJob:
         try:
             # start network server
             host = ray.services.get_node_ip_address()
-            self.network_driver = NetworkDriver(self.job_name, host, 0, 10)
+            self.network_driver = NetworkDriver(
+                self.job_name, host, 0, self.network_timeout, self.op_timeout, self.world_size)
             # start mpirun
             self._start_mpirun()
 
@@ -255,10 +269,13 @@ class MPIJob:
             for name, meta in self.workers.items():
                 worker = MPIWorkerPeer.options(name=name,
                                                num_cpus=self.num_cpus_per_worker
-                                               ).remote(name, meta.command)
+                                               ).remote(self.job_name, name, meta.command)
                 meta.peer = worker
             # startup mpi worker processes
-            ray.get([meta.peer.startup.remote() for meta in self.workers.values()])
+            address = self.network_driver.server_address()
+            ray.get([meta.peer.startup.remote(address[0], address[1],
+                                              self.network_timeout, self.op_timeout)
+                    for meta in self.workers.values()])
 
             # wait mpi worker processes connect
             registered_worker = set()

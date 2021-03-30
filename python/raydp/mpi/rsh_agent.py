@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import os
 import sys
 
 from . import constants
@@ -31,12 +32,17 @@ if __name__ == "__main__":
     # get the driver information to connect
     job_id = get_environ_value(constants.MPI_JOB_ID)
     driver_host = get_environ_value(constants.MPI_DRIVER_HOST)
-    driver_port = get_environ_value(constants.MPI_DRIVER_PORT)
+    driver_port = int(get_environ_value(constants.MPI_DRIVER_PORT))
+
+    network_timeout = int(os.environ.get(constants.NETWORK_TIME_OUT, "1"))
+    op_timeout = int(os.environ.get(constants.MAXIMUM_WAIT_TIME_OUT, "1"))
 
     client = network.BlockedWorker(job_id=job_id,
                                    name="rsh_agent_" + host_name,
                                    host=driver_host,
-                                   port=driver_port)
+                                   port=driver_port,
+                                   timeout=network_timeout,
+                                   max_wait_timeout=op_timeout)
 
     client.send(protocol.AgentRegister(job_id, host_name, argv))
     client.close()
