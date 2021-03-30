@@ -18,10 +18,10 @@
 import os
 import sys
 
-from . import constants
-from . import network
-from . import protocol
-from .network import get_environ_value
+from raydp.mpi import constants
+from raydp.mpi import network
+from raydp.mpi import protocol
+from raydp.mpi.network import get_environ_value
 
 if __name__ == "__main__":
     # pop the file name

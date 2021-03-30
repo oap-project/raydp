@@ -15,13 +15,14 @@
 # limitations under the License.
 #
 
-import ray
 import os
+
+import ray
 from mpi4py import MPI
 
-from . import constants
-from . import network
-from . import protocol
+from raydp.mpi import constants
+from raydp.mpi import network
+from raydp.mpi import protocol
 
 
 def get_rank():

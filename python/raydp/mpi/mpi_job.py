@@ -25,9 +25,9 @@ from typing import Any, Callable, Dict, List, Tuple
 
 import ray
 
-from . import constants
-from . import network
-from . import protocol
+from raydp.mpi import constants
+from raydp.mpi import network
+from raydp.mpi import protocol
 
 
 class NetworkDriver(network.BlockedDriver):
@@ -35,13 +35,9 @@ class NetworkDriver(network.BlockedDriver):
                  timeout: int, max_wait_timeout: int, world_size: int) -> None:
         super().__init__(job_id, host, port, timeout, max_wait_timeout)
         self.world_size = world_size
-
-    def _network_init(self):
-        conn = super()._network_init()
         # set the backlog to 2 * world_size, because there are world_size rsh_agent
         # will connect
-        conn.listen(self.world_size * 2)
-        return conn
+        self.conn.listen(self.world_size * 2)
 
     def _wait_one_connection(self, conn_handler: Callable):
         start = time.time()
@@ -173,7 +169,7 @@ class MPIJob:
         self.world_size = world_size
         self.num_cpus_per_worker = num_cpus_per_worker
         self.mpi_script_prepare_fn = mpi_script_prepare_fn
-        self.network_timeout = op_timeout
+        self.network_timeout = network_timeout
         self.op_timeout = op_timeout
 
         self.workers: Dict[str, MPIWorkerMeta] = {}
