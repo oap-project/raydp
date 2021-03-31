@@ -59,12 +59,13 @@ class MPIWorker(network.BlockedWorker):
     def register(self):
         def register_handler(reply: protocol.WorkerRegistered):
             if reply.ray_address is not None:
-                # we need to connect to ray
-                assert not ray.is_initialized()
-                ray.init(address=reply.ray_address,
-                         _redis_password=reply.redis_password)
-                peer_actor = ray.get_actor(self.peer_name)
-                worker_context.peer_actor = peer_actor
+                # # we need to connect to ray
+                # assert not ray.is_initialized()
+                # ray.init(address=reply.ray_address,
+                #          _redis_password=reply.redis_password)
+                # peer_actor = ray.get_actor(self.peer_name)
+                # worker_context.peer_actor = peer_actor
+                pass
             worker_context.job_id = self.job_id
             worker_context.rank = get_rank()
         self.ask(protocol.WorkerRegister(self.job_id,  get_rank(), self.peer_name),
@@ -101,7 +102,7 @@ if __name__ == "__main__":
     timeout = int(os.environ.get(constants.NETWORK_TIME_OUT, "1"))
     max_wait_timeout = int(os.environ.get(constants.MAXIMUM_WAIT_TIME_OUT, "1"))
 
-    client = MPIWorker(job_id, str(get_rank()), driver_host, driver_port,
+    client = MPIWorker(str(get_rank()), job_id, driver_host, driver_port,
                        timeout, max_wait_timeout, peer_name)
 
     # register to driver

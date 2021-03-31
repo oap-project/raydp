@@ -44,5 +44,5 @@ if __name__ == "__main__":
                                    timeout=network_timeout,
                                    max_wait_timeout=op_timeout)
 
-    client.send(protocol.AgentRegister(job_id, host_name, argv))
+    client.send(protocol.AgentRegister(job_id, host_name, " ".join(argv)))
     client.close()

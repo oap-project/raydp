@@ -168,5 +168,5 @@ class BlockedWorker(NetWorkBase):
 
     def close(self):
         if self.conn is not None:
-            self.conn.shutdown()
+            self.conn.close()
             self.conn = None

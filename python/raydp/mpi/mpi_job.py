@@ -98,7 +98,7 @@ class NetworkDriver(network.BlockedDriver):
 
     def close(self):
         if self.conn is not None:
-            self.conn.shutdown()
+            self.conn.close()
             self.conn = None
 
 
@@ -108,7 +108,7 @@ class MPIWorkerMeta:
                  rank: int = None,
                  conn: socket.socket = None,
                  peer: ray.actor.ActorHandle = None,
-                 command: List = None):
+                 command: str = None):
         self.dummy_host = dummy_host
         self.rank = rank
         self.conn = conn
@@ -142,11 +142,15 @@ class MPIWorkerPeer:
         env[constants.MAXIMUM_WAIT_TIME_OUT] = str(op_timeout)
         # spawn the MPI worker process
 
+        command = self.mpi_worker_spawn_command
+
         def spawn_fn():
-            subprocess.run(self.mpi_worker_spawn_command,
-                           check=True,
-                           shell=True,
-                           env=env)
+            proc = subprocess.run(command,
+                                  check=True,
+                                  shell=True,
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  env=env)
         self.spawn_thread = Thread(target=spawn_fn)
         self.spawn_thread.start()
 
@@ -202,14 +206,13 @@ class MPIJob:
 
     def _start_mpirun(self):
         # prepare the mpirun script
-        rsh_agent = f"'{sys.executable} {constants.RSH_AGENT_PATH}'"
-        dummy_hosts = [f"{self.job_name}_host_{rank}" for rank in range(self.world_size)]
-        main_class = f"'{sys.executable} {constants.MPI_MAIN_CLASS_PATH}'"
+        rsh_agent = f"{sys.executable} {constants.RSH_AGENT_PATH}"
+        dummy_hosts = [f"{self.job_name}-host-{rank}" for rank in range(self.world_size)]
         default_script = ["mpirun", "--allow-run-as-root", "--tag-output",
                           "-bind-to", "none", "-map-by", "slot", "-mca",
-                          "pml ob1", "-mca", "btl ^openib", "-mca", "plm rsh",
+                          "pml", "ob1", "-mca", "btl", "^openib", "-mca", "plm", "rsh",
                           "-mca", "plm_rsh_agent", rsh_agent, "-H", ",".join(dummy_hosts)
-                          , "-N", "1", main_class]
+                          , "-N", "1", sys.executable, constants.MPI_MAIN_CLASS_PATH]
         
         if self.mpi_script_prepare_fn is not None:
             default_script = self.mpi_script_prepare_fn(default_script)
@@ -223,12 +226,18 @@ class MPIJob:
         env[constants.NETWORK_TIME_OUT] = str(self.network_timeout)
         env[constants.MAXIMUM_WAIT_TIME_OUT] = str(self.op_timeout)
 
-        # start up the mpirun in sepearete thread
+        # start up the mpirun in separate thread
+        script = subprocess.list2cmdline(default_script)
+
         def mpi_run_fn():
-            subprocess.run(default_script,
-                           check=True,
-                           shell=True,
-                           env=env)
+            proc = subprocess.run(script,
+                                  check=True,
+                                  shell=True,
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  env=env)
+            print(proc.stdout.decode())
+            print(proc.stderr.decode())
         self.mpi_run_thread = Thread(target=mpi_run_fn)
         self.mpi_run_thread.start()
 
@@ -239,7 +248,7 @@ class MPIJob:
                                       register_msg: protocol.AgentRegister):
             assert register_msg.job_id == self.job_name
             dummy_host = register_msg.name
-            name = f"mpi_{dummy_host}_peer"
+            name = f"mpi-{dummy_host}-peer"
             assert name not in self.workers
             worker_meta = MPIWorkerMeta()
             worker_meta.dummy_host = dummy_host
@@ -285,9 +294,11 @@ class MPIJob:
                 meta.rank = register_msg.rank
                 meta.conn = conn
                 registered_worker.add(register_msg.rank)
+                self.network_driver._send_value(conn, protocol.WorkerRegistered(self.job_name, "", ""))
 
             self.network_driver.wait_connection(self.world_size, handle_worker_register)
             assert len(registered_worker) == self.world_size
+            self.started = True
 
         except Exception as e:
             self._reset()
@@ -300,16 +311,20 @@ class MPIJob:
 
     def run(self, mpi_func: Callable) -> None:
         assert self.network_driver is not None
-        self.network_driver.broadcast(self._wrap_func(mpi_func))
+        conns = [meta.conn for meta in self.workers.values()]
+        self.network_driver.broadcast(self._wrap_func(mpi_func), conns)
 
     def run_with_reply(self, mpi_func) -> List[Any]:
         assert self.network_driver is not None
+        conns = [meta.conn for meta in self.workers.values()]
 
         results = []
 
-        def reply_handler(conn: socket.socket, reply: Any):
-            results.append(reply)
-        self.network_driver.broadcast_with_reply(self._wrap_func(mpi_func), reply_handler)
+        def reply_handler(conn: socket.socket, reply: protocol.FunctionResult):
+            if reply.is_exception:
+                raise reply.result
+            results.append(reply.result)
+        self.network_driver.broadcast_with_reply(self._wrap_func(mpi_func), conns, reply_handler)
         return results
         
     def stop(self):
