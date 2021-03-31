@@ -32,7 +32,7 @@ spark.conf.set("spark.sql.session.timeZone", "UTC")
 # Transform the dataset
 data = nyc_taxi_preprocess(data)
 # Split data into train_dataset and test_dataset
-train_df, test_df = random_split(data, [0.9, 0.1])
+train_df, test_df = random_split(data, [0.9, 0.1], 0)
 features = [field.name for field in list(train_df.schema) if field.name != "fare_amount"]
 # Define a neural network model
 class NYC_Model(nn.Module):
@@ -69,7 +69,7 @@ criterion = nn.SmoothL1Loss()
 optimizer = torch.optim.Adam(nyc_model.parameters(), lr=0.001)
 # Create a distributed estimator based on the raydp api
 estimator = TorchEstimator(num_workers=1, model=nyc_model, optimizer=optimizer, loss=criterion,
-                           feature_columns=features, label_column="fare_amount", batch_size=256,
+                           feature_columns=features, label_column="fare_amount", batch_size=64,
                            num_epochs=30)
 # Train the model
 estimator.fit_on_spark(train_df, test_df)

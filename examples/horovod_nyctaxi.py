@@ -7,7 +7,6 @@ from torch.utils.data.dataloader import DataLoader
 import horovod.torch as hvd
 import raydp
 from raydp.spark import create_ml_dataset_from_spark
-from raydp.utils import random_split
 
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 

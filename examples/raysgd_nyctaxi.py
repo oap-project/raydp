@@ -36,7 +36,7 @@ spark.conf.set("spark.sql.session.timeZone", "UTC")
 # Transform the dataset
 data = nyc_taxi_preprocess(data)
 # Split data into train_dataset and test_dataset
-train_df, test_df = random_split(data, [0.9, 0.1])
+train_df, test_df = random_split(data, [0.9, 0.1], 0)
 features = [field.name for field in list(train_df.schema) if field.name != "fare_amount"]
 # Convert spark dataframe into ML Dataset
 train_dataset = create_ml_dataset_from_spark(train_df, num_executors, 32)
@@ -86,9 +86,9 @@ class CustomOperator(TrainingOperator):
         self.optimizer = self.optimizer[0]
         # Get the corresponging shard
         train_shard = train_dataset.get_shard(self.world_rank)
-        train_loader = DataLoader(train_shard, batch_size=32)
+        train_loader = DataLoader(train_shard, batch_size=64)
         test_shard = test_dataset.get_shard(self.world_rank)
-        val_loader = DataLoader(test_shard, batch_size=256)
+        val_loader = DataLoader(test_shard, batch_size=64)
         self.register_data(train_loader=train_loader, validation_loader=val_loader)
 
 # You can either train the model like this
