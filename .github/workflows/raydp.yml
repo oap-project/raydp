@@ -52,7 +52,8 @@ jobs:
           python -m pip install --upgrade pip
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
-          pip install wheel pytest koalas tensorflow torch tabulate ray[tune] xgboost_ray horovod[pytorch,ray]
+          pip install wheel
+          pip install pytest koalas tensorflow torch tabulate ray[tune] xgboost_ray horovod[pytorch,ray]
 
       - name: Build and install
         run: |
