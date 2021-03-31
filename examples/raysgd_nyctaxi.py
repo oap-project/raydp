@@ -88,7 +88,7 @@ class CustomOperator(TrainingOperator):
         train_shard = train_dataset.get_shard(self.world_rank)
         train_loader = DataLoader(train_shard, batch_size=32)
         test_shard = test_dataset.get_shard(self.world_rank)
-        val_loader = DataLoader(test_shard, batch_size=32)
+        val_loader = DataLoader(test_shard, batch_size=256)
         self.register_data(train_loader=train_loader, validation_loader=val_loader)
 
 # You can either train the model like this
