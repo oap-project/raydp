@@ -54,7 +54,7 @@ jobs:
           pip install pytest koalas tensorflow torch tabulate ray[tune] xgboost_ray
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
-          pip installhorovod[pytorch,ray]
+          pip install horovod[pytorch,ray]
 
       - name: Build and install
         run: |
