@@ -16,6 +16,7 @@
 #
 
 import os
+import signal
 import socket
 import subprocess
 import sys
@@ -28,6 +29,7 @@ import ray
 from raydp.mpi import constants
 from raydp.mpi import network
 from raydp.mpi import protocol
+from raydp.mpi.utils import run_cmd, StoppableThread
 
 
 class NetworkDriver(network.BlockedDriver):
@@ -142,10 +144,8 @@ class MPIWorkerPeer:
         env[constants.MAXIMUM_WAIT_TIME_OUT] = str(op_timeout)
         # spawn the MPI worker process
 
-        command = self.mpi_worker_spawn_command
-
         def spawn_fn():
-            proc = subprocess.run(command,
+            proc = subprocess.run(self.mpi_worker_spawn_command,
                                   check=True,
                                   shell=True,
                                   stdout=subprocess.PIPE,
@@ -154,7 +154,7 @@ class MPIWorkerPeer:
         self.spawn_thread = Thread(target=spawn_fn)
         self.spawn_thread.start()
 
-    def stop(self, timeout=2):
+    def stop(self, timeout=1):
         if self.spawn_thread is not None and self.spawn_thread.is_alive():
             self.spawn_thread.join(timeout=timeout)
             self.spawn_thread = None
@@ -179,7 +179,9 @@ class MPIJob:
         self.workers: Dict[str, MPIWorkerMeta] = {}
 
         self.network_driver: NetworkDriver = None
-        self.mpi_run_thread: Thread = None
+        self.mpirun_proc: subprocess.Popen = None
+        self.mpirun_check_thread: StoppableThread = None
+        self.mpirun_forward_thread: StoppableThread = None
         self.func_id = 0
         self.started = False
 
@@ -194,9 +196,18 @@ class MPIJob:
             ray.get([meta.peer.stop.remote()
                      for meta in self.workers.values() if meta.peer is not None])
         # stop mpirun
-        if self.mpi_run_thread is not None:
-            self.mpi_run_thread.join(1)
-            self.mpi_run_thread = None
+        if self.mpirun_forward_thread is not None:
+            self.mpirun_forward_thread.stop()
+            self.mpirun_forward_thread = None
+        if self.mpirun_check_thread is not None:
+            self.mpirun_check_thread.join(1)
+            if self.mpirun_check_thread.is_alive():
+                # kill the mpirun process
+                os.killpg(os.getpgid(self.mpirun_proc.pid), signal.SIGTERM)
+                self.mpirun_check_thread.stop()
+                self.mpirun_check_thread = None
+        self.mpirun_proc = None
+
         self.workers = {}
         if self.network_driver:
             self.network_driver.close()
@@ -229,17 +240,9 @@ class MPIJob:
         # start up the mpirun in separate thread
         script = subprocess.list2cmdline(default_script)
 
-        def mpi_run_fn():
-            proc = subprocess.run(script,
-                                  check=True,
-                                  shell=True,
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE,
-                                  env=env)
-            print(proc.stdout.decode())
-            print(proc.stderr.decode())
-        self.mpi_run_thread = Thread(target=mpi_run_fn)
-        self.mpi_run_thread.start()
+        (self.mpirun_proc,
+         self.mpirun_check_thread,
+         self.mpirun_forward_thread) = run_cmd(script, env)
 
         # wait for the agent register
 
