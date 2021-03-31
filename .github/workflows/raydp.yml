@@ -50,10 +50,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install wheel
+          pip install pytest koalas tensorflow torch tabulate ray[tune] xgboost_ray
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
-          pip install wheel
-          pip install pytest koalas tensorflow torch tabulate ray[tune] xgboost_ray horovod[pytorch,ray]
+          pip installhorovod[pytorch,ray]
 
       - name: Build and install
         run: |
