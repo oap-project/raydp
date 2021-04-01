@@ -16,10 +16,12 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
+    <scala.version>2.12.10</scala.version>
+    <spark.version>3.0.0</spark.version>
     <fasterxml.jackson.version>2.12.2</fasterxml.jackson.version>
     <jersey.version>2.31</jersey.version>
     <scala.binary.version>2.12</scala.binary.version>
-    <ray.version>1.1.0</ray.version>
+    <ray.version>1.2.0</ray.version>
   </properties>
 
   <repositories>
@@ -40,14 +42,14 @@
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_2.12</artifactId>
-      <version>3.0.0</version>
+      <version>${spark.version}</version>
       <scope>provided</scope>
     </dependency>
 
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_2.12</artifactId>
-      <version>3.0.0</version>
+      <version>${spark.version}</version>
       <scope>provided</scope>
     </dependency>
 
@@ -168,6 +170,9 @@
             </goals>
           </execution>
         </executions>
+        <configuration>
+          <scalaVersion>${scala.version}</scalaVersion>
+        </configuration>
       </plugin>
 
       <plugin>
