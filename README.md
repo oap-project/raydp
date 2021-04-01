@@ -85,5 +85,5 @@ estimator.fit_on_spark(train_df)
 
 raydp.stop_spark()
 ```
-
-You can find more examples under the `examples` folder.
+## More Examples
+Not sure how to use RayDP? Check the `examples` folder. We have added many examples showing how RayDP works together with PyTorch, TensorFlow, XGBoost, Horovod, and so on. If you still cannot find what you want, feel free to post a issue to ask us!

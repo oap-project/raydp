@@ -30,7 +30,7 @@ spark.conf.set("spark.sql.session.timeZone", "UTC")
 # Transform the dataset
 data = nyc_taxi_preprocess(data)
 # Split data into train_dataset and test_dataset
-train_df, test_df = random_split(data, [0.9, 0.1])
+train_df, test_df = random_split(data, [0.9, 0.1], 0)
 features = [field.name for field in list(train_df.schema) if field.name != "fare_amount"]
 
 # Define the keras model

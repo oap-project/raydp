@@ -26,7 +26,7 @@ spark.conf.set("spark.sql.session.timeZone", "UTC")
 # Transform the dataset
 data = nyc_taxi_preprocess(data)
 # Split data into train_dataset and test_dataset
-train_df, test_df = random_split(data, [0.9, 0.1])
+train_df, test_df = random_split(data, [0.9, 0.1], 0)
 # Convert spark dataframe into ML Dataset
 train_dataset = create_ml_dataset_from_spark(train_df, 2, 32)
 test_dataset = create_ml_dataset_from_spark(test_df, 2, 32)
