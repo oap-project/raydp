@@ -8,16 +8,16 @@ RayDP provides an API for starting a Spark job on Ray in your python program wit
 
 ### Integrating Spark with Deep Learning and Machine Learning Frameworks
 
-#### Using MLDataset to exchange data
+#### MLDataset API
 RayDP provides an API to create a Ray MLDataset from a Spark dataframe. MLDataset represents a distributed dataset stored in Ray's in-memory object store. It supports transformation on each shard and can be converted to a PyTorch or Tensorflow dataset for distributed training. If you prefer to using Horovod on Ray or RaySGD for distributed training, you can use MLDataset to seamlessly integrate Spark with them.
 
-#### Estimator APIs for Distributed Training
+#### Estimator API
 RayDP also provides high level scikit-learn style Estimator APIs for distributed training. The Estimator APIs allow you to train a deep neural network directly on a Spark DataFrame, leveraging Ray’s ability to scale out across the cluster. The Estimator APIs are wrappers of RaySGD and hide the complexity of converting a Spark DataFrame to a PyTorch/Tensorflow dataset and distributing the training.
 
 ## Installation
 
 
-You can install latest RayDP using pip. RayDP requires Ray (>=1.1.0) and PySpark (3.0.0 or 3.0.1).
+You can install latest RayDP using pip. RayDP requires Ray (>=1.1.0) and PySpark (>=3.0.0). Please also make sure java is installed and JAVA_HOME is set properly.
 ```shell
 pip install raydp
 ```
@@ -38,7 +38,7 @@ pip install dist/raydp*.whl
 To start a Spark job on Ray, you can use the `raydp.init_spark` API. You can write Spark, PyTorch/Tensorflow, Ray code in the same python program to easily implement an end to end pipeline.
 
 ### Classic Spark Word Count Example
-After we use RayDP to initialize a Spark cluster, of course we can use Spark as usual. 
+After we use RayDP to initialize a Spark cluster, we can use Spark as usual. 
 ```python
 import ray
 import raydp
@@ -59,7 +59,7 @@ raydp.stop_spark()
 ```
 
 ### Integration with PyTorch
-However, combined with other ray components, such as raysgd and ray serve, we can easily build an end-to-end deep learning pipeline. In this example. we show how to use our estimator API, which is a wrapper around raysgd, to perform data preprocessing using Spark, and train a model using PyTorch.
+However, combined with other ray components, such as RaySGD and RayServe, we can easily build an end-to-end deep learning pipeline. In this example. we show how to use our estimator API, which is a wrapper around RaySGD, to perform data preprocessing using Spark, and train a model using PyTorch.
 ```python
 import ray
 import raydp
@@ -86,4 +86,4 @@ estimator.fit_on_spark(train_df)
 raydp.stop_spark()
 ```
 ## More Examples
-Not sure how to use RayDP? Check the `examples` folder. We have added many examples showing how RayDP works together with PyTorch, TensorFlow, XGBoost, Horovod, and so on. If you still cannot find what you want, feel free to post a issue to ask us!
+Not sure how to use RayDP? Check the `examples` folder. We have added many examples showing how RayDP works together with PyTorch, TensorFlow, XGBoost, Horovod, and so on. If you still cannot find what you want, feel free to post an issue to ask us!
