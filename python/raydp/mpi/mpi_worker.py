@@ -15,14 +15,18 @@
 # limitations under the License.
 #
 
-import os
+import threading
+from concurrent import futures
+from queue import Queue
 
+import grpc
 import ray
+import ray.cloudpickle as cloudpickle
 from mpi4py import MPI
 
 from raydp.mpi import constants
-from raydp.mpi import network
-from raydp.mpi import protocol
+from raydp.mpi.network import network_pb2, network_pb2_grpc
+from raydp.mpi.utils import create_insecure_channel, get_environ_value, StoppableThread
 
 
 def get_rank():
@@ -43,73 +47,134 @@ class WorkerContext:
 worker_context = WorkerContext("", 0, None)
 
 
-class MPIWorker(network.BlockedWorker):
+class TaskRunner(StoppableThread):
     def __init__(self,
-                 name: str,
+                 task_queue: Queue = None,
+                 driver_stub: network_pb2_grpc.DriverServiceStub = None):
+        super(TaskRunner, self).__init__(
+            group=None, target=None, name="MPI_WORKER_TASK_RUNNER", args=(),
+            kwargs=None, daemon=True)
+        self.task_queue = task_queue
+        self.driver_stub = driver_stub
+        self.rank = get_rank()
+
+    def run(self) -> None:
+        while not self.stopped():
+            func, expected_func_id = self.task_queue.get()
+            if func.func_id != expected_func_id:
+                result = Exception(f"Rank: {self.rank}, expected function id: "
+                                   f"{expected_func_id}, got: {func.func_id}")
+                func_result = network_pb2.FunctionResult(funct_id=expected_func_id,
+                                                         result=cloudpickle.dumps(result),
+                                                         is_exception=True)
+            else:
+                try:
+                    f = cloudpickle.loads(func.func)
+                    result = f(worker_context)
+                    func_result = network_pb2.FunctionResult(func_id=expected_func_id,
+                                                             result=cloudpickle.dumps(result),
+                                                             is_exception=False)
+                except Exception as e:
+                    func_result = network_pb2.FunctionResult(funct_id=expected_func_id,
+                                                             result=cloudpickle.dumps(e),
+                                                             is_exception=True)
+            # TODO: catch the stud close exception
+            self.driver_stub.SendFunctionResult(func_result)
+
+
+class WorkerService(network_pb2_grpc.WorkerServiceServicer):
+    def __init__(self, handler):
+        self.handler = handler
+
+    def RunFunction(self, request, context):
+        return self.handler.handle_run_command(request)
+
+    def Stop(self, request, context):
+        return self.handler.handle_stop(request)
+
+
+class MPIWorker:
+    def __init__(self,
                  job_id: str,
                  driver_host: str,
                  driver_port: int,
-                 timeout: int,
-                 max_wait_timeout: int,
-                 peer_name: str) -> None:
-        super().__init__(name, job_id, driver_host, driver_port, timeout, max_wait_timeout)
+                 peer_name: str,
+                 node_ip_address: str) -> None:
+        self.rank = get_rank()
+        self.job_id = job_id
+        self.driver_host = driver_host
+        self.driver_port = driver_port
         self.peer_name = peer_name
+
+        self.node_ip_address = node_ip_address
+
+        self.server = None
+        self.server_port = None
         self.expected_func_id = 0
 
+        self.driver_stub = None
+
+        self.should_stop = threading.Event()
+        self.task_queue = Queue()
+        self.task_thread = None
+
+    def start(self):
+        self.task_thread = TaskRunner(task_queue=self.task_queue, driver_stub=self.driver_stub)
+        self.task_thread.start()
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+        network_pb2_grpc.add_WorkerServiceServicer_to_server(WorkerService(self), self.server)
+        self.server_port = self.server.add_insecure_port(f"{self.node_ip_address}:0")
+        self.server.start()
+
     def register(self):
-        def register_handler(reply: protocol.WorkerRegistered):
-            if reply.ray_address is not None:
-                # # we need to connect to ray
-                # assert not ray.is_initialized()
-                # ray.init(address=reply.ray_address,
-                #          _redis_password=reply.redis_password)
-                # peer_actor = ray.get_actor(self.peer_name)
-                # worker_context.peer_actor = peer_actor
-                pass
-            worker_context.job_id = self.job_id
-            worker_context.rank = get_rank()
-        self.ask(protocol.WorkerRegister(self.job_id,  get_rank(), self.peer_name),
-                 register_handler)
+        channel = create_insecure_channel(f"{self.driver_host}:{self.driver_port}")
+        stub = network_pb2_grpc.DriverServiceStub(channel)
+        register_msg = network_pb2.WorkerRegisterRequest(job_id=self.job_id,
+                                                         rank_id=self.rank,
+                                                         peer_name=self.peer_name,
+                                                         worker_ip=self.node_ip_address,
+                                                         worker_port=self.server_port)
+        reply = stub.RegisterWorker(register_msg)
+        self.handle_register_reply(reply)
+        self.driver_stub = stub
 
-    def process_command(self) -> bool:
-        value = self.recv()
-        return self.handle(value)
+    def wait_for_termination(self):
+        self.should_stop.wait()
+        self.stop()
 
-    def handle(self, value) -> bool:
-        if isinstance(value, protocol.RunFunction):
-            try:
-                assert value.job_id == self.job_id
-                assert value.func_id == self.expected_func_id
-                func = value.func
-                result = func(worker_context)
-                return_msg = protocol.FunctionResult(self.job_id, value.func_id, result, False)
-            except Exception as e:
-                return_msg = protocol.FunctionResult(self.job_id, value.func_id, e, True)
-            finally:
-                self.expected_func_id += 1
-            self.send(return_msg)
-            return True
-        elif isinstance(value, protocol.Stop):
-            return False
+    def handle_register_reply(self, reply: network_pb2.WorkerRegisterReply):
+        # init ray
+        worker_context.job_id = self.job_id
+        worker_context.rank = self.rank
+        worker_context.peer_actor = None
+
+    def handle_run_command(self, func: network_pb2.Function):
+        self.task_queue.put((self.expected_func_id, func))
+        self.expected_func_id += 1
+        return network_pb2.Empty()
+
+    def handle_stop(self, request: network_pb2.Empty):
+        self.should_stop.set()
+        return network_pb2.Empty()
+
+    def stop(self):
+        if self.server:
+            self.task_thread.stop()
+            self.server.stop()
+            self.server.wait_for_termination()
+            self.server = None
+            self.server_port = None
+            self.expected_func_id = 0
 
 
 if __name__ == "__main__":
-    job_id = network.get_environ_value(constants.MPI_JOB_ID)
-    driver_host = network.get_environ_value(constants.MPI_DRIVER_HOST)
-    driver_port = int(network.get_environ_value(constants.MPI_DRIVER_PORT))
-    peer_name = network.get_environ_value(constants.MPI_WORKER_PEER_NAME)
+    job_id = get_environ_value(constants.MPI_JOB_ID)
+    driver_host = get_environ_value(constants.MPI_DRIVER_HOST)
+    driver_port = int(get_environ_value(constants.MPI_DRIVER_PORT))
+    peer_name = get_environ_value(constants.MPI_WORKER_PEER_NAME)
+    node_ip_address = get_environ_value(constants.MPI_WORKER_NODE_IP_ADDRESS)
 
-    timeout = int(os.environ.get(constants.NETWORK_TIME_OUT, "1"))
-    max_wait_timeout = int(os.environ.get(constants.MAXIMUM_WAIT_TIME_OUT, "1"))
-
-    client = MPIWorker(str(get_rank()), job_id, driver_host, driver_port,
-                       timeout, max_wait_timeout, peer_name)
-
-    # register to driver
-    client.register()
-
-    while True:
-        if not client.process_command():
-            break
-    
-    client.close()
+    worker = MPIWorker(job_id, driver_host, driver_port, peer_name, node_ip_address)
+    worker.start()
+    worker.register()
+    worker.wait_for_termination()

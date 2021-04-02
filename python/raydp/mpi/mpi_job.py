@@ -17,105 +17,19 @@
 
 import os
 import signal
-import socket
 import subprocess
 import sys
-import time
-from threading import Thread
-from typing import Any, Callable, Dict, List, Tuple
+from concurrent import futures
+from threading import Thread, RLock, Event
+from typing import Any, Callable, Dict
 
+import grpc
 import ray
+import ray.cloudpickle as cloudpickle
 
 from raydp.mpi import constants
-from raydp.mpi import network
-from raydp.mpi import protocol
-from raydp.mpi.utils import run_cmd, StoppableThread
-
-
-class NetworkDriver(network.BlockedDriver):
-    def __init__(self, job_id: str, host: str, port: int,
-                 timeout: int, max_wait_timeout: int, world_size: int) -> None:
-        super().__init__(job_id, host, port, timeout, max_wait_timeout)
-        self.world_size = world_size
-        # set the backlog to 2 * world_size, because there are world_size rsh_agent
-        # will connect
-        self.conn.listen(self.world_size * 2)
-
-    def _wait_one_connection(self, conn_handler: Callable):
-        start = time.time()
-        dead_line = start + self.max_wait_timeout
-        client_conn = None
-        client_addr = None
-        while time.time() < dead_line:
-            try:
-                # wait the client connect and raise exception when exceed the max_wait_timeout
-                client_conn, client_addr = self.conn.accept()
-            except socket.timeout:
-                if time.time() < dead_line:
-                    continue
-                else:
-                    raise Exception(f"Wait connection timeout, duration {time.time() - start}")
-            break
-
-        assert client_conn is not None
-        # wait the register message
-        # TODO: we could do this in no-blocking way.
-        msg = self._recv_value(client_conn)
-        conn_handler(client_conn, client_addr, msg)
-    
-    def wait_connection(self, n: int, conn_handler: Callable):
-        """Wait up to n clients connect to current server
-
-        :param n: the total expected clients to connect
-        :param conn_handler: the handler for the client connection
-        """
-        connected = 0
-        while connected < n:
-            try:
-                self._wait_one_connection(conn_handler)
-            except Exception as e:
-                raise Exception(
-                    f"Waiting {n}({connected} connected) connection failed, exception: {e}")
-            connected += 1
-
-    def broadcast(self, value: Any, conns: List[socket.socket]):
-        """Broadcast value to all clients"""
-        for conn in conns:
-            self._send_value(conn, value)
-
-    def broadcast_with_reply(self,
-                             value: Any,
-                             conns: List[socket.socket],
-                             reply_handler: Callable):
-        """Broadcast value to all clients and wait for the reply
-        
-        :param value: the value to broadcast
-        :param conns: the client connections to broadcast
-        :param reply_handler: the reply handler function
-        """
-        self.broadcast(value, conns)
-        for conn in conns:
-            reply = self._recv_value(conn)
-            reply_handler(conn, reply)
-
-    def close(self):
-        if self.conn is not None:
-            self.conn.close()
-            self.conn = None
-
-
-class MPIWorkerMeta:
-    def __init__(self,
-                 dummy_host: str = None,
-                 rank: int = None,
-                 conn: socket.socket = None,
-                 peer: ray.actor.ActorHandle = None,
-                 command: str = None):
-        self.dummy_host = dummy_host
-        self.rank = rank
-        self.conn = conn
-        self.peer = peer
-        self.command = command
+from raydp.mpi.network import network_pb2, network_pb2_grpc
+from raydp.mpi.utils import create_insecure_channel, run_cmd, StoppableThread
 
 
 @ray.remote
@@ -131,17 +45,15 @@ class MPIWorkerPeer:
 
     def startup(self,
                 driver_host: str,
-                driver_port: int,
-                network_timeout: int = 1,
-                op_timeout: int = 1):
+                driver_port: int):
         # prepare the env
         env = os.environ.copy()
         env[constants.MPI_JOB_ID] = self.job_id
         env[constants.MPI_DRIVER_HOST] = str(driver_host)
         env[constants.MPI_DRIVER_PORT] = str(driver_port)
         env[constants.MPI_WORKER_PEER_NAME] = self.name
-        env[constants.NETWORK_TIME_OUT] = str(network_timeout)
-        env[constants.MAXIMUM_WAIT_TIME_OUT] = str(op_timeout)
+        node_ip = ray.services.get_node_ip_address()
+        env[constants.MPI_WORKER_NODE_IP_ADDRESS] = str(node_ip)
         # spawn the MPI worker process
 
         def spawn_fn():
@@ -160,29 +72,78 @@ class MPIWorkerPeer:
             self.spawn_thread = None
 
 
+class MPIWorkerMeta:
+    def __init__(self,
+                 dummy_host: str = None,
+                 rank: int = None,
+                 peer: ray.actor.ActorHandle = None,
+                 command: str = None,
+                 stub: network_pb2_grpc.WorkerServiceStub = None,
+                 worker_ip: str = None,
+                 worker_port: int = None):
+        self.dummy_host = dummy_host
+        self.rank = rank
+        self.peer = peer
+        self.command = command
+
+        self.stub = stub
+        self.worker_ip = worker_ip
+        self.worker_port = worker_port
+
+
+class DriverService(network_pb2_grpc.DriverServiceServicer):
+    def __init__(self, driver_service_handler):
+        self.driver_service_handler = driver_service_handler
+
+    def RegisterAgent(self, request, context):
+        return self.driver_service_handler.handle_register_agent(request)
+
+    def RegisterWorker(self, request, context):
+        return self.driver_service_handler.handle_register_worker(request)
+
+    def SendFunctionResult(self, request, context):
+        return self.driver_service_handler.handle_send_function_result(request)
+
+
+class FunctionResults:
+    def __init__(self, function_id: int, remaining: int):
+        self.function_id = function_id
+        self.remaining = remaining
+        self.results = []
+        self.lock = RLock()
+        self.done: Event = Event()
+
+
 class MPIJob:
     def __init__(self,
                  job_name: str,
                  world_size: int,
                  num_cpus_per_worker: int,
                  mpi_script_prepare_fn: Callable = None,
-                 network_timeout: int = 1,
-                 op_timeout: int = 1,
+                 timeout: int = 1,
                  ) -> None:
         self.job_name = job_name
         self.world_size = world_size
         self.num_cpus_per_worker = num_cpus_per_worker
         self.mpi_script_prepare_fn = mpi_script_prepare_fn
-        self.network_timeout = network_timeout
-        self.op_timeout = op_timeout
+        self.timeout = timeout
+
+        self.server_host = None
+        self.server_port = None
+        self.server = None
 
         self.workers: Dict[str, MPIWorkerMeta] = {}
 
-        self.network_driver: NetworkDriver = None
         self.mpirun_proc: subprocess.Popen = None
         self.mpirun_check_thread: StoppableThread = None
         self.mpirun_forward_thread: StoppableThread = None
+
+        self.lock = RLock()
+        self.registered = 0
+        self.register_event = Event()
+
         self.func_id = 0
+        self.func_result: FunctionResults = None
         self.started = False
 
     def _reset(self):
@@ -190,8 +151,9 @@ class MPIJob:
             return
         # send stop to all mpi workers
         if self.workers:
-            valid_conns = [meta.conn for meta in self.workers.values() if meta.conn is not None]
-            self.network_driver.broadcast(protocol.Stop(self.job_name), valid_conns)
+            empty_msg = network_pb2.Empty()
+            [meta.stub.Stop(empty_msg)
+             for meta in self.workers.values() if meta.stub is not None]
             # stop peer
             ray.get([meta.peer.stop.remote()
                      for meta in self.workers.values() if meta.peer is not None])
@@ -209,11 +171,20 @@ class MPIJob:
         self.mpirun_proc = None
 
         self.workers = {}
-        if self.network_driver:
-            self.network_driver.close()
-            self.network_driver = None
+        if self.server:
+            self.server.stop()
+            self.server = None
         self.func_id = 0
+        self.func_result = None
         self.started = False
+
+    def _start_network_service(self):
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+        network_pb2_grpc.add_DriverServiceServicer_to_server(DriverService(self), self.server)
+        # start network server
+        self.server_host = ray.services.get_node_ip_address()
+        self.server_port = self.server.add_insecure_port(f"{self.server_host}:0")
+        self.server.start()
 
     def _start_mpirun(self):
         # prepare the mpirun script
@@ -234,8 +205,6 @@ class MPIJob:
         address = self.network_driver.server_address()
         env[constants.MPI_DRIVER_HOST] = str(address[0])
         env[constants.MPI_DRIVER_PORT] = str(address[1])
-        env[constants.NETWORK_TIME_OUT] = str(self.network_timeout)
-        env[constants.MAXIMUM_WAIT_TIME_OUT] = str(self.op_timeout)
 
         # start up the mpirun in separate thread
         script = subprocess.list2cmdline(default_script)
@@ -244,22 +213,49 @@ class MPIJob:
          self.mpirun_check_thread,
          self.mpirun_forward_thread) = run_cmd(script, env)
 
-        # wait for the agent register
+        self._wait_client_register()
+        assert len(self.workers) == self.world_size
 
-        def handle_rsh_agent_register(conn: socket.socket,
-                                      conn_address: Tuple,
-                                      register_msg: protocol.AgentRegister):
-            assert register_msg.job_id == self.job_name
-            dummy_host = register_msg.name
-            name = f"mpi-{dummy_host}-peer"
-            assert name not in self.workers
+    def handle_register_agent(self, request: network_pb2.AgentRegisterRequest):
+        assert request.job_id == self.job_name
+        dummy_host = request.name
+        peer_name = f"mpi-{dummy_host}-peer"
+        with self.lock:
+            assert peer_name not in self.workers
             worker_meta = MPIWorkerMeta()
             worker_meta.dummy_host = dummy_host
-            worker_meta.command = register_msg.command
-            self.workers[name] = worker_meta
+            worker_meta.command = request.command
+            self.workers[peer_name] = worker_meta
+            if len(self.workers) == self.world_size:
+                self.register_event.set()
+        return network_pb2.AgentRegisterReply(succeed=True)
 
-        self.network_driver.wait_connection(self.world_size, handle_rsh_agent_register)
-        assert len(self.workers) == self.world_size
+    def handle_register_worker(self, request: network_pb2.WorkerRegisterRequest):
+        assert request.job_id == self.job_name
+        with self.lock:
+            meta = self.workers[request.peer_name]
+            assert meta.stub is None
+            meta.rank = request.rank_id
+            meta.worker_ip = request.worker_ip
+            meta.worker_port = request.worker_port
+            self.registered += 1
+            if self.registered == self.world_size:
+                self.register_event.set()
+                self.registered = 0
+        return network_pb2.WorkerRegisterReply(ray_address="", redis_password="")
+
+    def handle_send_function_result(self, request: network_pb2.FunctionResult):
+        with self.func_result.lock:
+            assert self.func_result.function_id == request.func_id
+            self.func_result.results.append(request.result)
+            self.func_result.remaining -= 1
+            if self.func_result.remaining == 0:
+                self.func_result.done.set()
+        return network_pb2.Empty()
+
+    def _wait_client_register(self):
+        self.register_event.wait(self.timeout)
+        self.register_event.clear()
 
     def start(self):
         if self.started:
@@ -267,9 +263,7 @@ class MPIJob:
 
         try:
             # start network server
-            host = ray.services.get_node_ip_address()
-            self.network_driver = NetworkDriver(
-                self.job_name, host, 0, self.network_timeout, self.op_timeout, self.world_size)
+            self._start_network_service()
             # start mpirun
             self._start_mpirun()
 
@@ -280,55 +274,36 @@ class MPIJob:
                                                ).remote(self.job_name, name, meta.command)
                 meta.peer = worker
             # startup mpi worker processes
-            address = self.network_driver.server_address()
-            ray.get([meta.peer.startup.remote(address[0], address[1],
-                                              self.network_timeout, self.op_timeout)
+            ray.get([meta.peer.startup.remote(self.server_host, self.server_port)
                     for meta in self.workers.values()])
 
-            # wait mpi worker processes connect
-            registered_worker = set()
+            # wait for the worker register
+            self._wait_client_register()
+            # establish the worker connection
 
-            def handle_worker_register(conn: socket.socket,
-                                       conn_address: Tuple,
-                                       register_msg: protocol.WorkerRegister):
-                assert register_msg.job_id == self.job_name
-                assert register_msg.rank not in registered_worker
-                meta = self.workers[register_msg.peer_name]
-                meta.rank = register_msg.rank
-                meta.conn = conn
-                registered_worker.add(register_msg.rank)
-                self.network_driver._send_value(conn, protocol.WorkerRegistered(self.job_name, "", ""))
+            def connect(meta: MPIWorkerMeta):
+                channel = create_insecure_channel(f"{meta.worker_ip}:{meta.worker_port}")
+                stub = network_pb2_grpc.WorkerServiceStub(channel)
+                assert meta.stub is None
+                meta.stub = stub
+                return None
 
-            self.network_driver.wait_connection(self.world_size, handle_worker_register)
-            assert len(registered_worker) == self.world_size
+            with self.lock:
+                [connect(meta) for meta in self.workers.values()]
             self.started = True
 
         except Exception as e:
             self._reset()
             raise e
 
-    def _wrap_func(self, func: Callable) -> protocol.RunFunction:
-        func = protocol.RunFunction(self.job_name, self.func_id, func)
+    def run(self, mpi_func: Callable, timeout=None) -> Any:
+        assert self.started
+        func_request = network_pb2.Function(func_id=self.func_id, func=cloudpickle.dumps(mpi_func))
+        self.func_result = FunctionResults(self.func_id, self.world_size)
+        [meta.stub.RunFunction(func_request) for meta in self.workers.values()]
         self.func_id += 1
-        return func
-
-    def run(self, mpi_func: Callable) -> None:
-        assert self.network_driver is not None
-        conns = [meta.conn for meta in self.workers.values()]
-        self.network_driver.broadcast(self._wrap_func(mpi_func), conns)
-
-    def run_with_reply(self, mpi_func) -> List[Any]:
-        assert self.network_driver is not None
-        conns = [meta.conn for meta in self.workers.values()]
-
-        results = []
-
-        def reply_handler(conn: socket.socket, reply: protocol.FunctionResult):
-            if reply.is_exception:
-                raise reply.result
-            results.append(reply.result)
-        self.network_driver.broadcast_with_reply(self._wrap_func(mpi_func), conns, reply_handler)
-        return results
+        self.func_result.done.wait(timeout)
+        return self.func_result.results
         
     def stop(self):
         self._reset()

@@ -21,9 +21,9 @@ MPI_JOB_ID = "mpi_job_id"
 MPI_DRIVER_HOST = "mpi_driver_host"
 MPI_DRIVER_PORT = "mpi_driver_port"
 
+MPI_WORKER_NODE_IP_ADDRESS = "mpi_worker_node_ip_address"
 MPI_WORKER_PEER_NAME = "mpi_worker_peer_name"
 
-NETWORK_TIME_OUT = "network_time_out"
 MAXIMUM_WAIT_TIME_OUT = "maximum_wait_time_out"
 
 _current_dir = path.dirname(path.realpath(__file__))

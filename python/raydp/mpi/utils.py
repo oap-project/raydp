@@ -21,11 +21,15 @@ import subprocess
 import threading
 import time
 
+import grpc
+
 
 class StoppableThread(threading.Thread):
 
-    def __init__(self,  *args, **kwargs):
-        super(StoppableThread, self).__init__(*args, **kwargs)
+    def __init__(self, group=None, target=None, name=None,
+                 args=(), kwargs=None, *, daemon=None):
+        super(StoppableThread, self).__init__(
+            group, target, name, args, kwargs, daemon=daemon)
         self._stop_event = threading.Event()
 
     def run(self) -> None:
@@ -87,3 +91,29 @@ def run_cmd(cmd: str, env):
     check_thread.start()
     redirect_thread.start()
     return proc, check_thread, redirect_thread
+
+
+def create_insecure_channel(address,
+                            options=None,
+                            compression=None):
+    """Disable the http proxy when create channel"""
+    # disable http proxy
+    if options is not None:
+        need_add = True
+        for k, v in options:
+            if k == "grpc.enable_http_proxy":
+                need_add = False
+                break
+        if need_add:
+            options = (*options, ("grpc.enable_http_proxy", 0))
+    else:
+        options = (("grpc.enable_http_proxy", 0),)
+
+    return grpc.insecure_channel(
+        address, options, compression)
+
+
+def get_environ_value(key: str) -> str:
+    """Get value from environ, raise exception if the key not existed"""
+    assert key in os.environ, f"{key} should be set in the environ"
+    return os.environ[key]

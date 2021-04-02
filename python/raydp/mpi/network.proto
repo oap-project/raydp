@@ -1,0 +1,71 @@
+//
+// Licensed to the Apache Software Foundation (ASF) under one or more
+// contributor license agreements.  See the NOTICE file distributed with
+// this work for additional information regarding copyright ownership.
+// The ASF licenses this file to You under the Apache License, Version 2.0
+// (the "License"); you may not use this file except in compliance with
+// the License.  You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+// Syntax version
+syntax = "proto3";
+
+// Driver Service definition
+service DriverService {
+    rpc RegisterAgent (AgentRegisterRequest) returns (AgentRegisterReply);
+
+    rpc RegisterWorker (WorkerRegisterRequest) returns (WorkerRegisterReply);
+
+    rpc SendFunctionResult (FunctionResult) returns (Empty);
+}
+
+// Worker Service
+service WorkerService {
+    rpc RunFunction (Function) returns (Empty);
+    rpc Stop (Empty) returns (Empty);
+}
+
+message AgentRegisterRequest {
+    string job_id = 1;
+    string name = 2;
+    string command = 3;
+}
+
+message AgentRegisterReply {
+    bool succeed = 1;
+}
+
+message WorkerRegisterRequest {
+    string job_id = 1;
+    int32 rank_id = 2;
+    string peer_name = 3;
+    string worker_ip = 4;
+    int32 worker_port = 5;
+}
+
+message WorkerRegisterReply {
+    string ray_address = 1;
+    string redis_password = 2;
+}
+
+message Function {
+    int32 func_id = 1;
+    bytes func = 2;
+}
+
+message FunctionResult {
+    int32 func_id = 1;
+    bytes result = 2;
+    bool is_exception = 3;
+}
+
+message Empty {
+}

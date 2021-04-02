@@ -15,13 +15,11 @@
 # limitations under the License.
 #
 
-import os
 import sys
 
 from raydp.mpi import constants
-from raydp.mpi import network
-from raydp.mpi import protocol
-from raydp.mpi.network import get_environ_value
+from raydp.mpi.network import network_pb2, network_pb2_grpc
+from raydp.mpi.utils import create_insecure_channel, get_environ_value
 
 if __name__ == "__main__":
     # pop the file name
@@ -34,15 +32,12 @@ if __name__ == "__main__":
     driver_host = get_environ_value(constants.MPI_DRIVER_HOST)
     driver_port = int(get_environ_value(constants.MPI_DRIVER_PORT))
 
-    network_timeout = int(os.environ.get(constants.NETWORK_TIME_OUT, "1"))
-    op_timeout = int(os.environ.get(constants.MAXIMUM_WAIT_TIME_OUT, "1"))
-
-    client = network.BlockedWorker(job_id=job_id,
-                                   name="rsh_agent_" + host_name,
-                                   host=driver_host,
-                                   port=driver_port,
-                                   timeout=network_timeout,
-                                   max_wait_timeout=op_timeout)
-
-    client.send(protocol.AgentRegister(job_id, host_name, " ".join(argv)))
-    client.close()
+    channel = create_insecure_channel(f"{driver_host}:{driver_port}")
+    stub = network_pb2_grpc.DriverServiceStub(channel)
+    register_msg = network_pb2.AgentRegisterRequest(job_id=job_id,
+                                                    name=host_name,
+                                                    command=" ".join(argv))
+    reply = stub.RegisterWorker(register_msg)
+    # we can do nothing if register failed
+    assert reply.succeed
+    channel.close()
