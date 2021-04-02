@@ -35,7 +35,7 @@ pip install dist/raydp*.whl
 ```
 
 ## Getting Started
-To start a Spark job on Ray, you can use the `raydp.init_spark` API. You can write Spark, PyTorch/Tensorflow, Ray code in the same python program to easily implement an end to end pipeline.
+To start a Spark job on Ray, you can use the `raydp.init_spark` API. You can write Spark, PyTorch/Tensorflow, Ray code in the same python program to easily implement an end-to-end pipeline.
 
 ### Classic Spark Word Count Example
 After we use RayDP to initialize a Spark cluster, we can use Spark as usual. 
