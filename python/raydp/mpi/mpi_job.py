@@ -109,7 +109,7 @@ class FunctionResults:
     def __init__(self, function_id: int, remaining: int):
         self.function_id = function_id
         self.remaining = remaining
-        self.results = []
+        self.results = [None] * remaining
         self.lock = RLock()
         self.done: Event = Event()
 
@@ -172,14 +172,16 @@ class MPIJob:
 
         self.workers = {}
         if self.server:
-            self.server.stop()
+            self.server.stop(None)
             self.server = None
         self.func_id = 0
         self.func_result = None
         self.started = False
 
     def _start_network_service(self):
-        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+        options = (("grpc.enable_http_proxy", 1), )
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1),
+                                  options=options)
         network_pb2_grpc.add_DriverServiceServicer_to_server(DriverService(self), self.server)
         # start network server
         self.server_host = ray.services.get_node_ip_address()
@@ -202,9 +204,8 @@ class MPIJob:
         # prepare the mpirun env
         env = os.environ.copy()
         env[constants.MPI_JOB_ID] = self.job_name
-        address = self.network_driver.server_address()
-        env[constants.MPI_DRIVER_HOST] = str(address[0])
-        env[constants.MPI_DRIVER_PORT] = str(address[1])
+        env[constants.MPI_DRIVER_HOST] = str(self.server_host)
+        env[constants.MPI_DRIVER_PORT] = str(self.server_port)
 
         # start up the mpirun in separate thread
         script = subprocess.list2cmdline(default_script)
@@ -247,7 +248,8 @@ class MPIJob:
     def handle_send_function_result(self, request: network_pb2.FunctionResult):
         with self.func_result.lock:
             assert self.func_result.function_id == request.func_id
-            self.func_result.results.append(request.result)
+            result = cloudpickle.loads(request.result)
+            self.func_result.results[request.rank_id] = result
             self.func_result.remaining -= 1
             if self.func_result.remaining == 0:
                 self.func_result.done.set()

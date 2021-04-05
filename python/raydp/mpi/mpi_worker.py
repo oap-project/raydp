@@ -60,22 +60,25 @@ class TaskRunner(StoppableThread):
 
     def run(self) -> None:
         while not self.stopped():
-            func, expected_func_id = self.task_queue.get()
+            expected_func_id, func = self.task_queue.get()
             if func.func_id != expected_func_id:
                 result = Exception(f"Rank: {self.rank}, expected function id: "
                                    f"{expected_func_id}, got: {func.func_id}")
-                func_result = network_pb2.FunctionResult(funct_id=expected_func_id,
+                func_result = network_pb2.FunctionResult(rank_id=self.rank,
+                                                         funct_id=expected_func_id,
                                                          result=cloudpickle.dumps(result),
                                                          is_exception=True)
             else:
                 try:
                     f = cloudpickle.loads(func.func)
                     result = f(worker_context)
-                    func_result = network_pb2.FunctionResult(func_id=expected_func_id,
+                    func_result = network_pb2.FunctionResult(rank_id=self.rank,
+                                                             func_id=expected_func_id,
                                                              result=cloudpickle.dumps(result),
                                                              is_exception=False)
                 except Exception as e:
-                    func_result = network_pb2.FunctionResult(funct_id=expected_func_id,
+                    func_result = network_pb2.FunctionResult(rank_id=self.rank,
+                                                             funct_id=expected_func_id,
                                                              result=cloudpickle.dumps(e),
                                                              is_exception=True)
             # TODO: catch the stud close exception
@@ -119,9 +122,9 @@ class MPIWorker:
         self.task_thread = None
 
     def start(self):
-        self.task_thread = TaskRunner(task_queue=self.task_queue, driver_stub=self.driver_stub)
-        self.task_thread.start()
-        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+        options = (("grpc.enable_http_proxy", 0),)
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1),
+                                  options=options)
         network_pb2_grpc.add_WorkerServiceServicer_to_server(WorkerService(self), self.server)
         self.server_port = self.server.add_insecure_port(f"{self.node_ip_address}:0")
         self.server.start()
@@ -137,6 +140,9 @@ class MPIWorker:
         reply = stub.RegisterWorker(register_msg)
         self.handle_register_reply(reply)
         self.driver_stub = stub
+
+        self.task_thread = TaskRunner(task_queue=self.task_queue, driver_stub=self.driver_stub)
+        self.task_thread.start()
 
     def wait_for_termination(self):
         self.should_stop.wait()
@@ -160,7 +166,7 @@ class MPIWorker:
     def stop(self):
         if self.server:
             self.task_thread.stop()
-            self.server.stop()
+            self.server.stop(None)
             self.server.wait_for_termination()
             self.server = None
             self.server_port = None

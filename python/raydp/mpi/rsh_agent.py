@@ -32,12 +32,13 @@ if __name__ == "__main__":
     driver_host = get_environ_value(constants.MPI_DRIVER_HOST)
     driver_port = int(get_environ_value(constants.MPI_DRIVER_PORT))
 
-    channel = create_insecure_channel(f"{driver_host}:{driver_port}")
-    stub = network_pb2_grpc.DriverServiceStub(channel)
-    register_msg = network_pb2.AgentRegisterRequest(job_id=job_id,
-                                                    name=host_name,
-                                                    command=" ".join(argv))
-    reply = stub.RegisterWorker(register_msg)
-    # we can do nothing if register failed
-    assert reply.succeed
-    channel.close()
+    with create_insecure_channel(f"{driver_host}:{driver_port}") as channel:
+        stub = network_pb2_grpc.DriverServiceStub(channel)
+        register_msg = network_pb2.AgentRegisterRequest(job_id=job_id,
+                                                        name=host_name,
+                                                        command=" ".join(argv))
+        reply = stub.RegisterAgent(register_msg,
+                                    wait_for_ready=True)
+        # we can do nothing if register failed
+        assert reply.succeed
+        print("Agent register succeed")

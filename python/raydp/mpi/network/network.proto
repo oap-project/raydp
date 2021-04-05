@@ -62,9 +62,10 @@ message Function {
 }
 
 message FunctionResult {
-    int32 func_id = 1;
-    bytes result = 2;
-    bool is_exception = 3;
+    int32 rank_id = 1;
+    int32 func_id = 2;
+    bytes result = 3;
+    bool is_exception = 4;
 }
 
 message Empty {

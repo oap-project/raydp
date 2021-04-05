@@ -32,16 +32,6 @@ class StoppableThread(threading.Thread):
             group, target, name, args, kwargs, daemon=daemon)
         self._stop_event = threading.Event()
 
-    def run(self) -> None:
-        try:
-            if self._target:
-                self._kwargs["cur_thread"] = self
-                self._target(*self._args, **self._kwargs)
-        finally:
-            # Avoid a refcycle if the thread is running a function with
-            # an argument that has a member that points to the thread.
-            del self._target, self._args, self._kwargs
-
     def stop(self):
         self._stop_event.set()
 
@@ -57,9 +47,9 @@ def run_cmd(cmd: str, env):
                             env=env,
                             preexec_fn=os.setsid)
 
-    def check_failed(cur_thread):
+    def check_failed():
         # check whether the process has finished
-        while not cur_thread.stopped():
+        while not threading.current_thread().stopped():
             ret_code = proc.poll()
             if ret_code:
                 raise Exception(f"mpirun failed: {ret_code}")
@@ -71,23 +61,26 @@ def run_cmd(cmd: str, env):
 
     check_thread = StoppableThread(target=check_failed)
 
-    def redirect_stream(streams, cur_thread):
+    def redirect_stream(streams):
         epoll = select.epoll()
+        fileno_mapping = {}
         for stream in streams:
             epoll.register(stream, select.EPOLLIN)
+            fileno_mapping[stream.fileno()] = stream
         try:
-            while not cur_thread.stopped():
+            while not threading.current_thread().stopped():
                 events = epoll.poll()
                 for fileno, events in events:
-                    line = fileno.readline()
+                    stream = fileno_mapping[fileno]
+                    line = stream.readline()
                     if not line:
                         epoll.unregister(fileno)
                     else:
-                        print(line)
+                        print(line.decode())
         finally:
             epoll.close()
 
-    redirect_thread = StoppableThread(target=redirect_stream, args=([proc.stdout, proc.stderr]))
+    redirect_thread = StoppableThread(target=redirect_stream, args=([proc.stdout, proc.stderr],))
     check_thread.start()
     redirect_thread.start()
     return proc, check_thread, redirect_thread
