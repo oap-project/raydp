@@ -38,7 +38,7 @@ if __name__ == "__main__":
                                                         name=host_name,
                                                         command=" ".join(argv))
         reply = stub.RegisterAgent(register_msg,
-                                    wait_for_ready=True)
+                                   wait_for_ready=True)
         # we can do nothing if register failed
         assert reply.succeed
         print("Agent register succeed")

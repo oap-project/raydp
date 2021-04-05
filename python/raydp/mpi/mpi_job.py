@@ -21,7 +21,7 @@ import subprocess
 import sys
 from concurrent import futures
 from threading import Thread, RLock, Event
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List
 
 import grpc
 import ray
@@ -120,8 +120,7 @@ class MPIJob:
                  world_size: int,
                  num_cpus_per_worker: int,
                  mpi_script_prepare_fn: Callable = None,
-                 timeout: int = 1,
-                 ) -> None:
+                 timeout: int = 1) -> None:
         self.job_name = job_name
         self.world_size = world_size
         self.num_cpus_per_worker = num_cpus_per_worker
@@ -188,18 +187,17 @@ class MPIJob:
         self.server_port = self.server.add_insecure_port(f"{self.server_host}:0")
         self.server.start()
 
+    def get_default_mpirun_script(self, rsh_agent: str, dummy_hosts: List[str]) -> List[str]:
+        raise NotImplementedError
+
     def _start_mpirun(self):
         # prepare the mpirun script
         rsh_agent = f"{sys.executable} {constants.RSH_AGENT_PATH}"
         dummy_hosts = [f"{self.job_name}-host-{rank}" for rank in range(self.world_size)]
-        default_script = ["mpirun", "--allow-run-as-root", "--tag-output",
-                          "-bind-to", "none", "-map-by", "slot", "-mca",
-                          "pml", "ob1", "-mca", "btl", "^openib", "-mca", "plm", "rsh",
-                          "-mca", "plm_rsh_agent", rsh_agent, "-H", ",".join(dummy_hosts)
-                          , "-N", "1", sys.executable, constants.MPI_MAIN_CLASS_PATH]
+        mpirun_script = self.get_default_mpirun_script(rsh_agent, dummy_hosts)
         
         if self.mpi_script_prepare_fn is not None:
-            default_script = self.mpi_script_prepare_fn(default_script)
+            mpirun_script = self.mpi_script_prepare_fn(mpirun_script)
 
         # prepare the mpirun env
         env = os.environ.copy()
@@ -208,7 +206,7 @@ class MPIJob:
         env[constants.MPI_DRIVER_PORT] = str(self.server_port)
 
         # start up the mpirun in separate thread
-        script = subprocess.list2cmdline(default_script)
+        script = subprocess.list2cmdline(mpirun_script)
 
         (self.mpirun_proc,
          self.mpirun_check_thread,
@@ -309,3 +307,16 @@ class MPIJob:
         
     def stop(self):
         self._reset()
+
+    def __del__(self):
+        self.stop()
+
+
+class OpenMPIJob(MPIJob):
+    def get_default_mpirun_script(self, rsh_agent: str, dummy_hosts: List[str]) -> List[str]:
+        default_script = ["mpirun", "--allow-run-as-root", "--tag-output",
+                          "-bind-to", "none", "-map-by", "slot", "-mca",
+                          "pml", "ob1", "-mca", "btl", "^openib", "-mca", "plm", "rsh",
+                          "-mca", "plm_rsh_agent", rsh_agent, "-H", ",".join(dummy_hosts),
+                          "-N", "1", sys.executable, constants.MPI_MAIN_CLASS_PATH]
+        return default_script
