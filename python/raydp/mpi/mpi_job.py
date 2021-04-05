@@ -178,7 +178,7 @@ class MPIJob:
         self.started = False
 
     def _start_network_service(self):
-        options = (("grpc.enable_http_proxy", 1), )
+        options = (("grpc.enable_http_proxy", 0), )
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1),
                                   options=options)
         network_pb2_grpc.add_DriverServiceServicer_to_server(DriverService(self), self.server)
