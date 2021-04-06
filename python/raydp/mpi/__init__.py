@@ -15,16 +15,19 @@
 # limitations under the License.
 #
 
-from enum import Enum, unique
+
 from typing import Callable
 
-from raydp.mpi.mpi_job import MPIJob, IntelMPIJob, OpenMPIJob
+from raydp.mpi.mpi_job import MPIJob, MPIType, IntelMPIJob, OpenMPIJob
 
 
-@unique
-class MPIType(Enum):
-    OPEN_MPI = 0
-    INTEL_MPI = 1
+def _get_mpi_type(mpi_type: str) -> MPIType:
+    if mpi_type.strip().lower() == "openmpi":
+        return MPIType.OPEN_MPI
+    elif mpi_type.strip().lower() == "intel_mpi":
+        return MPIType.INTEL_MPI
+    else:
+        raise Exception(f"MPI type: {mpi_type} not supported now")
 
 
 def create_mpi_job(job_name: str,
@@ -32,7 +35,8 @@ def create_mpi_job(job_name: str,
                    num_cpus_per_worker: int,
                    mpi_script_prepare_fn: Callable = None,
                    timeout: int = 1,
-                   mpi_type: MPIType = MPIType.OPEN_MPI) -> MPIJob:
+                   mpi_type: str = "intel_mpi") -> MPIJob:
+    mpi_type = _get_mpi_type(mpi_type)
     if mpi_type == MPIType.OPEN_MPI:
         return OpenMPIJob(mpi_type=MPIType.OPEN_MPI,
                           job_name=job_name,
@@ -47,5 +51,3 @@ def create_mpi_job(job_name: str,
                            num_cpus_per_worker=num_cpus_per_worker,
                            mpi_script_prepare_fn=mpi_script_prepare_fn,
                            timeout=timeout)
-    else:
-        raise Exception("Not supported now")

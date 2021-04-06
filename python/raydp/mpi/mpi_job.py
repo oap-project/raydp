@@ -20,6 +20,7 @@ import signal
 import subprocess
 import sys
 from concurrent import futures
+from enum import Enum, unique
 from threading import Thread, RLock, Event
 from typing import Any, Callable, Dict, List
 
@@ -27,9 +28,15 @@ import grpc
 import ray
 import ray.cloudpickle as cloudpickle
 
-from raydp.mpi import constants, MPIType
+from raydp.mpi import constants
 from raydp.mpi.network import network_pb2, network_pb2_grpc
 from raydp.mpi.utils import create_insecure_channel, run_cmd, StoppableThread
+
+
+@unique
+class MPIType(Enum):
+    OPEN_MPI = 0
+    INTEL_MPI = 1
 
 
 @ray.remote
