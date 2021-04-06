@@ -320,3 +320,11 @@ class OpenMPIJob(MPIJob):
                           "-mca", "plm_rsh_agent", rsh_agent, "-H", ",".join(dummy_hosts),
                           "-N", "1", sys.executable, constants.MPI_MAIN_CLASS_PATH]
         return default_script
+
+
+class IntelMPIJob(MPIJob):
+    def get_default_mpirun_script(self, rsh_agent: str, dummy_hosts: List[str]) -> List[str]:
+        default_script = ["mpiexec", "-bind-to", "none", "-map-by", "slot", "-launcher",
+                          "rsh", "-launcher-exec", rsh_agent, "-hosts", ",".join(dummy_hosts),
+                          "-ppn", "1", sys.executable, constants.MPI_MAIN_CLASS_PATH]
+        return default_script

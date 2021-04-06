@@ -18,7 +18,7 @@
 from enum import Enum, unique
 from typing import Callable
 
-from raydp.mpi.mpi_job import MPIJob, OpenMPIJob
+from raydp.mpi.mpi_job import MPIJob, IntelMPIJob, OpenMPIJob
 
 
 @unique
@@ -39,5 +39,11 @@ def create_mpi_job(job_name: str,
                           num_cpus_per_worker=num_cpus_per_worker,
                           mpi_script_prepare_fn=mpi_script_prepare_fn,
                           timeout=timeout)
+    elif mpi_type == MPIType.INTEL_MPI:
+        return IntelMPIJob(job_name=job_name,
+                           world_size=world_size,
+                           num_cpus_per_worker=num_cpus_per_worker,
+                           mpi_script_prepare_fn=mpi_script_prepare_fn,
+                           timeout=timeout)
     else:
         raise Exception("Not supported now")
