@@ -27,7 +27,7 @@ import grpc
 import ray
 import ray.cloudpickle as cloudpickle
 
-from raydp.mpi import constants
+from raydp.mpi import constants, MPIType
 from raydp.mpi.network import network_pb2, network_pb2_grpc
 from raydp.mpi.utils import create_insecure_channel, run_cmd, StoppableThread
 
@@ -35,9 +35,11 @@ from raydp.mpi.utils import create_insecure_channel, run_cmd, StoppableThread
 @ray.remote
 class MPIWorkerPeer:
     def __init__(self,
+                 mpi_type: MPIType,
                  job_id: str,
                  name: str,
                  mpi_worker_spawn_command: str) -> None:
+        self.mpi_type = mpi_type
         self.job_id = job_id
         self.name = name
         self.mpi_worker_spawn_command: str = mpi_worker_spawn_command
@@ -48,6 +50,7 @@ class MPIWorkerPeer:
                 driver_port: int):
         # prepare the env
         env = os.environ.copy()
+        env[constants.MPI_TYPE] = str(self.mpi_type.value)
         env[constants.MPI_JOB_ID] = self.job_id
         env[constants.MPI_DRIVER_HOST] = str(driver_host)
         env[constants.MPI_DRIVER_PORT] = str(driver_port)
@@ -116,11 +119,13 @@ class FunctionResults:
 
 class MPIJob:
     def __init__(self,
+                 mpi_type: MPIType,
                  job_name: str,
                  world_size: int,
                  num_cpus_per_worker: int,
                  mpi_script_prepare_fn: Callable = None,
                  timeout: int = 1) -> None:
+        self.mpi_type = mpi_type
         self.job_name = job_name
         self.world_size = world_size
         self.num_cpus_per_worker = num_cpus_per_worker
@@ -269,9 +274,9 @@ class MPIJob:
 
             # create the WorkerPeer actor
             for name, meta in self.workers.items():
-                worker = MPIWorkerPeer.options(name=name,
-                                               num_cpus=self.num_cpus_per_worker
-                                               ).remote(self.job_name, name, meta.command)
+                worker = MPIWorkerPeer.options(
+                    name=name, num_cpus=self.num_cpus_per_worker
+                ).remote(self.mpi_type, self.job_name, name, meta.command)
                 meta.peer = worker
             # startup mpi worker processes
             ray.get([meta.peer.startup.remote(self.server_host, self.server_port)

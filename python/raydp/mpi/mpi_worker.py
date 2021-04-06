@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import os
 import threading
 from concurrent import futures
 from queue import Queue
@@ -22,16 +23,24 @@ from queue import Queue
 import grpc
 import ray
 import ray.cloudpickle as cloudpickle
-from mpi4py import MPI
 
-from raydp.mpi import constants
+from raydp.mpi import constants, MPIType
 from raydp.mpi.network import network_pb2, network_pb2_grpc
 from raydp.mpi.utils import create_insecure_channel, get_environ_value, StoppableThread
 
 
-def get_rank():
-    comm = MPI.COMM_WORLD
-    return comm.Get_rank()
+def get_rank(mpi_type: MPIType):
+    if mpi_type == MPIType.OPEN_MPI:
+        return int(os.environ["OMPI_COMM_WORLD_RANK"])
+    elif mpi_type == MPIType.INTEL_MPI:
+        return int(os.environ["PMI_RANK"])
+    else:
+        try:
+            from mpi4py import MPI
+            comm = MPI.COMM_WORLD
+            return comm.Get_rank()
+        except:
+            raise Exception(f"Not supported MPI type: {mpi_type}")
 
 
 class WorkerContext:
@@ -98,12 +107,14 @@ class WorkerService(network_pb2_grpc.WorkerServiceServicer):
 
 class MPIWorker:
     def __init__(self,
+                 mpi_type: MPIType,
                  job_id: str,
                  driver_host: str,
                  driver_port: int,
                  peer_name: str,
                  node_ip_address: str) -> None:
-        self.rank = get_rank()
+        self.mpi_type = mpi_type
+        self.rank = get_rank(self.mpi_type)
         self.job_id = job_id
         self.driver_host = driver_host
         self.driver_port = driver_port
@@ -174,13 +185,15 @@ class MPIWorker:
 
 
 if __name__ == "__main__":
+    mpi_type = get_environ_value(constants.MPI_TYPE)
+    mpi_type = MPIType(int(mpi_type))
     job_id = get_environ_value(constants.MPI_JOB_ID)
     driver_host = get_environ_value(constants.MPI_DRIVER_HOST)
     driver_port = int(get_environ_value(constants.MPI_DRIVER_PORT))
     peer_name = get_environ_value(constants.MPI_WORKER_PEER_NAME)
     node_ip_address = get_environ_value(constants.MPI_WORKER_NODE_IP_ADDRESS)
 
-    worker = MPIWorker(job_id, driver_host, driver_port, peer_name, node_ip_address)
+    worker = MPIWorker(mpi_type, job_id, driver_host, driver_port, peer_name, node_ip_address)
     worker.start()
     worker.register()
     worker.wait_for_termination()

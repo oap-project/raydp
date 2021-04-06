@@ -17,14 +17,15 @@
 
 from os import path
 
-MPI_JOB_ID = "mpi_job_id"
-MPI_DRIVER_HOST = "mpi_driver_host"
-MPI_DRIVER_PORT = "mpi_driver_port"
+MPI_TYPE = "raydp_mpi_type"
+MPI_JOB_ID = "raydp_mpi_job_id"
+MPI_DRIVER_HOST = "raydp_mpi_driver_host"
+MPI_DRIVER_PORT = "raydp_mpi_driver_port"
 
-MPI_WORKER_NODE_IP_ADDRESS = "mpi_worker_node_ip_address"
-MPI_WORKER_PEER_NAME = "mpi_worker_peer_name"
+MPI_WORKER_NODE_IP_ADDRESS = "raydp_mpi_worker_node_ip_address"
+MPI_WORKER_PEER_NAME = "raydp_mpi_worker_peer_name"
 
-MAXIMUM_WAIT_TIME_OUT = "maximum_wait_time_out"
+MAXIMUM_WAIT_TIME_OUT = "raydp_maximum_wait_time_out"
 
 _current_dir = path.dirname(path.realpath(__file__))
 RSH_AGENT_PATH = path.join(_current_dir, "rsh_agent.py")

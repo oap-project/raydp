@@ -34,13 +34,15 @@ def create_mpi_job(job_name: str,
                    timeout: int = 1,
                    mpi_type: MPIType = MPIType.OPEN_MPI) -> MPIJob:
     if mpi_type == MPIType.OPEN_MPI:
-        return OpenMPIJob(job_name=job_name,
+        return OpenMPIJob(mpi_type=MPIType.OPEN_MPI,
+                          job_name=job_name,
                           world_size=world_size,
                           num_cpus_per_worker=num_cpus_per_worker,
                           mpi_script_prepare_fn=mpi_script_prepare_fn,
                           timeout=timeout)
     elif mpi_type == MPIType.INTEL_MPI:
-        return IntelMPIJob(job_name=job_name,
+        return IntelMPIJob(mpi_type=MPIType.INTEL_MPI,
+                           job_name=job_name,
                            world_size=world_size,
                            num_cpus_per_worker=num_cpus_per_worker,
                            mpi_script_prepare_fn=mpi_script_prepare_fn,
