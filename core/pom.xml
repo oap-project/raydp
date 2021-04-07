@@ -6,7 +6,7 @@
 
   <groupId>com.intel</groupId>
   <artifactId>raydp</artifactId>
-  <version>0.2</version>
+  <version>0.3.0-SNAPSHOT</version>
 
   <name>raydp</name>
 
