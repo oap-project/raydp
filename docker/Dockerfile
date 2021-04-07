@@ -1,7 +1,5 @@
-FROM rayproject/ray:1.1.0
+FROM rayproject/ray:1.2.0
 
-# path to raydp wheel file
-ARG RAYDP_WHEEL_PATH
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 
@@ -9,18 +7,15 @@ ARG HTTPS_PROXY
 ENV http_proxy=${HTTP_PROXY}
 ENV https_proxy=${HTTPS_PROXY}
 
-# install java and create workdir
+# install java, create workdir and install raydp
+# You could change the raydp to raydp-nightly if you want to try the master branch code
 RUN sudo http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY} apt-get update -y \
     && sudo http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY} apt-get install -y openjdk-8-jdk \
-    && sudo mkdir /raydp && sudo chown -R ray /raydp
+    && sudo mkdir /raydp \
+    && sudo chown -R ray /raydp \
+    && $HOME/anaconda3/bin/pip --no-cache-dir install raydp
+
 WORKDIR /raydp
-
-COPY $RAYDP_WHEEL_PATH /raydp
-
-# install pyspark and raydp
-RUN $HOME/anaconda3/bin/pip --no-cache-dir \
-    install $(basename $RAYDP_WHEEL_PATH) \
-    && sudo rm /raydp/$(basename $RAYDP_WHEEL_PATH)
 
 # unset http_proxy & https_proxy
 ENV http_proxy=
