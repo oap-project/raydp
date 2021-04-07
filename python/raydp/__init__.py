@@ -17,6 +17,6 @@
 
 from raydp.context import init_spark, stop_spark
 
-__version__ = "0.2"
+__version__ = "0.2.0"
 
 __all__ = ["init_spark", "stop_spark"]
