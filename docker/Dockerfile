@@ -1,7 +1,5 @@
-FROM rayproject/ray:1.1.0
+FROM rayproject/ray:1.2.0
 
-# path to raydp wheel file
-ARG RAYDP_WHEEL_PATH
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 
@@ -17,10 +15,9 @@ WORKDIR /raydp
 
 COPY $RAYDP_WHEEL_PATH /raydp
 
-# install pyspark and raydp
+# install raydp
 RUN $HOME/anaconda3/bin/pip --no-cache-dir \
-    install $(basename $RAYDP_WHEEL_PATH) \
-    && sudo rm /raydp/$(basename $RAYDP_WHEEL_PATH)
+    install raydp
 
 # unset http_proxy & https_proxy
 ENV http_proxy=
