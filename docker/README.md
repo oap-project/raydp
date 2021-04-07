@@ -6,6 +6,7 @@ Building docker image with the following command, and this will create an image 
 # under ${RAYDP_HOME}/docker
 ./build-docker.sh
 ```
+Then you can push the built image to repository or spread to the k8s worker nodes.
 
 ## Build the master branch image
 Our master branch code can be installed with `pip install raydp-nightly`, so you just need to modify the following code in `Dockfile` to try the master branch code.
@@ -16,8 +17,6 @@ RUN sudo http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY} apt-get update -y \
     && sudo chown -R ray /raydp \
     && $HOME/anaconda3/bin/pip --no-cache-dir install raydp-nightly
 ```
-
-Then you can push the built image to repository or spread to the k8s worker nodes.
 
 ## Start up Ray cluster
 ```shell
