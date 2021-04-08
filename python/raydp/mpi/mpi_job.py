@@ -259,7 +259,7 @@ class MPIJob:
         assert self.started
         func_request = network_pb2.Function(func_id=self.func_id, func=cloudpickle.dumps(mpi_func))
         self.func_result = FunctionResults(self.func_id, self.world_size)
-        [meta.stub.RunFunction(func_request) for meta in self.workers.values()]
+        [meta.stub.RunFunction(func_request) for meta in self.workers]
         self.func_id += 1
         self.func_result.done.wait(timeout)
         return self.func_result.results
