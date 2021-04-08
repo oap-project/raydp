@@ -15,18 +15,18 @@ class DriverServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.RegisterAgent = channel.unary_unary(
-                '/DriverService/RegisterAgent',
-                request_serializer=network__pb2.AgentRegisterRequest.SerializeToString,
-                response_deserializer=network__pb2.AgentRegisterReply.FromString,
-                )
         self.RegisterWorker = channel.unary_unary(
                 '/DriverService/RegisterWorker',
-                request_serializer=network__pb2.WorkerRegisterRequest.SerializeToString,
-                response_deserializer=network__pb2.WorkerRegisterReply.FromString,
+                request_serializer=network__pb2.RegisterWorkerRequest.SerializeToString,
+                response_deserializer=network__pb2.RegisterWorkerReply.FromString,
                 )
-        self.SendFunctionResult = channel.unary_unary(
-                '/DriverService/SendFunctionResult',
+        self.RegisterWorkerService = channel.unary_unary(
+                '/DriverService/RegisterWorkerService',
+                request_serializer=network__pb2.RegisterWorkerServiceRequest.SerializeToString,
+                response_deserializer=network__pb2.RegisterWorkerServiceReply.FromString,
+                )
+        self.RegisterFuncResult = channel.unary_unary(
+                '/DriverService/RegisterFuncResult',
                 request_serializer=network__pb2.FunctionResult.SerializeToString,
                 response_deserializer=network__pb2.Empty.FromString,
                 )
@@ -36,20 +36,23 @@ class DriverServiceServicer(object):
     """Driver Service definition
     """
 
-    def RegisterAgent(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
     def RegisterWorker(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """register the worker process to driver which used to tell the worker has started up
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def SendFunctionResult(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+    def RegisterWorkerService(self, request, context):
+        """register the worker service host and port
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RegisterFuncResult(self, request, context):
+        """register the function result
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -57,18 +60,18 @@ class DriverServiceServicer(object):
 
 def add_DriverServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'RegisterAgent': grpc.unary_unary_rpc_method_handler(
-                    servicer.RegisterAgent,
-                    request_deserializer=network__pb2.AgentRegisterRequest.FromString,
-                    response_serializer=network__pb2.AgentRegisterReply.SerializeToString,
-            ),
             'RegisterWorker': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterWorker,
-                    request_deserializer=network__pb2.WorkerRegisterRequest.FromString,
-                    response_serializer=network__pb2.WorkerRegisterReply.SerializeToString,
+                    request_deserializer=network__pb2.RegisterWorkerRequest.FromString,
+                    response_serializer=network__pb2.RegisterWorkerReply.SerializeToString,
             ),
-            'SendFunctionResult': grpc.unary_unary_rpc_method_handler(
-                    servicer.SendFunctionResult,
+            'RegisterWorkerService': grpc.unary_unary_rpc_method_handler(
+                    servicer.RegisterWorkerService,
+                    request_deserializer=network__pb2.RegisterWorkerServiceRequest.FromString,
+                    response_serializer=network__pb2.RegisterWorkerServiceReply.SerializeToString,
+            ),
+            'RegisterFuncResult': grpc.unary_unary_rpc_method_handler(
+                    servicer.RegisterFuncResult,
                     request_deserializer=network__pb2.FunctionResult.FromString,
                     response_serializer=network__pb2.Empty.SerializeToString,
             ),
@@ -84,23 +87,6 @@ class DriverService(object):
     """
 
     @staticmethod
-    def RegisterAgent(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/DriverService/RegisterAgent',
-            network__pb2.AgentRegisterRequest.SerializeToString,
-            network__pb2.AgentRegisterReply.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
     def RegisterWorker(request,
             target,
             options=(),
@@ -112,13 +98,13 @@ class DriverService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/DriverService/RegisterWorker',
-            network__pb2.WorkerRegisterRequest.SerializeToString,
-            network__pb2.WorkerRegisterReply.FromString,
+            network__pb2.RegisterWorkerRequest.SerializeToString,
+            network__pb2.RegisterWorkerReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def SendFunctionResult(request,
+    def RegisterWorkerService(request,
             target,
             options=(),
             channel_credentials=None,
@@ -128,7 +114,24 @@ class DriverService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/DriverService/SendFunctionResult',
+        return grpc.experimental.unary_unary(request, target, '/DriverService/RegisterWorkerService',
+            network__pb2.RegisterWorkerServiceRequest.SerializeToString,
+            network__pb2.RegisterWorkerServiceReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def RegisterFuncResult(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/DriverService/RegisterFuncResult',
             network__pb2.FunctionResult.SerializeToString,
             network__pb2.Empty.FromString,
             options, channel_credentials,
@@ -162,13 +165,15 @@ class WorkerServiceServicer(object):
     """
 
     def RunFunction(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """run the given function
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def Stop(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """stop the worker service
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')

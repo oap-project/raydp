@@ -20,8 +20,10 @@ import select
 import subprocess
 import threading
 import time
+from typing import List
 
 import grpc
+import netifaces
 
 
 class StoppableThread(threading.Thread):
@@ -110,3 +112,17 @@ def get_environ_value(key: str) -> str:
     """Get value from environ, raise exception if the key not existed"""
     assert key in os.environ, f"{key} should be set in the environ"
     return os.environ[key]
+
+
+def get_node_ip_address(node_addresses: List[str]) -> str:
+    found = None
+    for interface in netifaces.interfaces():
+        addrs = netifaces.ifaddresses(interface)
+        addresses = addrs.get(netifaces.AF_INET, None)
+        if not addresses:
+            continue
+        for inet_addr in addresses:
+            address = inet_addr.get("addr", None)
+            if address in node_addresses:
+                found = address
+    return found

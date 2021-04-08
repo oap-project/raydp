@@ -20,52 +20,63 @@ syntax = "proto3";
 
 // Driver Service definition
 service DriverService {
-    rpc RegisterAgent (AgentRegisterRequest) returns (AgentRegisterReply);
-
-    rpc RegisterWorker (WorkerRegisterRequest) returns (WorkerRegisterReply);
-
-    rpc SendFunctionResult (FunctionResult) returns (Empty);
+    // register the worker process to driver which used to tell the worker has started up
+    rpc RegisterWorker (RegisterWorkerRequest) returns (RegisterWorkerReply);
+    // register the worker service host and port
+    rpc RegisterWorkerService (RegisterWorkerServiceRequest) returns (RegisterWorkerServiceReply);
+    // register the function result
+    rpc RegisterFuncResult (FunctionResult) returns (Empty);
 }
 
 // Worker Service
 service WorkerService {
+    // run the given function
     rpc RunFunction (Function) returns (Empty);
+    // stop the worker service
     rpc Stop (Empty) returns (Empty);
 }
 
-message AgentRegisterRequest {
+message RegisterWorkerRequest {
+    // the job id
     string job_id = 1;
-    string name = 2;
-    string command = 3;
+    // the world rank id
+    int32 world_rank = 2;
 }
 
-message AgentRegisterReply {
-    bool succeed = 1;
+message RegisterWorkerReply {
+    // the all node addresses and used to determine the current node ip adddress
+    repeated string node_addresses = 3;
 }
 
-message WorkerRegisterRequest {
-    string job_id = 1;
-    int32 rank_id = 2;
-    string peer_name = 3;
-    string worker_ip = 4;
-    int32 worker_port = 5;
+message RegisterWorkerServiceRequest {
+    // the world rank
+    int32 world_rank = 1;
+    // the worker service listening ip
+    string worker_ip = 2;
+    // the worker service listening port
+    int32 worker_port = 3;
 }
 
-message WorkerRegisterReply {
+message RegisterWorkerServiceReply {
+    // the ray redis address
     string ray_address = 1;
+    // the ray redis password
     string redis_password = 2;
 }
 
 message Function {
+    // the function id
     int32 func_id = 1;
+    // the serialized python function
     bytes func = 2;
 }
 
 message FunctionResult {
-    int32 rank_id = 1;
+    int32 world_rank = 1;
+    // the function id
     int32 func_id = 2;
+    // the function results
     bytes result = 3;
-    bool is_exception = 4;
 }
 
 message Empty {

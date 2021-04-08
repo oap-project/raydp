@@ -22,11 +22,7 @@ MPI_JOB_ID = "raydp_mpi_job_id"
 MPI_DRIVER_HOST = "raydp_mpi_driver_host"
 MPI_DRIVER_PORT = "raydp_mpi_driver_port"
 
-MPI_WORKER_NODE_IP_ADDRESS = "raydp_mpi_worker_node_ip_address"
-MPI_WORKER_PEER_NAME = "raydp_mpi_worker_peer_name"
-
 MAXIMUM_WAIT_TIME_OUT = "raydp_maximum_wait_time_out"
 
 _current_dir = path.dirname(path.realpath(__file__))
-RSH_AGENT_PATH = path.join(_current_dir, "rsh_agent.py")
 MPI_MAIN_CLASS_PATH = path.join(_current_dir, "mpi_worker.py")

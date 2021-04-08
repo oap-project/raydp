@@ -26,7 +26,7 @@ import ray.cloudpickle as cloudpickle
 
 from raydp.mpi import constants, MPIType
 from raydp.mpi.network import network_pb2, network_pb2_grpc
-from raydp.mpi.utils import create_insecure_channel, get_environ_value, StoppableThread
+from raydp.mpi.utils import create_insecure_channel, get_environ_value, get_node_ip_address, StoppableThread
 
 
 def get_rank(mpi_type: MPIType):
@@ -46,14 +46,13 @@ def get_rank(mpi_type: MPIType):
 class WorkerContext:
     def __init__(self,
                  job_id: str,
-                 rank: int,
-                 peer_actor: ray.actor.ActorHandle):
+                 world_rank: int):
         self.job_id = job_id
-        self.rank = rank
-        self.peer_actor = peer_actor
+        self.world_rank = world_rank
 
 
-worker_context = WorkerContext("", 0, None)
+WORLD_RANK = -1
+worker_context = WorkerContext("", -1)
 
 
 class TaskRunner(StoppableThread):
@@ -65,33 +64,23 @@ class TaskRunner(StoppableThread):
             kwargs=None, daemon=True)
         self.task_queue = task_queue
         self.driver_stub = driver_stub
-        self.rank = get_rank()
 
     def run(self) -> None:
         while not self.stopped():
             expected_func_id, func = self.task_queue.get()
             if func.func_id != expected_func_id:
-                result = Exception(f"Rank: {self.rank}, expected function id: "
-                                   f"{expected_func_id}, got: {func.func_id}")
-                func_result = network_pb2.FunctionResult(rank_id=self.rank,
-                                                         funct_id=expected_func_id,
-                                                         result=cloudpickle.dumps(result),
-                                                         is_exception=True)
+                raise Exception(f"Rank: {WORLD_RANK}, expected function id: "
+                                f"{expected_func_id}, got: {func.func_id}")
+
             else:
-                try:
-                    f = cloudpickle.loads(func.func)
-                    result = f(worker_context)
-                    func_result = network_pb2.FunctionResult(rank_id=self.rank,
-                                                             func_id=expected_func_id,
-                                                             result=cloudpickle.dumps(result),
-                                                             is_exception=False)
-                except Exception as e:
-                    func_result = network_pb2.FunctionResult(rank_id=self.rank,
-                                                             funct_id=expected_func_id,
-                                                             result=cloudpickle.dumps(e),
-                                                             is_exception=True)
-            # TODO: catch the stud close exception
-            self.driver_stub.SendFunctionResult(func_result)
+                f = cloudpickle.loads(func.func)
+                result = f(worker_context)
+                func_result = network_pb2.FunctionResult(world_rank=WORLD_RANK,
+                                                         func_id=expected_func_id,
+                                                         result=cloudpickle.dumps(result),
+                                                         is_exception=False)
+                # TODO: catch the stud close exception
+                self.driver_stub.RegisterFuncResult(func_result)
 
 
 class WorkerService(network_pb2_grpc.WorkerServiceServicer):
@@ -107,20 +96,14 @@ class WorkerService(network_pb2_grpc.WorkerServiceServicer):
 
 class MPIWorker:
     def __init__(self,
-                 mpi_type: MPIType,
                  job_id: str,
                  driver_host: str,
-                 driver_port: int,
-                 peer_name: str,
-                 node_ip_address: str) -> None:
-        self.mpi_type = mpi_type
-        self.rank = get_rank(self.mpi_type)
+                 driver_port: int) -> None:
         self.job_id = job_id
         self.driver_host = driver_host
         self.driver_port = driver_port
-        self.peer_name = peer_name
 
-        self.node_ip_address = node_ip_address
+        self.node_ip_address = None
 
         self.server = None
         self.server_port = None
@@ -132,7 +115,8 @@ class MPIWorker:
         self.task_queue = Queue()
         self.task_thread = None
 
-    def start(self):
+    def _start_network_service(self):
+        assert self.node_ip_address is not None
         options = (("grpc.enable_http_proxy", 0),)
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1),
                                   options=options)
@@ -140,18 +124,27 @@ class MPIWorker:
         self.server_port = self.server.add_insecure_port(f"{self.node_ip_address}:0")
         self.server.start()
 
-    def register(self):
+    def start(self):
         channel = create_insecure_channel(f"{self.driver_host}:{self.driver_port}")
         stub = network_pb2_grpc.DriverServiceStub(channel)
-        register_msg = network_pb2.WorkerRegisterRequest(job_id=self.job_id,
-                                                         rank_id=self.rank,
-                                                         peer_name=self.peer_name,
-                                                         worker_ip=self.node_ip_address,
-                                                         worker_port=self.server_port)
+        register_msg = network_pb2.RegisterWorkerRequest(job_id=self.job_id,
+                                                         world_rank=WORLD_RANK)
         reply = stub.RegisterWorker(register_msg)
         self.handle_register_reply(reply)
-        self.driver_stub = stub
 
+        self._start_network_service()
+
+        register_msg = network_pb2.RegisterWorkerServiceRequest(world_rank=WORLD_RANK,
+                                                                worker_ip=self.node_ip_address,
+                                                                worker_port=self.server_port)
+        reply = stub.RegisterWorkerService(register_msg)
+
+        # init ray
+        ray.init(address=reply.ray_address,
+                 _redis_password=reply.redis_password,
+                 _node_ip_address=self.node_ip_address)
+
+        self.driver_stub = stub
         self.task_thread = TaskRunner(task_queue=self.task_queue, driver_stub=self.driver_stub)
         self.task_thread.start()
 
@@ -159,11 +152,14 @@ class MPIWorker:
         self.should_stop.wait()
         self.stop()
 
-    def handle_register_reply(self, reply: network_pb2.WorkerRegisterReply):
+    def handle_register_reply(self, reply: network_pb2.RegisterWorkerReply):
         # init ray
         worker_context.job_id = self.job_id
-        worker_context.rank = self.rank
-        worker_context.peer_actor = None
+        worker_context.world_rank = WORLD_RANK
+
+        node_ip_address = get_node_ip_address(reply.node_addresses)
+        assert node_ip_address is not None, "Could not find the current node_ip_address"
+        self.node_ip_address = node_ip_address
 
     def handle_run_command(self, func: network_pb2.Function):
         self.task_queue.put((self.expected_func_id, func))
@@ -190,10 +186,8 @@ if __name__ == "__main__":
     job_id = get_environ_value(constants.MPI_JOB_ID)
     driver_host = get_environ_value(constants.MPI_DRIVER_HOST)
     driver_port = int(get_environ_value(constants.MPI_DRIVER_PORT))
-    peer_name = get_environ_value(constants.MPI_WORKER_PEER_NAME)
-    node_ip_address = get_environ_value(constants.MPI_WORKER_NODE_IP_ADDRESS)
 
-    worker = MPIWorker(mpi_type, job_id, driver_host, driver_port, peer_name, node_ip_address)
+    WORLD_RANK = get_rank(mpi_type)
+    worker = MPIWorker(job_id, driver_host, driver_port)
     worker.start()
-    worker.register()
     worker.wait_for_termination()
