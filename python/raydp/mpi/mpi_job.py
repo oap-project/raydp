@@ -200,6 +200,7 @@ class MPIJob:
 
         # prepare the mpirun env
         env = os.environ.copy()
+        env[constants.MPI_TYPE] = str(self.mpi_type.value)
         env[constants.MPI_JOB_ID] = self.job_name
         env[constants.MPI_DRIVER_HOST] = str(self.server_host)
         env[constants.MPI_DRIVER_PORT] = str(self.server_port)
@@ -250,7 +251,8 @@ class MPIJob:
         return network_pb2.Empty()
 
     def _wait_client_register(self):
-        self.register_event.wait(self.timeout)
+        if not self.register_event.wait(self.timeout):
+            raise Exception("Timeout exception")
         self.register_event.clear()
 
     def run(self, mpi_func: Callable, timeout=None) -> Any:
