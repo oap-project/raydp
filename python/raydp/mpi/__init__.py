@@ -32,7 +32,8 @@ def _get_mpi_type(mpi_type: str) -> MPIType:
 
 def create_mpi_job(job_name: str,
                    world_size: int,
-                   num_cpus_per_worker: int,
+                   num_cpus_per_process: int,
+                   num_processes_per_node: int,
                    mpi_script_prepare_fn: Callable = None,
                    timeout: int = 1,
                    mpi_type: str = "intel_mpi") -> MPIJob:
@@ -41,13 +42,15 @@ def create_mpi_job(job_name: str,
         return OpenMPIJob(mpi_type=MPIType.OPEN_MPI,
                           job_name=job_name,
                           world_size=world_size,
-                          num_cpus_per_worker=num_cpus_per_worker,
+                          num_cpus_per_process=num_cpus_per_process,
+                          num_processes_per_node=num_processes_per_node,
                           mpi_script_prepare_fn=mpi_script_prepare_fn,
                           timeout=timeout)
     elif mpi_type == MPIType.INTEL_MPI:
         return IntelMPIJob(mpi_type=MPIType.INTEL_MPI,
                            job_name=job_name,
                            world_size=world_size,
-                           num_cpus_per_worker=num_cpus_per_worker,
+                           num_cpus_per_process=num_cpus_per_process,
+                           num_processes_per_node=num_processes_per_node,
                            mpi_script_prepare_fn=mpi_script_prepare_fn,
                            timeout=timeout)
