@@ -25,6 +25,7 @@ import io.ray.runtime.config.RayConfig
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.AppMasterJavaUtils
 import org.apache.spark.rpc._
+import org.apache.spark.deploy.ExternalShuffleService
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 
 import scala.collection.JavaConverters._
@@ -34,6 +35,7 @@ class RayAppMaster(host: String,
                    actor_extra_classpath: String) extends Serializable with Logging {
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
+  private var shuffleService: ExternalShuffleService = _
 
   init()
 
@@ -48,6 +50,8 @@ class RayAppMaster(host: String,
   def init(): Unit = {
     val conf = new SparkConf()
     val securityMgr = new SecurityManager(conf)
+    shuffleService = new ExternalShuffleService(conf, securityMgr)
+    shuffleService.start()
     rpcEnv = RpcEnv.create(
       RayAppMaster.ENV_NAME,
       host,
@@ -83,6 +87,7 @@ class RayAppMaster(host: String,
       endpoint = null
       rpcEnv = null
     }
+    shuffleService.stop()
   }
 
   class RayAppMasterEndpoint(override val rpcEnv: RpcEnv) extends ThreadSafeRpcEndpoint {
