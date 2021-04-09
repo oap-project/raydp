@@ -69,10 +69,10 @@ class TaskRunner(StoppableThread):
         self.main_thread_stop_event = main_thread_stop_event
 
     def run(self) -> None:
+        global failed_exception
         while not self.stopped():
             expected_func_id, func = self.task_queue.get()
             if func.func_id != expected_func_id:
-                global failed_exception
                 failed_exception = Exception(f"Rank: {WORLD_RANK}, expected function id: "
                                              f"{expected_func_id}, got: {func.func_id}")
                 self._stop_event.set()
@@ -87,7 +87,6 @@ class TaskRunner(StoppableThread):
                     # TODO: catch the stud close exception
                     self.driver_stub.RegisterFuncResult(func_result)
                 except Exception as e:
-                    global failed_exception
                     failed_exception = e
                     self._stop_event.set()
                     self.main_thread_stop_event.set()
@@ -156,7 +155,9 @@ class MPIWorker:
                  _node_ip_address=self.node_ip_address)
 
         self.driver_stub = stub
-        self.task_thread = TaskRunner(task_queue=self.task_queue, driver_stub=self.driver_stub)
+        self.task_thread = TaskRunner(task_queue=self.task_queue,
+                                      driver_stub=self.driver_stub,
+                                      main_thread_stop_event=self.should_stop)
         self.task_thread.start()
 
     def wait_for_termination(self):
