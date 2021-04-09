@@ -22,6 +22,7 @@ import sys
 from concurrent import futures
 from enum import Enum, unique
 from threading import RLock, Event
+import threading
 from typing import Any, Callable, List
 
 import grpc
@@ -207,9 +208,12 @@ class MPIJob:
         # start up the mpirun in separate thread
         script = subprocess.list2cmdline(mpirun_script)
 
+        def failed_callback():
+            self.stop()
+
         (self.mpirun_proc,
          self.mpirun_check_thread,
-         self.mpirun_forward_thread) = run_cmd(script, env)
+         self.mpirun_forward_thread) = run_cmd(script, env, failed_callback=failed_callback)
 
         # wait for the worker register
         self._wait_client_register()
@@ -257,11 +261,18 @@ class MPIJob:
     def run(self, mpi_func: Callable, timeout=None) -> Any:
         assert self.started
         func_request = network_pb2.Function(func_id=self.func_id, func=cloudpickle.dumps(mpi_func))
-        self.func_result = FunctionResults(self.func_id, self.world_size)
+        with self.lock:
+            self.func_result = FunctionResults(self.func_id, self.world_size)
         [meta.stub.RunFunction(func_request) for meta in self.workers]
         self.func_id += 1
         self.func_result.done.wait(timeout)
-        return self.func_result.results
+        with self.lock:
+            if self.func_result:
+                results = self.func_result.results
+                assert len(results) == self.world_size, "function call failed"
+                return self.func_result.results
+            else:
+                raise Exception("function call failed")
 
     def _reset(self):
         if not self.started:
@@ -269,14 +280,22 @@ class MPIJob:
         # send stop to all mpi workers
         if self.workers:
             empty_msg = network_pb2.Empty()
-            [meta.stub.Stop(empty_msg)
-             for meta in self.workers if meta.stub is not None]
+            def send_stop(stub):
+                try:
+                    stub.Stop(empty_msg)
+                except:
+                    pass
+            for meta in self.workers:
+                if meta.stub is None:
+                    continue
+                send_stop(meta.stub)
 
         # stop mpirun
         if self.mpirun_forward_thread is not None:
             self.mpirun_forward_thread.stop()
             self.mpirun_forward_thread = None
-        if self.mpirun_check_thread is not None:
+        if (self.mpirun_check_thread is not None
+            and threading.current_thread().ident != self.mpirun_check_thread.ident):
             self.mpirun_check_thread.join(1)
             if self.mpirun_check_thread.is_alive():
                 # kill the mpirun process
@@ -290,7 +309,10 @@ class MPIJob:
             self.server.stop(None)
             self.server = None
         self.func_id = 0
-        self.func_result = None
+        with self.lock:
+            if self.func_result:
+                self.func_result.done.set()
+                self.func_result = None
         self.started = False
 
     def stop(self):

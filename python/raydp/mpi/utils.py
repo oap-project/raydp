@@ -41,7 +41,7 @@ class StoppableThread(threading.Thread):
         return self._stop_event.is_set()
 
 
-def run_cmd(cmd: str, env):
+def run_cmd(cmd: str, env, failed_callback):
     proc = subprocess.Popen(cmd,
                             shell=True,
                             stdout=subprocess.PIPE,
@@ -54,6 +54,7 @@ def run_cmd(cmd: str, env):
         while not threading.current_thread().stopped():
             ret_code = proc.poll()
             if ret_code:
+                failed_callback()
                 raise Exception(f"mpirun failed: {ret_code}")
 
             if ret_code == 0:
@@ -71,14 +72,16 @@ def run_cmd(cmd: str, env):
             fileno_mapping[stream.fileno()] = stream
         try:
             while not threading.current_thread().stopped():
-                events = epoll.poll()
+                events = epoll.poll(0.5)
                 for fileno, events in events:
-                    stream = fileno_mapping[fileno]
+                    stream = fileno_mapping.get(fileno, None)
+                    if not stream:
+                        continue
                     line = stream.readline()
                     if not line:
                         epoll.unregister(fileno)
                     else:
-                        print(str(line.decode()).strip())
+                        print(line.decode().strip("\n"))
         finally:
             epoll.close()
 
