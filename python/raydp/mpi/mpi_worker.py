@@ -53,33 +53,44 @@ class WorkerContext:
 
 WORLD_RANK = -1
 worker_context = WorkerContext("", -1)
+failed_exception = None
 
 
 class TaskRunner(StoppableThread):
     def __init__(self,
                  task_queue: Queue = None,
-                 driver_stub: network_pb2_grpc.DriverServiceStub = None):
+                 driver_stub: network_pb2_grpc.DriverServiceStub = None,
+                 main_thread_stop_event: threading.Event = None):
         super(TaskRunner, self).__init__(
             group=None, target=None, name="MPI_WORKER_TASK_RUNNER", args=(),
             kwargs=None, daemon=True)
         self.task_queue = task_queue
         self.driver_stub = driver_stub
+        self.main_thread_stop_event = main_thread_stop_event
 
     def run(self) -> None:
         while not self.stopped():
             expected_func_id, func = self.task_queue.get()
             if func.func_id != expected_func_id:
-                raise Exception(f"Rank: {WORLD_RANK}, expected function id: "
-                                f"{expected_func_id}, got: {func.func_id}")
-
+                global failed_exception
+                failed_exception = Exception(f"Rank: {WORLD_RANK}, expected function id: "
+                                             f"{expected_func_id}, got: {func.func_id}")
+                self._stop_event.set()
+                self.main_thread_stop_event.set()
             else:
-                f = cloudpickle.loads(func.func)
-                result = f(worker_context)
-                func_result = network_pb2.FunctionResult(world_rank=WORLD_RANK,
-                                                         func_id=expected_func_id,
-                                                         result=cloudpickle.dumps(result))
-                # TODO: catch the stud close exception
-                self.driver_stub.RegisterFuncResult(func_result)
+                try:
+                    f = cloudpickle.loads(func.func)
+                    result = f(worker_context)
+                    func_result = network_pb2.FunctionResult(world_rank=WORLD_RANK,
+                                                             func_id=expected_func_id,
+                                                             result=cloudpickle.dumps(result))
+                    # TODO: catch the stud close exception
+                    self.driver_stub.RegisterFuncResult(func_result)
+                except Exception as e:
+                    global failed_exception
+                    failed_exception = e
+                    self._stop_event.set()
+                    self.main_thread_stop_event.set()
 
 
 class WorkerService(network_pb2_grpc.WorkerServiceServicer):
@@ -111,6 +122,7 @@ class MPIWorker:
         self.driver_stub = None
 
         self.should_stop = threading.Event()
+        self.failed_exception = None
         self.task_queue = Queue()
         self.task_thread = None
 
@@ -177,6 +189,9 @@ class MPIWorker:
             self.server = None
             self.server_port = None
             self.expected_func_id = 0
+        global failed_exception
+        if failed_exception is not None:
+            raise failed_exception
 
 
 if __name__ == "__main__":
