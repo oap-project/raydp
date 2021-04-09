@@ -100,8 +100,8 @@ class MPIJob:
                  timeout: int = 1) -> None:
 
         assert world_size % num_processes_per_node == 0,\
-        (f"world_size: {world_size} should be multiple of num_processes_per_node: "
-        f"{num_processes_per_node}")
+         (f"world_size: {world_size} should be multiple of num_processes_per_node: "
+          f"{num_processes_per_node}")
 
         self.mpi_type = mpi_type
         self.job_name = job_name
