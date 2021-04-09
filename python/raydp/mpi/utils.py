@@ -78,7 +78,7 @@ def run_cmd(cmd: str, env):
                     if not line:
                         epoll.unregister(fileno)
                     else:
-                        print(line.decode())
+                        print(str(line.decode()).strip())
         finally:
             epoll.close()
 

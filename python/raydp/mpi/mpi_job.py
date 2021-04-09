@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import atexit
 import os
 import signal
 import subprocess
@@ -154,7 +155,7 @@ class MPIJob:
             with self.lock:
                 [connect(meta) for meta in self.workers]
             self.started = True
-
+            atexit.register(self.stop)
         except Exception as e:
             self._reset()
             raise e
