@@ -99,9 +99,9 @@ class MPIJob:
                  mpi_script_prepare_fn: Callable = None,
                  timeout: int = 1) -> None:
 
-        assert (world_size // num_processes_per_node == 0,
-                f"world_size: {world_size} should be multiple of num_processes_per_node: "
-                f"{num_processes_per_node}")
+        assert world_size % num_processes_per_node == 0,\
+        (f"world_size: {world_size} should be multiple of num_processes_per_node: "
+        f"{num_processes_per_node}")
 
         self.mpi_type = mpi_type
         self.job_name = job_name
@@ -244,7 +244,7 @@ class MPIJob:
         with self.func_result.lock:
             assert self.func_result.function_id == request.func_id
             result = cloudpickle.loads(request.result)
-            self.func_result.results[request.rank_id] = result
+            self.func_result.results[request.world_rank] = result
             self.func_result.remaining -= 1
             if self.func_result.remaining == 0:
                 self.func_result.done.set()

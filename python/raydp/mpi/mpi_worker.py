@@ -77,8 +77,7 @@ class TaskRunner(StoppableThread):
                 result = f(worker_context)
                 func_result = network_pb2.FunctionResult(world_rank=WORLD_RANK,
                                                          func_id=expected_func_id,
-                                                         result=cloudpickle.dumps(result),
-                                                         is_exception=False)
+                                                         result=cloudpickle.dumps(result))
                 # TODO: catch the stud close exception
                 self.driver_stub.RegisterFuncResult(func_result)
 
