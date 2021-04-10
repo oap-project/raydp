@@ -27,7 +27,7 @@ def _get_mpi_type(mpi_type: str) -> MPIType:
     elif mpi_type.strip().lower() == "intel_mpi":
         return MPIType.INTEL_MPI
     else:
-        raise Exception(f"MPI type: {mpi_type} not supported now")
+        return None
 
 
 def create_mpi_job(job_name: str,
@@ -54,3 +54,5 @@ def create_mpi_job(job_name: str,
                            num_processes_per_node=num_processes_per_node,
                            mpi_script_prepare_fn=mpi_script_prepare_fn,
                            timeout=timeout)
+    else:
+        raise Exception(f"MPI type: {mpi_type} not supported now")

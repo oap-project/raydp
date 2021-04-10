@@ -36,10 +36,10 @@ def get_rank(mpi_type: MPIType):
         return int(os.environ["PMI_RANK"])
     else:
         try:
-            from mpi4py import MPI
+            from mpi4py import MPI  # pylint: disable=C0415
             comm = MPI.COMM_WORLD
             return comm.Get_rank()
-        except:
+        except:  # pylint: disable=W0707
             raise Exception(f"Not supported MPI type: {mpi_type}")
 
 
@@ -61,7 +61,7 @@ class TaskRunner(StoppableThread):
                  task_queue: Queue = None,
                  driver_stub: network_pb2_grpc.DriverServiceStub = None,
                  main_thread_stop_event: threading.Event = None):
-        super(TaskRunner, self).__init__(
+        super().__init__(
             group=None, target=None, name="MPI_WORKER_TASK_RUNNER", args=(),
             kwargs=None, daemon=True)
         self.task_queue = task_queue

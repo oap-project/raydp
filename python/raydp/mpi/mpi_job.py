@@ -150,10 +150,9 @@ class MPIJob:
                 stub = network_pb2_grpc.WorkerServiceStub(channel)
                 assert meta.stub is None
                 meta.stub = stub
-                return None
 
             with self.lock:
-                [connect(meta) for meta in self.workers]
+                connected = [connect(meta) for meta in self.workers]
             self.started = True
         except Exception as e:
             self._reset()
@@ -194,7 +193,7 @@ class MPIJob:
         hosts = self._start_peers()
         # prepare the mpirun script
         mpirun_script = self.get_default_mpirun_script(hosts, self.num_processes_per_node)
-        
+
         if self.mpi_script_prepare_fn is not None:
             mpirun_script = self.mpi_script_prepare_fn(mpirun_script)
 
@@ -263,7 +262,7 @@ class MPIJob:
         func_request = network_pb2.Function(func_id=self.func_id, func=cloudpickle.dumps(mpi_func))
         with self.lock:
             self.func_result = FunctionResults(self.func_id, self.world_size)
-        [meta.stub.RunFunction(func_request) for meta in self.workers]
+        send = [meta.stub.RunFunction(func_request) for meta in self.workers]
         self.func_id += 1
         self.func_result.done.wait(timeout)
         with self.lock:
@@ -280,10 +279,11 @@ class MPIJob:
         # send stop to all mpi workers
         if self.workers:
             empty_msg = network_pb2.Empty()
+
             def send_stop(stub):
                 try:
                     stub.Stop(empty_msg)
-                except:
+                except Exception:
                     pass
             for meta in self.workers:
                 if meta.stub is None:
@@ -327,12 +327,14 @@ class OpenMPIJob(MPIJob):
         default_script = ["mpirun", "--allow-run-as-root", "--tag-output",
                           "-bind-to", "none", "-map-by", "slot", "-mca",
                           "pml", "ob1", "-mca", "btl", "^openib", "-H", ",".join(hosts),
-                          "-N", f"{num_process_per_node}", sys.executable, constants.MPI_MAIN_CLASS_PATH]
+                          "-N", f"{num_process_per_node}", sys.executable,
+                          constants.MPI_MAIN_CLASS_PATH]
         return default_script
 
 
 class IntelMPIJob(MPIJob):
     def get_default_mpirun_script(self, hosts: List[str], num_process_per_node: int) -> List[str]:
-        default_script = ["mpiexec", "-bind-to", "none", "-map-by", "slot", "-hosts", ",".join(hosts),
-                          "-ppn", f"{num_process_per_node}", sys.executable, constants.MPI_MAIN_CLASS_PATH]
+        default_script = ["mpiexec", "-bind-to", "none", "-map-by", "slot", "-hosts",
+                          ",".join(hosts), "-ppn", f"{num_process_per_node}", sys.executable,
+                          constants.MPI_MAIN_CLASS_PATH]
         return default_script

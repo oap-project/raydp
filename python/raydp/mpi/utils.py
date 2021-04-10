@@ -30,8 +30,7 @@ class StoppableThread(threading.Thread):
 
     def __init__(self, group=None, target=None, name=None,
                  args=(), kwargs=None, *, daemon=None):
-        super(StoppableThread, self).__init__(
-            group, target, name, args, kwargs, daemon=daemon)
+        super().__init__(group, target, name, args, kwargs, daemon=daemon)
         self._stop_event = threading.Event()
 
     def stop(self):
@@ -48,7 +47,7 @@ def run_cmd(cmd: str, env, failed_callback):
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             env=env,
-                            preexec_fn=os.setsid)
+                            start_new_session=True)
 
     def check_failed():
         # check whether the process has finished
