@@ -44,6 +44,7 @@ class StoppableThread(threading.Thread):
 def run_cmd(cmd: str, env, failed_callback):
     proc = subprocess.Popen(cmd,
                             shell=True,
+                            stdin=subprocess.DEVNULL,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             env=env,
