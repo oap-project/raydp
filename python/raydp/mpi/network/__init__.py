@@ -1,5 +1,3 @@
-#!/bin/bash
-
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -17,37 +15,8 @@
 # limitations under the License.
 #
 
-set -ex
+import sys
+import os
 
-if ! command -v mvn &> /dev/null
-then
-    echo "mvn could not be found, please install maven first"
-    exit
-else
-    mvn_path=`which mvn`
-    echo "Using ${mvn_path} for build core module"
-fi
-
-CURRENT_DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-DIST_PATH=${CURRENT_DIR}/dist/
-
-if [[ ! -d ${DIST_PATH} ]];
-then
-  mkdir ${DIST_PATH}
-fi
-
-# build core part
-CORE_DIR="${CURRENT_DIR}/core"
-pushd ${CORE_DIR}
-mvn clean package -q -DskipTests
-popd # core dir
-
-# build python part
-RAYDP_PACKAGE_NAME=${RAYDP_PACKAGE_NAME:-raydp}
-PYTHON_DIR="${CURRENT_DIR}/python"
-pushd ${PYTHON_DIR}
-python setup.py bdist_wheel
-cp ${PYTHON_DIR}/dist/${RAYDP_PACKAGE_NAME}-* ${DIST_PATH}
-popd # python dir
-
-set +ex
+dir_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(str(dir_path))

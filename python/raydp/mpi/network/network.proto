@@ -1,0 +1,83 @@
+//
+// Licensed to the Apache Software Foundation (ASF) under one or more
+// contributor license agreements.  See the NOTICE file distributed with
+// this work for additional information regarding copyright ownership.
+// The ASF licenses this file to You under the Apache License, Version 2.0
+// (the "License"); you may not use this file except in compliance with
+// the License.  You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+// Syntax version
+syntax = "proto3";
+
+// Driver Service definition
+service DriverService {
+    // register the worker process to driver which used to tell the worker has started up
+    rpc RegisterWorker (RegisterWorkerRequest) returns (RegisterWorkerReply);
+    // register the worker service host and port
+    rpc RegisterWorkerService (RegisterWorkerServiceRequest) returns (RegisterWorkerServiceReply);
+    // register the function result
+    rpc RegisterFuncResult (FunctionResult) returns (Empty);
+}
+
+// Worker Service
+service WorkerService {
+    // run the given function
+    rpc RunFunction (Function) returns (Empty);
+    // stop the worker service
+    rpc Stop (Empty) returns (Empty);
+}
+
+message RegisterWorkerRequest {
+    // the job id
+    string job_id = 1;
+    // the world rank id
+    int32 world_rank = 2;
+}
+
+message RegisterWorkerReply {
+    // the all node addresses and used to determine the current node ip adddress
+    repeated string node_addresses = 3;
+}
+
+message RegisterWorkerServiceRequest {
+    // the world rank
+    int32 world_rank = 1;
+    // the worker service listening ip
+    string worker_ip = 2;
+    // the worker service listening port
+    int32 worker_port = 3;
+}
+
+message RegisterWorkerServiceReply {
+    // the ray redis address
+    string ray_address = 1;
+    // the ray redis password
+    string redis_password = 2;
+}
+
+message Function {
+    // the function id
+    int32 func_id = 1;
+    // the serialized python function
+    bytes func = 2;
+}
+
+message FunctionResult {
+    int32 world_rank = 1;
+    // the function id
+    int32 func_id = 2;
+    // the function results
+    bytes result = 3;
+}
+
+message Empty {
+}
