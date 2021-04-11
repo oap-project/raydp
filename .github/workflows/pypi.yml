@@ -51,7 +51,7 @@ jobs:
       if: env.COMMIT_TODAY == 'true'
       env:
         RAYDP_PACKAGE_NAME: raydp_nightly
-      run: pip install wheel && ./build.sh
+      run: pip install wheel grpcio-tools && ./build.sh
     - name: Upload
       if: env.COMMIT_TODAY == 'true'
       uses: pypa/gh-action-pypi-publish@master
