@@ -117,6 +117,8 @@ class MPIJob:
         self.server = None
 
         self.node_addresses = None
+        self.peers = None
+        self.pg = None
         self.workers: List[MPIWorkerMeta] = [None] * self.world_size
 
         self.mpirun_proc: subprocess.Popen = None
@@ -162,18 +164,20 @@ class MPIJob:
         num_nodes = self.world_size // self.num_processes_per_node
         cpus_per_node = self.num_cpus_per_process * self.num_processes_per_node
         bundles = [{"CPU": cpus_per_node}] * num_nodes
-        pg = ray.util.placement_group(
+        self.pg = ray.util.placement_group(
             bundles=bundles, strategy="STRICT_SPREAD", name=f"{self.job_name}_pg")
-        assert pg.wait(self.timeout), f"{ray.util.placement_group_table(pg)}"
+        assert self.pg.wait(self.timeout), f"{ray.util.placement_group_table(self.pg)}"
         # create the WorkerPeer actor
-        workers = []
+        peers = []
         for node_id in range(num_nodes):
-            worker = MPIWorkerPeer.options(
-                placement_group=pg, placement_group_bundle_index=node_id
+            peer = MPIWorkerPeer.options(
+                placement_group=self.pg, placement_group_bundle_index=node_id
             ).remote(self.mpi_type, self.job_name, node_id)
-            workers.append(worker)
+            peers.append(peer)
         # get the node_ip_address
-        self.node_addresses = ray.get([worker.get_node_ip.remote() for worker in workers])
+        self.node_addresses = ray.get([peer.get_node_ip.remote() for peer in peers])
+        # holding avoid lost the reference
+        self.peers = peers
         return self.node_addresses
 
     def _start_network_service(self):
@@ -274,8 +278,6 @@ class MPIJob:
                 raise Exception("function call failed")
 
     def _reset(self):
-        if not self.started:
-            return
         # send stop to all mpi workers
         if self.workers:
             empty_msg = network_pb2.Empty()
@@ -304,9 +306,11 @@ class MPIJob:
                 self.mpirun_check_thread = None
         self.mpirun_proc = None
 
-        self.workers = []
+        self.workers = [None] * self.world_size
         if self.server:
             self.server.stop(None)
+            self.server.wait_for_termination(self.timeout)
+            del self.server
             self.server = None
         self.func_id = 0
         with self.lock:
@@ -314,6 +318,13 @@ class MPIJob:
                 self.func_result.done.set()
                 self.func_result = None
         self.started = False
+
+        if self.peers:
+            self.peers = None
+
+        if self.pg:
+            ray.util.remove_placement_group(self.pg)
+            self.pg = None
 
     def stop(self):
         self._reset()
@@ -334,7 +345,7 @@ class OpenMPIJob(MPIJob):
 
 class IntelMPIJob(MPIJob):
     def get_default_mpirun_script(self, hosts: List[str], num_process_per_node: int) -> List[str]:
-        default_script = ["mpiexec", "-bind-to", "none", "-map-by", "slot", "-hosts",
-                          ",".join(hosts), "-ppn", f"{num_process_per_node}", sys.executable,
-                          constants.MPI_MAIN_CLASS_PATH]
+        default_script = ["mpirun", "-bind-to", "none", "-map-by", "slot", "-prepend-rank",
+                          "-hosts", ",".join(hosts), "-ppn", f"{num_process_per_node}",
+                          sys.executable, constants.MPI_MAIN_CLASS_PATH]
         return default_script
