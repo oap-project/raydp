@@ -306,7 +306,7 @@ class MPIJob:
                 self.mpirun_check_thread = None
         self.mpirun_proc = None
 
-        self.workers = []
+        self.workers = [None] * self.world_size
         if self.server:
             self.server.stop(None)
             self.server.wait_for_termination(self.timeout)
