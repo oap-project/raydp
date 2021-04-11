@@ -309,6 +309,8 @@ class MPIJob:
         self.workers = []
         if self.server:
             self.server.stop(None)
+            self.server.wait_for_termination(self.timeout)
+            del self.server
             self.server = None
         self.func_id = 0
         with self.lock:
