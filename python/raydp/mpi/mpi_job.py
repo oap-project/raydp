@@ -343,7 +343,7 @@ class OpenMPIJob(MPIJob):
 
 class IntelMPIJob(MPIJob):
     def get_default_mpirun_script(self, hosts: List[str], num_process_per_node: int) -> List[str]:
-        default_script = ["mpirun", "-bind-to", "none", "-map-by", "slot", "-hosts",
-                          ",".join(hosts), "-ppn", f"{num_process_per_node}", sys.executable,
-                          constants.MPI_MAIN_CLASS_PATH]
+        default_script = ["mpirun", "-bind-to", "none", "-map-by", "slot", "-prepend-rank",
+                          "-hosts", ",".join(hosts), "-ppn", f"{num_process_per_node}",
+                          sys.executable, constants.MPI_MAIN_CLASS_PATH]
         return default_script
