@@ -19,11 +19,11 @@ import glob
 import io
 import os
 import sys
-from shutil import copy2, rmtree
 from datetime import datetime
+from shutil import copy2, rmtree
 
-from setuptools import find_packages
-from setuptools import setup
+from grpc_tools.command import build_package_protos
+from setuptools import find_packages, setup, Command
 
 package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
 if package_name == 'raydp_nightly':
@@ -53,6 +53,32 @@ try:
 except:
     print(f"Temp path for symlink to parent already exists {TEMP_PATH}", file=sys.stderr)
     sys.exit(-1)
+
+
+class CustomBuildPackageProtos(Command):
+    """Command to generate project *_pb2.py modules from proto files.
+
+    Copied from grpc_tools.command.BuildPackageProtos and change the proto root dir.
+    """
+
+    description = 'build grpc protobuf modules'
+    user_options = [('strict-mode', 's',
+                     'exit with non-zero value if the proto compiling fails.')]
+
+    def initialize_options(self):
+        self.strict_mode = False
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        # due to limitations of the proto generator, we require that only *one*
+        # directory is provided as an 'include' directory. We assume it's the '' key
+        # to `self.distribution.package_dir` (and get a key error if it's not
+        # there).
+        build_package_protos(self.distribution.package_dir["mpi_network_proto"],
+                             self.strict_mode)
+
 
 try:
     copy2(JARS_PATH, JARS_TARGET)
@@ -86,9 +112,14 @@ try:
         long_description_content_type="text/markdown",
         packages=_packages,
         include_package_data=True,
-        package_dir={"raydp.jars": "deps/jars"},
+        package_dir={"raydp.jars": "deps/jars",
+                     "mpi_network_proto": "raydp/mpi/network"},
         package_data={"raydp.jars": ["*.jar"]},
+        cmdclass={
+            'build_proto_modules': CustomBuildPackageProtos,
+        },
         install_requires=install_requires,
+        setup_requires=["grpcio-tools"],
         python_requires='>=3.6',
         classifiers=[
             'License :: OSI Approved :: Apache Software License',
