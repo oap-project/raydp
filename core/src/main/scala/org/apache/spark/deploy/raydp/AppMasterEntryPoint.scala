@@ -25,9 +25,14 @@ import py4j.GatewayServer
 
 class AppMasterEntryPoint {
   private val appMaster: AppMasterJavaBridge = new AppMasterJavaBridge()
+  private val shuffleServices = new RayShuffleServiceCluster()
 
   def getAppMasterBridge(): AppMasterJavaBridge = {
     appMaster
+  }
+
+  def getShuffleServices(): RayShuffleServiceCluster = {
+    shuffleServices
   }
 }
 

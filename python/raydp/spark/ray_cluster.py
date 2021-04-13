@@ -70,6 +70,9 @@ class SparkCluster(Cluster):
             extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP)) + ":" + extra_conf[driver_cp]
         else:
             extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP))
+        if extra_conf.get("spark.shuffle.service.enabled", "false") == "true":
+            print("starting shuffle services...")
+            self._app_master_bridge.start_shuffle_services()
         spark_builder = SparkSession.builder
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
@@ -83,5 +86,6 @@ class SparkCluster(Cluster):
             self._spark_session = None
 
         if self._app_master_bridge is not None:
+            self._app_master_bridge.stop_shuffle_services()
             self._app_master_bridge.stop()
             self._app_master_bridge = None
