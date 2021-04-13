@@ -189,7 +189,7 @@ class RayClusterMaster(ClusterMaster):
 
     def start_shuffle_services(self):
         nodes = filter(lambda k: k.startswith("node:"), ray.cluster_resources().keys())
-        nodes = ','.join(list(nodes))
+        nodes = ",".join(list(nodes))
         self._external_shuffle_service.createShuffleServices(nodes)
         self._external_shuffle_service.start()
         self._shuffle_service_started = True
