@@ -277,6 +277,10 @@ class MPIJob:
             else:
                 raise Exception("function call failed")
 
+    def get_rank_addresses(self):
+        assert self.started
+        return [meta.worker_ip for meta in self.workers]
+
     def _reset(self):
         # send stop to all mpi workers
         if self.workers:
@@ -288,7 +292,7 @@ class MPIJob:
                 except Exception:
                     pass
             for meta in self.workers:
-                if meta.stub is None:
+                if not hasattr(meta, "stub") or meta.stub is None:
                     continue
                 send_stop(meta.stub)
 
