@@ -70,7 +70,6 @@ class SparkCluster(Cluster):
             extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP)) + ":" + extra_conf[driver_cp]
         else:
             extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP))
-
         spark_builder = SparkSession.builder
         for k, v in extra_conf.items():
             spark_builder.config(k, v)

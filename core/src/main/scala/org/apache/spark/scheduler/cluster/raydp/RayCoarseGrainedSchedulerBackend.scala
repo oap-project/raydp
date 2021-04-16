@@ -117,9 +117,6 @@ class RayCoarseGrainedSchedulerBackend(
     // Start executors with a few necessary configs for registering with the scheduler
     val sparkJavaOpts = Utils.sparkJavaOpts(conf, SparkConf.isExecutorStartupConf)
     val javaOpts = sparkJavaOpts ++ extraJavaOpts
-    // if (conf.contains("ray.config-file")) {
-    //   javaOpts = javaOpts :+ "-Dray.config-file=" + conf.get("ray.config-file")
-    // }
     val command = Command(driverUrl, sc.executorEnvs,
       classPathEntries ++ testingClassPath, libraryPathEntries, javaOpts)
     val coresPerExecutor = conf.getOption(config.EXECUTOR_CORES.key).map(_.toInt)

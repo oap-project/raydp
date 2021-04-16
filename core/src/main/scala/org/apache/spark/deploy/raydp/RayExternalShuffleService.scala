@@ -17,6 +17,7 @@
 
 package org.apache.spark.deploy.raydp
 
+import io.ray.api.Ray;
 import org.apache.spark.internal.Logging
 import org.apache.spark.{SparkConf, SecurityManager}
 import org.apache.spark.deploy.ExternalShuffleService
@@ -32,5 +33,6 @@ class RayExternalShuffleService() extends Logging {
 
     def stop() = {
         instance.stop()
+        Ray.exitActor()
     }
 }

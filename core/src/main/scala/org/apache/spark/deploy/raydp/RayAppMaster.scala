@@ -30,7 +30,6 @@ import org.apache.spark.deploy.raydp.RayExternalShuffleService
 import org.apache.spark.rpc._
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 import org.apache.spark.internal.config
-import org.apache.spark.util.ShutdownHookManager
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
@@ -128,10 +127,6 @@ class RayAppMaster(host: String,
               val service = ExternalShuffleServiceUtils.createShuffleService(executorIp)
               ExternalShuffleServiceUtils.startShuffleService(service)
               nodesWithShuffleService(executorIp) = service
-              ShutdownHookManager.addShutdownHook { () =>
-                logInfo("Shutting down shuffle service.")
-                ExternalShuffleServiceUtils.stopShuffleService(service)
-              }
             }
           }
           setUpExecutor(executorId)
@@ -164,6 +159,15 @@ class RayAppMaster(host: String,
 
     override def onDisconnected(remoteAddress: RpcAddress): Unit = {
       appInfo.kill(remoteAddress)
+    }
+
+    override def onStop(): Unit = {
+      if (nodesWithShuffleService != null) {
+        nodesWithShuffleService.values.foreach(handle =>
+            ExternalShuffleServiceUtils.stopShuffleService(handle)
+        )
+        nodesWithShuffleService = null
+      }
     }
 
     private def createApplication(
