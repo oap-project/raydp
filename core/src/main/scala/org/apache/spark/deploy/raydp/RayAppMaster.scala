@@ -22,13 +22,18 @@ import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
 import io.ray.runtime.config.RayConfig
+import io.ray.api.ActorHandle
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.AppMasterJavaUtils
+import org.apache.spark.deploy.raydp.ExternalShuffleServiceUtils
+import org.apache.spark.deploy.raydp.RayExternalShuffleService
 import org.apache.spark.rpc._
-import org.apache.spark.deploy.ExternalShuffleService
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
+import org.apache.spark.internal.config
+import org.apache.spark.util.ShutdownHookManager
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.HashMap
 
 class RayAppMaster(host: String,
                    port: Int,
@@ -86,12 +91,15 @@ class RayAppMaster(host: String,
     }
   }
 
-  class RayAppMasterEndpoint(override val rpcEnv: RpcEnv) extends ThreadSafeRpcEndpoint {
+  class RayAppMasterEndpoint(override val rpcEnv: RpcEnv) 
+      extends ThreadSafeRpcEndpoint with Logging {
     // For application IDs
     private def createDateFormat = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US)
     private var driverEndpoint: RpcEndpointRef = null
     private var driverAddress: RpcAddress = null
     private var appInfo: ApplicationInfo = null
+    private var nodesWithShuffleService
+                  = new HashMap[String, ActorHandle[RayExternalShuffleService]]()
 
     private var nextAppNumber = 0
 
@@ -110,9 +118,22 @@ class RayAppMaster(host: String,
     }
 
     override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
-      case RegisterExecutor(executorId) =>
+      case RegisterExecutor(executorId, executorIp) =>
         val success = appInfo.registerExecutor(executorId)
         if (success) {
+          // external shuffle service is enabled
+          if (appInfo.desc.shuffleServiceEnabled) {
+            // the node executor is in has not started shuffle service
+            if (!nodesWithShuffleService.contains(executorIp)) {
+              val service = ExternalShuffleServiceUtils.createShuffleService(executorIp)
+              ExternalShuffleServiceUtils.startShuffleService(service)
+              nodesWithShuffleService(executorIp) = service
+              ShutdownHookManager.addShutdownHook { () =>
+                logInfo("Shutting down shuffle service.")
+                ExternalShuffleServiceUtils.stopShuffleService(service)
+              }
+            }
+          }
           setUpExecutor(executorId)
         }
         context.reply(success)

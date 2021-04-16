@@ -86,9 +86,9 @@ class RayCoarseGrainedSchedulerBackend(
       throw new RayDPException("We only support client mode currently")
     }
 
-    if (Utils.isDynamicAllocationEnabled(conf)) {
-      throw new RayDPException("Dynamic Allocation is not supported currently")
-    }
+    // if (Utils.isDynamicAllocationEnabled(conf)) {
+    //   throw new RayDPException("Dynamic Allocation is not supported currently")
+    // }
 
     launcherBackend.connect()
 
@@ -116,7 +116,10 @@ class RayCoarseGrainedSchedulerBackend(
 
     // Start executors with a few necessary configs for registering with the scheduler
     val sparkJavaOpts = Utils.sparkJavaOpts(conf, SparkConf.isExecutorStartupConf)
-    val javaOpts = sparkJavaOpts ++ extraJavaOpts
+    var javaOpts = sparkJavaOpts ++ extraJavaOpts
+    if (conf.contains("ray.config-file")) {
+      javaOpts = javaOpts :+ "-Dray.config-file=" + conf.get("ray.config-file")
+    }
     val command = Command(driverUrl, sc.executorEnvs,
       classPathEntries ++ testingClassPath, libraryPathEntries, javaOpts)
     val coresPerExecutor = conf.getOption(config.EXECUTOR_CORES.key).map(_.toInt)
@@ -125,8 +128,10 @@ class RayCoarseGrainedSchedulerBackend(
       conf, config.SPARK_EXECUTOR_PREFIX)
     val resourcesInMap = transferResourceRequirements(executorResourceReqs)
     val numExecutors = conf.get(config.EXECUTOR_INSTANCES).get
+    val shuffleServiceEnabled = conf.getBoolean("spark.shuffle.service.enabled", false)
     val appDesc = ApplicationDescription(sc.appName, numExecutors, coresPerExecutor,
-      sc.executorMemory, command, resourceReqsPerExecutor = resourcesInMap)
+      sc.executorMemory, command, resourceReqsPerExecutor=resourcesInMap,
+      shuffleServiceEnabled=shuffleServiceEnabled)
     val rpcEnv = sc.env.rpcEnv
     appMasterRef.set(rpcEnv.setupEndpoint(
       "AppMasterClient",

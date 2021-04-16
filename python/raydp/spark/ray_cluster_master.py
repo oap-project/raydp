@@ -44,8 +44,6 @@ class RayClusterMaster(ClusterMaster):
         self._app_master_java_bridge = None
         self._host = None
         self._started_up = False
-        self._external_shuffle_service = None
-        self._shuffle_service_started = False
 
     def start_up(self, popen_kwargs=None):
         if self._started_up:
@@ -58,7 +56,6 @@ class RayClusterMaster(ClusterMaster):
         self._host = ray._private.services.get_node_ip_address()
         self._create_app_master(extra_classpath)
         self._started_up = True
-        self._external_shuffle_service = self._gateway.entry_point.getShuffleServices()
 
     def _prepare_jvm_classpath(self):
         cp_list = []
@@ -186,17 +183,3 @@ class RayClusterMaster(ClusterMaster):
             self._gateway = None
 
         self._started_up = False
-
-    def start_shuffle_services(self):
-        nodes = filter(lambda k: k.startswith("node:"), ray.cluster_resources().keys())
-        nodes = ",".join(list(nodes))
-        self._external_shuffle_service.createShuffleServices(nodes)
-        self._external_shuffle_service.start()
-        self._shuffle_service_started = True
-
-    def stop_shuffle_services(self):
-        if self._external_shuffle_service is not None:
-            if self._shuffle_service_started:
-                self._external_shuffle_service.stop()
-                self._shuffle_service_started = False
-            self._external_shuffle_service = None

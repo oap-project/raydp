@@ -33,4 +33,5 @@ private[spark] case class ApplicationDescription(
     memoryPerExecutorMB: Int,
     command: Command,
     user: String = System.getProperty("user.name", "<unknown>"),
-    resourceReqsPerExecutor: Map[String, Double] = Map.empty)
+    resourceReqsPerExecutor: Map[String, Double] = Map.empty,
+    shuffleServiceEnabled: Boolean = false)

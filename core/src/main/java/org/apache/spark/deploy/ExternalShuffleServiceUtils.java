@@ -10,7 +10,7 @@ public class ExternalShuffleServiceUtils {
   public static ActorHandle<RayExternalShuffleService> createShuffleService(
       String node) {
     return Ray.actor(RayExternalShuffleService::new)
-              .setResource(node, 0.01).remote();
+              .setResource("node:" + node, 0.01).remote();
   }
 
   public static void startShuffleService(
