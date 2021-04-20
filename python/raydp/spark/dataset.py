@@ -149,7 +149,7 @@ class RayMLDataset(MLDataset):
         it = parallel_it.from_iterators(generators=record_batch_set,
                                         name="Spark DataFrame",
                                         repeat=False)
-        super(RayMLDataset, self).__init__(it.actor_sets, it.name,
+        super().__init__(it.actor_sets, it.name,
                                            it.parent_iterators,
                                            batch_size=batch_size,
                                            repeated=False)
