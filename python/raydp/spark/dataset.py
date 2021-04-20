@@ -138,3 +138,18 @@ class RecordBatchShard(_SourceShard):
             tb = reader.read_all()
             df: pd.DataFrame = tb.to_pandas()
             yield df
+
+class RayMLDataset(MLDataset):
+    def __init__(self, df: sql.DataFrame,
+                 num_shards: int,
+                 batch_size: int):
+        df = df.repartition(num_shards)
+        record_batch_set = _save_spark_df_to_object_store(df, num_shards)
+        # TODO: we should specify the resource spec for each shard
+        it = parallel_it.from_iterators(generators=record_batch_set,
+                                        name="Spark DataFrame",
+                                        repeat=False)
+        super(RayMLDataset, self).__init__(it.actor_sets, it.name,
+                                           it.parent_iterators,
+                                           batch_size=batch_size,
+                                           repeated=False)

@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-from .dataset import create_ml_dataset_from_spark
+from .dataset import create_ml_dataset_from_spark, RayMLDataset
 from .interfaces import SparkEstimatorInterface
 from .ray_cluster import SparkCluster
 

@@ -10,7 +10,7 @@ from torch.utils.data.dataloader import DataLoader
 import raydp
 from raydp.torch import TorchEstimator
 from raydp.utils import random_split
-from raydp.spark import create_ml_dataset_from_spark
+from raydp.spark import RayMLDataset
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 
 # Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
@@ -39,8 +39,8 @@ data = nyc_taxi_preprocess(data)
 train_df, test_df = random_split(data, [0.9, 0.1], 0)
 features = [field.name for field in list(train_df.schema) if field.name != "fare_amount"]
 # Convert spark dataframe into ML Dataset
-train_dataset = create_ml_dataset_from_spark(train_df, num_executors, 32)
-test_dataset = create_ml_dataset_from_spark(test_df, num_executors, 32)
+train_dataset = RayMLDataset(train_df, num_executors, 32)
+test_dataset = RayMLDataset(test_df, num_executors, 32)
 # Then convert to torch datasets
 train_dataset = train_dataset.to_torch(feature_columns=features, label_column="fare_amount")
 test_dataset = test_dataset.to_torch(feature_columns=features, label_column="fare_amount")
