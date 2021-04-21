@@ -21,6 +21,7 @@ import io.ray.api.ActorHandle;
 import io.ray.api.Ray;
 import io.ray.api.call.ActorCreator;
 import java.util.Map;
+import java.util.Arrays;
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;
 
 public class AppMasterJavaUtils {
@@ -44,7 +45,7 @@ public class AppMasterJavaUtils {
     ActorCreator<RayCoarseGrainedExecutorBackend> creator = Ray.actor(
             RayCoarseGrainedExecutorBackend::new, executorId, appMasterURL);
 
-    creator.setJvmOptions(javaOpts);
+    creator.setJvmOptions(Arrays.asList(javaOpts.split(" ")));
     creator.setResource("CPU", (double)cores);
     creator.setResource("memory", toMemoryUnits(memoryInMB));
     for (Map.Entry<String, Double> entry: resources.entrySet()) {
