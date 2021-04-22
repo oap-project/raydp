@@ -149,7 +149,21 @@ class RayMLDataset(MLDataset):
         it = parallel_it.from_iterators(generators=record_batch_set,
                                         name="Spark DataFrame",
                                         repeat=False)
-        super().__init__(it.actor_sets, it.name,
-                                           it.parent_iterators,
-                                           batch_size=batch_size,
-                                           repeated=False)
+        super().__init__(it.actor_sets,
+                         it.name,
+                         it.parent_iterators,
+                         batch_size=batch_size,
+                         repeated=False)
+
+    @staticmethod
+    def with_persist(df: sql.DataFrame,
+                     num_shards: int,
+                     fs_directory: str,
+                     compression: Optional[str] = None):
+        df = df.repartition(num_shards)
+        # we write the Spark DataFrame as Parquet files
+        df.write.parquet(fs_directory, compression=compression)
+        # create the MLDataset from the parquet file
+        ds = ml_dataset.read_parquet(fs_directory, num_shards)
+        ds.__class__ = RayMLDataset
+        return ds

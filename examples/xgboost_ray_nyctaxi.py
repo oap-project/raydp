@@ -5,7 +5,6 @@ from pyspark.sql.functions import *
 # Please refer to https://docs.ray.io/en/latest/xgboost-ray.html to install it.
 from xgboost_ray import RayDMatrix, train, RayParams
 import raydp
-from raydp.spark.dataset import RayMLDataset
 from raydp.utils import random_split
 from raydp.spark import RayMLDataset
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
