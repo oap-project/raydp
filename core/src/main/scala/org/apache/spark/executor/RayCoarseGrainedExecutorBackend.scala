@@ -88,7 +88,7 @@ class RayCoarseGrainedExecutorBackend(
     setUserDir()
     redirectLog()
 
-    val userClassPath = classPathEntries.split(";").filter(_.nonEmpty).map(new URL(_))
+    val userClassPath = classPathEntries.split(java.io.File.pathSeparator).filter(_.nonEmpty).map(new File(_).toURI.toURL)
     val createFn: (RpcEnv, SparkEnv, ResourceProfile) =>
       CoarseGrainedExecutorBackend = {
       case (rpcEnv, env, resourceProfile) =>
