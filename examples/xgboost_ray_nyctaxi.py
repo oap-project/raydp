@@ -28,8 +28,8 @@ data = nyc_taxi_preprocess(data)
 # Split data into train_dataset and test_dataset
 train_df, test_df = random_split(data, [0.9, 0.1], 0)
 # Convert spark dataframe into ML Dataset
-train_dataset = RayMLDataset(train_df, 2, 32)
-test_dataset = RayMLDataset(test_df, 2, 32)
+train_dataset = RayMLDataset.from_spark(train_df, 2, 32)
+test_dataset = RayMLDataset.from_spark(test_df, 2, 32)
 # Then convert them into DMatrix used by xgboost
 dtrain = RayDMatrix(train_dataset, label='fare_amount')
 dtest = RayDMatrix(test_dataset, label='fare_amount')

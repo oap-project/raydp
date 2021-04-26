@@ -27,7 +27,7 @@ from ray.util.sgd.tf.tf_dataset import TFMLDataset
 from tensorflow import DType, TensorShape
 
 from raydp.estimator import EstimatorInterface
-from raydp.spark import create_ml_dataset_from_spark
+from raydp.spark import RayMLDataset
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
 
 
@@ -229,11 +229,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         train_df = self._check_and_convert(train_df)
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
-        train_ds = create_ml_dataset_from_spark(
+        train_ds = RayMLDataset.from_spark(
             train_df, self._num_workers, self._batch_size, fs_directory, compression)
         evaluate_ds = None
         if evaluate_df is not None:
-            evaluate_ds = create_ml_dataset_from_spark(
+            evaluate_ds = RayMLDataset.from_spark(
                 evaluate_df, self._num_workers, self._batch_size, fs_directory, compression)
         return self.fit(train_ds, evaluate_ds)
 

@@ -15,8 +15,8 @@
 # limitations under the License.
 #
 
-from .dataset import create_ml_dataset_from_spark, RayMLDataset
+from .dataset import RayMLDataset
 from .interfaces import SparkEstimatorInterface
 from .ray_cluster import SparkCluster
 
-__all__ = ["create_ml_dataset_from_spark", "SparkCluster", "SparkEstimatorInterface"]
+__all__ = ["RayMLDataset", "SparkCluster", "SparkEstimatorInterface"]

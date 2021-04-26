@@ -81,7 +81,7 @@ def process_data():
     # Set spark timezone for processing datetime
     spark.conf.set("spark.sql.session.timeZone", "UTC")
     data = nyc_taxi_preprocess(data)
-    ds = RayMLDataset(data, 1, args.batch_size)
+    ds = RayMLDataset.from_spark(data, 1, args.batch_size)
     features = [field.name for field in list(data.schema) if field.name != "fare_amount"]
     return ds.to_torch(feature_columns=features, label_column="fare_amount"), len(features)
 
