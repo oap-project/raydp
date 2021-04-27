@@ -18,7 +18,7 @@
 
 from typing import Callable
 
-from raydp.mpi.mpi_job import MPIJob, MPIType, IntelMPIJob, OpenMPIJob
+from raydp.mpi.mpi_job import MPIJob, MPIType, IntelMPIJob, OpenMPIJob, MPIWorkerPeer
 
 
 def _get_mpi_type(mpi_type: str) -> MPIType:
@@ -36,7 +36,8 @@ def create_mpi_job(job_name: str,
                    num_processes_per_node: int,
                    mpi_script_prepare_fn: Callable = None,
                    timeout: int = 1,
-                   mpi_type: str = "intel_mpi") -> MPIJob:
+                   mpi_type: str = "intel_mpi",
+                   mpi_peer_actor_class=MPIWorkerPeer) -> MPIJob:
     mpi_type = _get_mpi_type(mpi_type)
     if mpi_type == MPIType.OPEN_MPI:
         return OpenMPIJob(mpi_type=MPIType.OPEN_MPI,
@@ -45,7 +46,8 @@ def create_mpi_job(job_name: str,
                           num_cpus_per_process=num_cpus_per_process,
                           num_processes_per_node=num_processes_per_node,
                           mpi_script_prepare_fn=mpi_script_prepare_fn,
-                          timeout=timeout)
+                          timeout=timeout,
+                          peer_actor_class=mpi_peer_actor_class)
     elif mpi_type == MPIType.INTEL_MPI:
         return IntelMPIJob(mpi_type=MPIType.INTEL_MPI,
                            job_name=job_name,
@@ -53,6 +55,7 @@ def create_mpi_job(job_name: str,
                            num_cpus_per_process=num_cpus_per_process,
                            num_processes_per_node=num_processes_per_node,
                            mpi_script_prepare_fn=mpi_script_prepare_fn,
-                           timeout=timeout)
+                           timeout=timeout,
+                           peer_actor_class=mpi_peer_actor_class)
     else:
         raise Exception(f"MPI type: {mpi_type} not supported now")

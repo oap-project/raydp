@@ -31,6 +31,7 @@ from raydp.utils import divide_blocks
 def create_ml_dataset_from_spark(df: sql.DataFrame,
                                  num_shards: int,
                                  batch_size: int,
+                                 evenly: bool = True,
                                  fs_directory: Optional[str] = None,
                                  compression: Optional[str] = None) -> MLDataset:
     """ Create a MLDataset from Spark DataFrame
@@ -40,6 +41,7 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
     :param df: the pyspark.sql.DataFrame
     :param num_shards: the number of shards will be created for the MLDataset
     :param batch_size: the batch size for the MLDataset
+    :param evenly: whether num records of each shard should be evenly.
     :param fs_directory: an optional distributed file system directory for cache the
            DataFrame. We will write the DataFrame to the given directory with parquet
            format if this is provided. Otherwise, we will write the DataFrame to ray
@@ -51,7 +53,7 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
     df = df.repartition(num_shards)
     if fs_directory is None:
         # fs_directory has not provided, we save the Spark DataFrame to ray object store
-        record_batch_set = _save_spark_df_to_object_store(df, num_shards)
+        record_batch_set = _save_spark_df_to_object_store(df, num_shards, evenly)
         # TODO: we should specify the resource spec for each shard
         it = parallel_it.from_iterators(generators=record_batch_set,
                                         name="Spark DataFrame",
@@ -68,7 +70,8 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
 
 
 def _save_spark_df_to_object_store(df: sql.DataFrame,
-                                   num_shards: int) -> List["RecordBatchShard"]:
+                                   num_shards: int,
+                                   evenly: bool) -> List["RecordBatchShard"]:
     # call java function from python
     jvm = df.sql_ctx.sparkSession.sparkContext._jvm
     jdf = df._jdf
@@ -90,23 +93,29 @@ def _save_spark_df_to_object_store(df: sql.DataFrame,
         blocks.append(object_ref)
         block_sizes.append(num_records)
 
+    records_per_shard = -1
+    if evenly:
+        records_per_shard = sum(block_sizes) // num_shards
+
     divided_blocks = divide_blocks(block_sizes, num_shards)
     record_batch_set: List[RecordBatchShard] = []
     for i in range(num_shards):
         indexes = divided_blocks[i]
         object_ids = [blocks[index] for index in indexes]
-        record_batch_set.append(RecordBatchShard(i, object_ids))
+        record_batch_set.append(RecordBatchShard(i, object_ids, records_per_shard))
     return record_batch_set
 
 
 class RecordBatchShard(_SourceShard):
     def __init__(self,
                  shard_id: int,
-                 object_ids: List[ray.ObjectRef]):
+                 object_ids: List[ray.ObjectRef],
+                 num_records: int):
         if not isinstance(object_ids, list):
             object_ids = [object_ids]
         self._object_ids: List[ray.ObjectRef] = object_ids
         self._shard_id = shard_id
+        self._num_records = num_records
         self._resolved: bool = False
 
     def resolve(self, timeout: Optional[float] = None) -> NoReturn:
@@ -131,15 +140,34 @@ class RecordBatchShard(_SourceShard):
         return self._shard_id
 
     def __iter__(self):
-        for obj in self._object_ids:
-            assert obj is not None
-            data = ray.get(obj)
-            reader = pa.ipc.open_stream(data)
-            tb = reader.read_all()
-            df: pd.DataFrame = tb.to_pandas()
-            yield df
+        if self._num_records > 0:
+            cur_records = 0
+            finished = False
+            while cur_records < self._num_records and not finished:
+                for obj in self._object_ids:
+                    assert obj is not None
+                    data = ray.get(obj)
+                    reader = pa.ipc.open_stream(data)
+                    tb = reader.read_all()
+                    df: pd.DataFrame = tb.to_pandas()
+                    max_rows = min(self._num_records - cur_records, df.shape[0])
+                    df = df.iloc[0: max_rows]
+                    yield df
+                    cur_records += df.shape[0]
+                    if cur_records >= self._num_records:
+                        finished = True
+                        break
+        else:
+            for obj in self._object_ids:
+                assert obj is not None
+                data = ray.get(obj)
+                reader = pa.ipc.open_stream(data)
+                tb = reader.read_all()
+                df: pd.DataFrame = tb.to_pandas()
+                yield df
 
-class RayMLDataset():
+
+class RayMLDataset:
     @staticmethod
     def from_spark(df: sql.DataFrame,
                    num_shards: int,
