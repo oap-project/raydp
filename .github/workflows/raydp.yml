@@ -63,7 +63,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install wheel
-          pip install torch==1.8.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+          if [ "$(uname -s)" == "Linux" ]
+          then
+            pip install torch==1.8.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+          else
+            pip install torch
+          fi
           pip install pytest koalas tensorflow tabulate ray[tune] xgboost_ray grpcio-tools
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
