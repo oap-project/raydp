@@ -23,16 +23,16 @@ import org.apache.spark.{SparkConf, SecurityManager}
 import org.apache.spark.deploy.ExternalShuffleService
 
 class RayExternalShuffleService() extends Logging {
-    val conf = new SparkConf()
-    val mgr = new SecurityManager(conf)
-    val instance = new ExternalShuffleService(conf, mgr)
+  val conf = new SparkConf()
+  val mgr = new SecurityManager(conf)
+  val instance = new ExternalShuffleService(conf, mgr)
 
-    def start() = {
-        instance.start()
-    }
+  def start() = {
+      instance.start()
+  }
 
-    def stop() = {
-        instance.stop()
-        Ray.exitActor()
-    }
+  def stop() = {
+      instance.stop()
+      Ray.exitActor()
+  }
 }
