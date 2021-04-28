@@ -93,32 +93,33 @@ class CustomOperator(TrainingOperator):
 
 # You can either train the model like this
 
-# trainer = TorchTrainer(training_operator_cls=CustomOperator,
-#                        num_workers=num_executors,
-#                        add_dist_sampler=False,
-#                        num_cpus_per_worker=2)
-# for i in range(100):
-#     stats = trainer.train()
-#     print(stats)
-#     val_stats = trainer.validate()
-#     print(val_stats)
-# trainer.shutdown()
+trainer = TorchTrainer(training_operator_cls=CustomOperator,
+                       num_workers=num_executors,
+                       add_dist_sampler=False,
+                       num_cpus_per_worker=1,
+                       config={"lr":0.01})
+for i in range(10):
+    stats = trainer.train()
+    print(stats)
+    val_stats = trainer.validate()
+    print(val_stats)
+trainer.shutdown()
 
 # Or you can perform a hyperparameter search using Ray Tune
 
-TorchTrainable = TorchTrainer.as_trainable(
-                    training_operator_cls=CustomOperator,
-                    num_workers=num_executors,
-                    add_dist_sampler=False,
-                    use_gpu=False,
-                    num_cpus_per_worker=1
-                 )
-analysis = tune.run(
-                TorchTrainable,
-                config={"lr": tune.grid_search([0.01, 0.1])},
-                stop={"training_iteration": 2}
-)
-print(analysis.results_df)
+# TorchTrainable = TorchTrainer.as_trainable(
+#                     training_operator_cls=CustomOperator,
+#                     num_workers=num_executors,
+#                     add_dist_sampler=False,
+#                     use_gpu=False,
+#                     num_cpus_per_worker=1
+#                  )
+# analysis = tune.run(
+#                 TorchTrainable,
+#                 config={"lr": tune.grid_search([0.01, 0.1])},
+#                 stop={"training_iteration": 2}
+# )
+# print(analysis.results_df)
 
 raydp.stop_spark()
 ray.shutdown()

@@ -107,6 +107,7 @@ class RayClusterMaster(ClusterMaster):
             def preexec_func():
                 signal.signal(signal.SIGINT, signal.SIG_IGN)
             popen_kwargs["preexec_fn"] = preexec_func
+            # pylint: disable=R1732
             proc = Popen(command, **popen_kwargs)
 
             # Wait for the file to appear, or for the process to exit, whichever happens first.
