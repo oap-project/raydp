@@ -116,7 +116,9 @@ class RayCoarseGrainedSchedulerBackend(
 
     // Start executors with a few necessary configs for registering with the scheduler
     val sparkJavaOpts = Utils.sparkJavaOpts(conf, SparkConf.isExecutorStartupConf)
-    val javaOpts = sparkJavaOpts ++ extraJavaOpts
+    // add Xmx, it should not be set in java opts, because Spark is not allowed
+    val javaOpts = sparkJavaOpts ++ extraJavaOpts ++ Seq(s"-Xmx${sc.executorMemory}M")
+
     val command = Command(driverUrl, sc.executorEnvs,
       classPathEntries ++ testingClassPath, libraryPathEntries, javaOpts)
     val coresPerExecutor = conf.getOption(config.EXECUTOR_CORES.key).map(_.toInt)

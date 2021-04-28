@@ -98,12 +98,7 @@ class RayAppMaster(host: String,
       case RegisterApplication(appDescription: ApplicationDescription, driver: RpcEndpointRef) =>
 
         logInfo("Registering app " + appDescription.name)
-        var javaOpts = appendActorClasspath(appDescription.command.javaOpts)
-        // append java Xmx
-        javaOpts = javaOpts :+ s"-Xmx${appDescription.memoryPerExecutorMB}M"
-        val newCommand = appDescription.command.withNewJavaOpts(javaOpts)
-        val updatedAppDesc = appDescription.withNewCommand(newCommand)
-        val app = createApplication(updatedAppDesc, driver)
+        val app = createApplication(appDescription, driver)
         registerApplication(app)
         logInfo("Registered app " + appDescription.name + " with ID " + app.id)
         driver.send(RegisteredApplication(app.id, self))

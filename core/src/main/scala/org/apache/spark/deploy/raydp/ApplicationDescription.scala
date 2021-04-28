@@ -25,10 +25,6 @@ private[spark] case class Command(
     classPathEntries: Seq[String],
     libraryPathEntries: Seq[String],
     javaOpts: Seq[String]) {
-
-  def withNewJavaOpts(newJavaOptions: Seq[String]): Command = {
-    Command(driverUrl, environment, classPathEntries, libraryPathEntries, newJavaOptions)
-  }
 }
 
 private[spark] case class ApplicationDescription(
@@ -39,9 +35,4 @@ private[spark] case class ApplicationDescription(
     command: Command,
     user: String = System.getProperty("user.name", "<unknown>"),
     resourceReqsPerExecutor: Map[String, Double] = Map.empty) {
-
-  def withNewCommand(newCommand: Command): ApplicationDescription = {
-    ApplicationDescription(name, numExecutors, coresPerExecutor, memoryPerExecutorMB,
-      newCommand, user, resourceReqsPerExecutor)
-  }
 }
