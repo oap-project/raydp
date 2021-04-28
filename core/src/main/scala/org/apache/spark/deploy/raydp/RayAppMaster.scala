@@ -98,7 +98,10 @@ class RayAppMaster(host: String,
       case RegisterApplication(appDescription: ApplicationDescription, driver: RpcEndpointRef) =>
 
         logInfo("Registering app " + appDescription.name)
-        val app = createApplication(appDescription, driver)
+        val javaOpts = appendActorClasspath(appDescription.command.javaOpts)
+        val newCommand = appDescription.command.withNewJavaOpts(javaOpts)
+        val updatedAppDesc = appDescription.withNewCommand(newCommand)
+        val app = createApplication(updatedAppDesc, driver)
         registerApplication(app)
         logInfo("Registered app " + appDescription.name + " with ID " + app.id)
         driver.send(RegisteredApplication(app.id, self))
