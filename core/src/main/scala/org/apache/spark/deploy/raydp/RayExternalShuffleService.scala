@@ -21,18 +21,29 @@ import io.ray.api.Ray;
 import org.apache.spark.internal.Logging
 import org.apache.spark.{SparkConf, SecurityManager}
 import org.apache.spark.deploy.ExternalShuffleService
+import org.apache.spark.resource.ResourceProfile
+import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{RetrieveSparkAppConfig, SparkAppConfig}
 
 class RayExternalShuffleService() extends Logging {
-  val conf = new SparkConf()
-  val mgr = new SecurityManager(conf)
-  val instance = new ExternalShuffleService(conf, mgr)
+
+  private var instance: ExternalShuffleService = null
 
   def start() = {
-      instance.start()
+    val cfg = driver.askSync[SparkAppConfig](
+        RetrieveSparkAppConfig(ResourceProfile.DEFAULT_RESOURCE_PROFILE_ID))
+    val conf = new SparkConf()
+    val mgr = new SecurityManager(conf)
+    for ((key, value) <- cfg.sparkProperties) {
+      conf.set(key, value)
+    }
+    instance = new ExternalShuffleService(conf, mgr)
+    instance.start()
   }
 
   def stop() = {
+    if (instance != null) {
       instance.stop()
-      Ray.exitActor()
+    }
+    Ray.exitActor()
   }
 }
