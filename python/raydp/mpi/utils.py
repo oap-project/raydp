@@ -41,6 +41,7 @@ class StoppableThread(threading.Thread):
 
 
 def run_cmd(cmd: str, env, failed_callback):
+    # pylint: disable=R1732
     proc = subprocess.Popen(cmd,
                             shell=True,
                             stdin=subprocess.DEVNULL,
