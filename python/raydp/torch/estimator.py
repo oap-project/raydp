@@ -209,18 +209,12 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                 else:
                     lr_scheduler = None
 
-                # A quick work-around for https://github.com/ray-project/ray/issues/14352
-                # As we only support single model for now, this is OK
                 registered = self.register(
-                    models=[model], optimizers=[optimizer], criterion=loss, \
-                        schedulers=[lr_scheduler] if lr_scheduler is not None else None)
+                    models=model, optimizers=optimizer, criterion=loss, schedulers=lr_scheduler)
                 if lr_scheduler is not None:
                     self.model, self.optimizer, self.criterion, self.scheduler = registered
-                    self.scheduler = self.scheduler[0]
                 else:
                     self.model, self.optimizer, self.criterion = registered
-                self.model = self.model[0]
-                self.optimizer = self.optimizer[0]
 
                 # create dataset
                 batch_size = config["batch_size"]
