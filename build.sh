@@ -39,7 +39,7 @@ fi
 # build core part
 CORE_DIR="${CURRENT_DIR}/core"
 pushd ${CORE_DIR}
-mvn clean package -q -DskipTests
+mvn clean package -q
 popd # core dir
 
 # build python part
