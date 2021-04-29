@@ -125,10 +125,8 @@ class RayCoarseGrainedSchedulerBackend(
       conf, config.SPARK_EXECUTOR_PREFIX)
     val resourcesInMap = transferResourceRequirements(executorResourceReqs)
     val numExecutors = conf.get(config.EXECUTOR_INSTANCES).get
-    val shuffleServiceEnabled = conf.getBoolean("spark.shuffle.service.enabled", false)
     val appDesc = ApplicationDescription(sc.appName, numExecutors, coresPerExecutor,
-      sc.executorMemory, command, resourceReqsPerExecutor=resourcesInMap,
-      shuffleServiceEnabled=shuffleServiceEnabled)
+      sc.executorMemory, command, resourceReqsPerExecutor=resourcesInMap)
     val rpcEnv = sc.env.rpcEnv
     appMasterRef.set(rpcEnv.setupEndpoint(
       "AppMasterClient",
