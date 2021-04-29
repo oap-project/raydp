@@ -27,7 +27,7 @@ public class AppMasterJavaUtils {
   /**
    * Convert from mbs -> memory units. The memory units in ray is byte
    */
-   
+
   private static double toMemoryUnits(int memoryInMB) {
     double result = 1.0 * memoryInMB * 1024 * 1024;
     return Math.round(result);
