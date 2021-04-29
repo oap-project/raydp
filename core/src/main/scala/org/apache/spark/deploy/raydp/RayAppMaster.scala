@@ -106,8 +106,12 @@ class RayAppMaster(host: String,
 
     override def receive: PartialFunction[Any, Unit] = {
       case RegisterApplication(appDescription: ApplicationDescription, driver: RpcEndpointRef) =>
+
         logInfo("Registering app " + appDescription.name)
-        val app = createApplication(appDescription, driver)
+        val javaOpts = appendActorClasspath(appDescription.command.javaOpts)
+        val newCommand = appDescription.command.withNewJavaOpts(javaOpts)
+        val updatedAppDesc = appDescription.withNewCommand(newCommand)
+        val app = createApplication(updatedAppDesc, driver)
         registerApplication(app)
         logInfo("Registered app " + appDescription.name + " with ID " + app.id)
         driver.send(RegisteredApplication(app.id, self))
@@ -211,7 +215,7 @@ class RayAppMaster(host: String,
       val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
       val memory = appInfo.desc.memoryPerExecutorMB
       val executorId = s"${appInfo.getNextExecutorId()}"
-      val javaOpts = appendActorClasspath(appInfo.desc.command.javaOpts)
+      val javaOpts = appInfo.desc.command.javaOpts.mkString(" ")
       val handler = AppMasterJavaUtils.createExecutorActor(
         executorId, getAppMasterEndpointUrl(), cores,
         memory,
@@ -220,21 +224,23 @@ class RayAppMaster(host: String,
       appInfo.addPendingRegisterExecutor(executorId, handler, cores, memory)
     }
 
-    private def appendActorClasspath(javaOpts: Seq[String]): String = {
+    private def appendActorClasspath(javaOpts: Seq[String]): Seq[String] = {
       var user_set_cp = false
       var i = 0
-      while (user_set_cp && i < javaOpts.size) {
+      while (!user_set_cp && i < javaOpts.size) {
         if ("-cp" == javaOpts(i) || "-classpath" == javaOpts(i)) {
           user_set_cp = true
         }
+
+        i += 1
       }
 
-      val result = if (user_set_cp) {
+      if (user_set_cp) {
         // user has set '-cp' or '-classpath'
         i += 1
         if (i == javaOpts.size) {
           throw new RayDPException(
-            s"Found ${javaOpts(i-1)} while not classpath url in executor java opts")
+            s"Found ${javaOpts(i - 1)} while not classpath url in executor java opts")
         }
 
         javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actor_extra_classpath)
@@ -242,7 +248,6 @@ class RayAppMaster(host: String,
         // user has not set, we append the actor extra classpath in the end
         javaOpts ++ Seq("-cp", actor_extra_classpath)
       }
-      result.mkString(" ")
     }
 
     private def setUpExecutor(executorId: String): Unit = {

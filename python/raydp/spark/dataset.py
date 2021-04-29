@@ -138,3 +138,43 @@ class RecordBatchShard(_SourceShard):
             tb = reader.read_all()
             df: pd.DataFrame = tb.to_pandas()
             yield df
+
+class RayMLDataset():
+    @staticmethod
+    def from_spark(df: sql.DataFrame,
+                   num_shards: int,
+                   batch_size: int,
+                   fs_directory: Optional[str] = None,
+                   compression: Optional[str] = None) -> MLDataset:
+        """ Create a MLDataset from Spark DataFrame
+
+        This method will create a MLDataset from Spark DataFrame.
+
+        :param df: the pyspark.sql.DataFrame
+        :param num_shards: the number of shards will be created for the MLDataset
+        :param batch_size: the batch size for the MLDataset
+        :param fs_directory: an optional distributed file system directory for cache the
+            DataFrame. We will write the DataFrame to the given directory with parquet
+            format if this is provided. Otherwise, we will write the DataFrame to ray
+            object store.
+        :param compression: the optional compression for write the DataFrame as parquet
+            file. This is only useful when the fs_directory set.
+        :return: a MLDataset
+        """
+        df = df.repartition(num_shards)
+        if fs_directory is None:
+            # fs_directory has not provided, we save the Spark DataFrame to ray object store
+            record_batch_set = _save_spark_df_to_object_store(df, num_shards)
+            # TODO: we should specify the resource spec for each shard
+            it = parallel_it.from_iterators(generators=record_batch_set,
+                                            name="Spark DataFrame",
+                                            repeat=False)
+            ds = ml_dataset.from_parallel_iter(
+                it, need_convert=False, batch_size=batch_size, repeated=False)
+            return ds
+        else:
+            # fs_directory has provided, we write the Spark DataFrame as Parquet files
+            df.write.parquet(fs_directory, compression=compression)
+            # create the MLDataset from the parquet file
+            ds = ml_dataset.read_parquet(fs_directory, num_shards)
+            return ds
