@@ -59,7 +59,7 @@ class _SparkContext(ContextDecorator):
     def _get_or_create_spark_cluster(self) -> SparkCluster:
         if self._spark_cluster is not None:
             return self._spark_cluster
-        self._spark_cluster = SparkCluster()
+        self._spark_cluster = SparkCluster(self._configs)
         return self._spark_cluster
 
     def get_or_create_session(self):
