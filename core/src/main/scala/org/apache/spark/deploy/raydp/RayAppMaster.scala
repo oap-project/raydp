@@ -126,7 +126,7 @@ class RayAppMaster(host: String,
           if (appInfo.desc.shuffleServiceEnabled) {
             // the node executor is in has not started shuffle service
             if (!nodesWithShuffleService.contains(executorIp)) {
-              logError(s"Starting shuffle service on ${executorIp}")
+              logInfo(s"Starting shuffle service on ${executorIp}")
               val service = ExternalShuffleServiceUtils.createShuffleService(executorIp)
               ExternalShuffleServiceUtils.startShuffleService(service)
               nodesWithShuffleService(executorIp) = service
