@@ -30,6 +30,7 @@ import org.apache.spark.deploy.raydp.RayExternalShuffleService
 import org.apache.spark.rpc._
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 import org.apache.spark.internal.config
+import org.apache.spark.util.Utils
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
@@ -39,6 +40,7 @@ class RayAppMaster(host: String,
                    actor_extra_classpath: String) extends Serializable with Logging {
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
+  private val conf: SparkConf = new SparkConf()
 
   init()
 
@@ -51,7 +53,7 @@ class RayAppMaster(host: String,
   }
 
   def init(): Unit = {
-    val conf = new SparkConf()
+    Utils.loadDefaultSparkProperties(conf)
     val securityMgr = new SecurityManager(conf)
     rpcEnv = RpcEnv.create(
       RayAppMaster.ENV_NAME,
@@ -124,6 +126,7 @@ class RayAppMaster(host: String,
           if (appInfo.desc.shuffleServiceEnabled) {
             // the node executor is in has not started shuffle service
             if (!nodesWithShuffleService.contains(executorIp)) {
+              logError(s"Starting shuffle service on ${executorIp}")
               val service = ExternalShuffleServiceUtils.createShuffleService(executorIp)
               ExternalShuffleServiceUtils.startShuffleService(service)
               nodesWithShuffleService(executorIp) = service
