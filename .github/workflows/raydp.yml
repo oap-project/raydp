@@ -79,6 +79,8 @@ jobs:
           path: ~/.m2
           key: ${{ matrix.os }}-m2-${{ hashFiles('core/pom.xml') }}
       - name: Build and install
+        env:
+          GITHUB_CI: 1
         run: |
           ./build.sh
           pip install dist/raydp-*.whl

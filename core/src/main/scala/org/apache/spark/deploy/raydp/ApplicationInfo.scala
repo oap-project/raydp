@@ -19,13 +19,15 @@ package org.apache.spark.deploy.raydp
 
 import java.util.Date
 
+import scala.collection.mutable.{ArrayBuffer, HashMap}
+
 import io.ray.api.ActorHandle
+
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.internal.Logging
 import org.apache.spark.resource.ResourceInformation
 import org.apache.spark.rpc.{RpcAddress, RpcEndpointRef}
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 case class ExecutorDesc(
     executorId: String,
@@ -144,7 +146,7 @@ private[spark] class ApplicationInfo(
 
   private var _retryCount: Int = 0
 
-  def retryCount = _retryCount
+  def retryCount: Int = _retryCount
 
   def incrementRetryCount(): Int = {
     _retryCount += 1

@@ -21,13 +21,15 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
+import scala.collection.JavaConverters._
+
 import io.ray.runtime.config.RayConfig
+
+import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.AppMasterJavaUtils
 import org.apache.spark.rpc._
-import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 
-import scala.collection.JavaConverters._
 
 class RayAppMaster(host: String,
                    port: Int,
