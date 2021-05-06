@@ -303,11 +303,11 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
         train_ds = RayMLDataset.from_spark(
-            train_df, self._num_workers, self._batch_size, fs_directory, compression)
+            train_df, self._num_workers, self._shuffle, None, fs_directory, compression)
         evaluate_ds = None
         if evaluate_df is not None:
             evaluate_ds = RayMLDataset.from_spark(
-                evaluate_df, self._num_workers, self._batch_size, fs_directory, compression)
+                evaluate_df, self._num_workers, self._shuffle, None, fs_directory, compression)
         return self.fit(
             train_ds, evaluate_ds, num_steps, profile, reduce_results, max_retries, info)
 

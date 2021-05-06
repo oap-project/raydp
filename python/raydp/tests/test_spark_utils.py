@@ -130,8 +130,7 @@ def test_divide_blocks():
     blocks_0 = [blocks[i] for i in divided_blocks[0]]
     blocks_1 = [blocks[i] for i in divided_blocks[1]]
     blocks_2 = [blocks[i] for i in divided_blocks[2]]
-    assert sum(blocks_1) == sum(blocks_2)
-    assert sum(blocks_0) == (sum(blocks_1) + 1)
+    assert sum(blocks_0) == sum(blocks_1) == sum(blocks_2)
 
 
 if __name__ == "__main__":

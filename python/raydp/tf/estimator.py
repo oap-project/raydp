@@ -139,6 +139,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._label_shape = label_shape
         self._batch_size = batch_size
         self._extra_config = extra_config
+        self._shuffle = shuffle
 
         config = {"batch_size": self._batch_size, "shuffle": shuffle}
         if self._extra_config:
@@ -230,11 +231,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
         train_ds = RayMLDataset.from_spark(
-            train_df, self._num_workers, self._batch_size, fs_directory, compression)
+            train_df, self._num_workers, self._shuffle, None, fs_directory, compression)
         evaluate_ds = None
         if evaluate_df is not None:
             evaluate_ds = RayMLDataset.from_spark(
-                evaluate_df, self._num_workers, self._batch_size, fs_directory, compression)
+                evaluate_df, self._num_workers, self._shuffle, None, fs_directory, compression)
         return self.fit(train_ds, evaluate_ds)
 
     def get_model(self) -> Any:
