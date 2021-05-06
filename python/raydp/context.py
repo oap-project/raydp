@@ -60,6 +60,7 @@ class _SparkContext(ContextDecorator):
         if self._spark_cluster is not None:
             return self._spark_cluster
         self._spark_cluster = SparkCluster()
+        print("RayDP Master URL: {}".format(self._spark_cluster.get_cluster_url()))
         return self._spark_cluster
 
     def get_or_create_session(self):
