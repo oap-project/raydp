@@ -88,11 +88,11 @@ jobs:
           pylint --rcfile=python/pylintrc python/raydp
       - name: Test with pytest
         run: |
+          # set SPARK_HOME for raydp-submit to run
+          python $(python -c "import pyspark,os;print(os.path.dirname(pyspark.__file__))")/find_spark_home.py
           pytest python/raydp/tests/
       - name: Test Examples
         run: |
-          # set SPARK_HOME for raydp-submit to run
-          python $(python -c "import pyspark,os;print(os.path.dirname(pyspark.__file__))")/find_spark_home.py
           python examples/random_nyctaxi.py
           python examples/pytorch_nyctaxi.py
           python examples/tensorflow_nyctaxi.py
