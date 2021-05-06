@@ -15,10 +15,13 @@
 # limitations under the License.
 #
 
+import os
+import subprocess
 import sys
 
 import pytest
 import ray
+import pyspark
 
 import raydp
 
@@ -59,6 +62,17 @@ def test_spark_driver_and_executor_hostname(spark_on_ray_small):
     assert node_ip_address == driver_host_name
     driver_bind_address = conf.get("spark.driver.bindAddress")
     assert node_ip_address == driver_bind_address
+
+def test_spark_submit(spark_on_ray_small):
+    conf = spark_on_ray_small.conf
+    master = conf.get('spark.master')
+    raydp_dir = os.path.dirname(raydp.__file__)
+    command = [raydp_dir + '/bin/raydp-submit', '--master', master]
+    command += ['--conf', 'spark.executor.cores=1']
+    command += ['--conf', 'spark.executor.instances=1']
+    pyspark_dir = os.path.dirname(pyspark.__file__)
+    command += [pyspark_dir + "/examples/src/main/python/pi.py"]
+    subprocess.run(command, check=True, capture_output=True)
 
 
 if __name__ == "__main__":
