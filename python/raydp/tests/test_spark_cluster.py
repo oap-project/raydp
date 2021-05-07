@@ -72,7 +72,7 @@ def test_spark_submit(spark_on_ray_small):
     command += ['--conf', 'spark.executor.instances=1']
     pyspark_dir = os.path.dirname(pyspark.__file__)
     command += [pyspark_dir + "/examples/src/main/python/pi.py"]
-    subprocess.run(command, check=True, capture_output=True)
+    subprocess.run(command, check=True)
 
 
 if __name__ == "__main__":
