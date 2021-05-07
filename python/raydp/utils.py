@@ -201,8 +201,8 @@ def divide_blocks(
         return current_size
 
     for rank in range(world_size):
-        indexes = global_indexes[rank: global_indexes: world_size]
-        assert len(indexes) == num_samples_per_rank
+        indexes = global_indexes[rank: total_num_blocks: world_size]
+        assert len(indexes) == num_blocks_per_rank
 
         samples_cur_rank = 0
         selected_indexes = []

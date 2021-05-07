@@ -183,15 +183,18 @@ def _create_ml_dataset(name: str,
     record_batches = []
 
     for rank, blocks in divided_blocks.items():
+        pieces = []
         for index, num_samples in blocks:
             record_size = record_sizes[index]
+            piece = record_pieces[index]
             if num_samples != record_size:
                 assert num_samples < record_size
-                record_pieces[index].row_ids = np.random.choice(
+                piece.row_ids = np.random.choice(
                     record_size, size=num_samples).tolist()
+            pieces.append(piece)
         record_batches.append(RecordBatchCls(shard_id=rank,
                                              prefix=name,
-                                             record_pieces=record_pieces,
+                                             record_pieces=pieces,
                                              shuffle=shuffle,
                                              shuffle_seed=shuffle_seed))
 
