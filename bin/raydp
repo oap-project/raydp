@@ -1,0 +1,121 @@
+#!/bin/bash
+
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+if [ "$#" -lt 1 ]; then
+  echo "Not enough arguments! Run raydp help to see instructions"
+  exit 1
+fi
+
+case $1 in
+  "start")
+    ;;
+  "stop")
+    if [ $# != 1 ]; then
+      echo "Illegal number of arguments. Correct form is: raydp stop"
+      exit 1
+    fi
+    ;;
+  "submit")
+    ;;
+  "help")
+    echo "raydp start|stop|submit [arguments]"
+    echo "    Start the master: raydp start host:port [JVM_ARGS]"
+    echo "      JVM_ARGS can be -Dray.config-file, for example."
+    echo "    Submit an app to the master: raydp submit --master ray://RAY_APP_MASTER@host:port \\"
+    echo "      --conf spark.example.config ... --class org.foo.bar example.jar"
+    echo "      Args after raydp submit is handed to spark-submit directly"
+    echo "    Stop the master: raydp stop"
+    exit 0
+    ;;
+  *)
+    echo "Unknown command. Run raydp help to see instructions"
+    exit 1
+    ;;
+esac
+
+# SPARK_HOME needs to be set
+if [ -z "${SPARK_HOME}" ]; then
+  echo "SPARK_HOME is not set. Check if spark is installed."
+fi
+
+# Find the java binary
+if [ -n "${JAVA_HOME}" ]; then
+  RUNNER="${JAVA_HOME}/bin/java"
+else
+  if [ "$(command -v java)" ]; then
+    RUNNER="java"
+  else
+    echo "JAVA_HOME is not set" >&2
+    exit 1
+  fi
+fi
+PID_FILE=/tmp/.raydp.pid
+
+case $1 in
+  "start")
+    # RAY_HOME is required to find ray jars
+    RAY_HOME=$(python3 -c "import os, ray; print(os.path.dirname(ray.__file__))")
+    LOG_DIR=$SPARK_HOME/logs
+    mkdir -p $LOG_DIR
+    LOG_FILE=$LOG_DIR/raydp-master-$(date +%Y-%m-%d-%H-%M-%S).log
+    # Start RayAppMaster
+    # RAY jars precedes Spark because protobuf version does not match
+    address=$2
+    shift 2
+    $RUNNER -cp python/raydp/jars/*:$RAY_HOME/jars/*:$SPARK_HOME/conf:$SPARK_HOME/jars/* "$@" org.apache.spark.deploy.raydp.RayAppMaster $address > $LOG_FILE 2>&1 &
+    newpid="$!"
+    echo $newpid > $PID_FILE
+    # Poll for up to 5 seconds for the java process to start
+    for i in {1..10}
+    do
+      if [[ $(ps -p "$newpid" -o comm=) =~ "java" ]]; then
+          break
+      fi
+      sleep 0.5
+    done
+
+    sleep 2
+    # Check if the process has died; in that case we'll tail the log so the user can see
+    if [[ ! $(ps -p "$newpid" -o comm=) =~ "java" ]]; then
+      echo "Failed to start master:"
+      tail -10 "$LOG_FILE" | sed 's/^/  /'
+      echo "full log in $LOG_FILE"
+    fi
+    ;;
+  "stop")
+    if [ -f $PID_FILE ]; then
+      kill $(cat $PID_FILE)
+      rm $PID_FILE
+    else
+      echo "Raydp is not started. Start raydp first"
+      exit 1
+    fi
+    ;;
+  "submit")
+    shift
+    if [ $1 != "--master" ]; then
+      echo "--master host:port should be right after raydp submit"
+      exit 1
+    else
+      address=$2
+      shift 2
+      $RUNNER -cp python/raydp/jars/*:$SPARK_HOME/conf:$SPARK_HOME/jars/* org.apache.spark.deploy.SparkSubmit --master ray://RAY_APP_MASTER@$address "$@"
+    fi
+    ;;
+esac

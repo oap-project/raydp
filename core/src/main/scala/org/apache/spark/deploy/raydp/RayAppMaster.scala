@@ -23,12 +23,14 @@ import java.util.{Date, Locale}
 
 import scala.collection.JavaConverters._
 
+import io.ray.api.Ray
 import io.ray.runtime.config.RayConfig
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.AppMasterJavaUtils
 import org.apache.spark.rpc._
+import org.apache.spark.util.ShutdownHookManager
 
 
 class RayAppMaster(host: String,
@@ -63,6 +65,10 @@ class RayAppMaster(host: String,
     endpoint = rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, new RayAppMasterEndpoint(rpcEnv))
   }
 
+  def awaitTermination(): Unit = {
+    rpcEnv.awaitTermination()
+  }
+
   /**
    * Get the app master endpoint URL. The executor will connect to AppMaster by this URL and
    * tell the AppMaster that it has started up successful.
@@ -80,6 +86,7 @@ class RayAppMaster(host: String,
   }
 
   def stop(): Unit = {
+    logInfo("Stopping RayAppMaster")
     if (rpcEnv != null) {
       rpcEnv.shutdown()
       endpoint = null
@@ -240,4 +247,17 @@ class RayAppMaster(host: String,
 object RayAppMaster extends Serializable {
   val ENV_NAME = "RAY_RPC_ENV"
   val ENDPOINT_NAME = "RAY_APP_MASTER"
+
+  def main(args: Array[String]): Unit = {
+    if (args.length < 1) {
+      println("Please specify an address to start RayAppMaster as host:port")
+    }
+    val tokens = args(0).split(":")
+    Ray.init()
+    val instance = new RayAppMaster(tokens(0), tokens(1).toInt, "")
+    ShutdownHookManager.addShutdownHook { () =>
+      instance.stop()
+    }
+    instance.awaitTermination()
+  }
 }
