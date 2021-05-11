@@ -52,6 +52,7 @@ esac
 # SPARK_HOME needs to be set
 if [ -z "${SPARK_HOME}" ]; then
   echo "SPARK_HOME is not set. Check if spark is installed."
+  exit 1
 fi
 
 # Find the java binary
