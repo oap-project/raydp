@@ -49,10 +49,14 @@ case $1 in
     ;;
 esac
 
-# SPARK_HOME needs to be set
+# set SPARK_HOME
 if [ -z "${SPARK_HOME}" ]; then
-  echo "SPARK_HOME is not set. Check if spark is installed."
-  exit 1
+  SPARK_HOME=$(python3 -c "import os, pyspark; print(os.path.dirname(pyspark.__file__))")
+  $SPARK_HOME/sbin/spark-config.sh
+fi
+# find RAYDP_HOME
+if [ -z "${RAYDP_HOME}" ]; then
+  RAYDP_HOME=$(python3 -c "import os, raydp; print(os.path.dirname(raydp.__file__))")
 fi
 
 # Find the java binary
@@ -74,9 +78,6 @@ case $1 in
     if [ -z "${RAY_HOME}" ]; then
       RAY_HOME=$(python3 -c "import os, ray; print(os.path.dirname(ray.__file__))")
     fi
-    if [ -z "${RAYDP_HOME}" ]; then
-      RAYDP_HOME=$(python3 -c "import os, raydp; print(os.path.dirname(raydp.__file__))")
-    fi
     LOG_DIR=$SPARK_HOME/logs
     mkdir -p $LOG_DIR
     LOG_FILE=$LOG_DIR/raydp-master-$(date +%Y-%m-%d-%H-%M-%S).log
@@ -84,7 +85,7 @@ case $1 in
     # RAY jars precedes Spark because protobuf version does not match
     address=$2
     shift 2
-    $RUNNER -cp python/raydp/jars/*:$RAY_HOME/jars/*:$SPARK_HOME/conf:$SPARK_HOME/jars/* "$@" org.apache.spark.deploy.raydp.RayAppMaster $address > $LOG_FILE 2>&1 &
+    $RUNNER -cp $RAYDP_HOME/jars/*:$RAY_HOME/jars/*:$SPARK_HOME/conf:$SPARK_HOME/jars/* "$@" org.apache.spark.deploy.raydp.RayAppMaster $address > $LOG_FILE 2>&1 &
     newpid="$!"
     echo $newpid > $PID_FILE
     # Poll for up to 5 seconds for the java process to start
@@ -122,7 +123,7 @@ case $1 in
     else
       address=$2
       shift 2
-      $RUNNER -cp python/raydp/jars/*:$SPARK_HOME/conf:$SPARK_HOME/jars/* org.apache.spark.deploy.SparkSubmit --master ray://RAY_APP_MASTER@$address "$@"
+      $RUNNER -cp $RAYDP_HOME/jars/*:$SPARK_HOME/conf:$SPARK_HOME/jars/* org.apache.spark.deploy.SparkSubmit --master ray://RAY_APP_MASTER@$address "$@"
     fi
     ;;
 esac
