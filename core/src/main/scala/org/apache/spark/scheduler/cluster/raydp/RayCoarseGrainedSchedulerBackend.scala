@@ -126,7 +126,7 @@ class RayCoarseGrainedSchedulerBackend(
     val resourcesInMap = transferResourceRequirements(executorResourceReqs)
     val numExecutors = conf.get(config.EXECUTOR_INSTANCES).get
     val appDesc = ApplicationDescription(sc.appName, numExecutors, coresPerExecutor,
-      sc.executorMemory, command, resourceReqsPerExecutor=resourcesInMap)
+      sc.executorMemory, command, resourceReqsPerExecutor = resourcesInMap)
     val rpcEnv = sc.env.rpcEnv
     appMasterRef.set(rpcEnv.setupEndpoint(
       "AppMasterClient",

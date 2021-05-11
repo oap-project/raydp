@@ -24,14 +24,14 @@ import java.util.{Date, Locale}
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 
-import io.ray.runtime.config.RayConfig
 import io.ray.api.ActorHandle
+import io.ray.runtime.config.RayConfig
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
-import org.apache.spark.internal.Logging
-import org.apache.spark.raydp.AppMasterJavaUtils
 import org.apache.spark.deploy.raydp.ExternalShuffleServiceUtils
 import org.apache.spark.deploy.raydp.RayExternalShuffleService
+import org.apache.spark.internal.Logging
+import org.apache.spark.raydp.AppMasterJavaUtils
 import org.apache.spark.rpc._
 import org.apache.spark.util.Utils
 
@@ -92,7 +92,7 @@ class RayAppMaster(host: String,
     }
   }
 
-  class RayAppMasterEndpoint(override val rpcEnv: RpcEnv) 
+  class RayAppMasterEndpoint(override val rpcEnv: RpcEnv)
       extends ThreadSafeRpcEndpoint with Logging {
     // For application IDs
     private def createDateFormat = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US)
