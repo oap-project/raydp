@@ -244,13 +244,13 @@ class RayAppMaster(host: String,
   }
 }
 
-object RayAppMaster extends Serializable {
+object RayAppMaster extends Serializable with Logging {
   val ENV_NAME = "RAY_RPC_ENV"
   val ENDPOINT_NAME = "RAY_APP_MASTER"
 
   def main(args: Array[String]): Unit = {
     if (args.length < 1) {
-      println("Please specify an address to start RayAppMaster as host:port")
+      logError("Please specify an address to start RayAppMaster as host:port")
     }
     val tokens = args(0).split(":")
     Ray.init()
