@@ -102,6 +102,7 @@ case $1 in
       echo "Failed to start master:"
       tail -10 "$LOG_FILE" | sed 's/^/  /'
       echo "full log in $LOG_FILE"
+      exit 1
     fi
     ;;
   "stop")
