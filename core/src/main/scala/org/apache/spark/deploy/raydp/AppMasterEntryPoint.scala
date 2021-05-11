@@ -20,8 +20,9 @@ package org.apache.spark.deploy.raydp
 import java.io.{DataOutputStream, File, FileOutputStream}
 import java.nio.file.Files
 
-import org.apache.spark.internal.Logging
 import py4j.GatewayServer
+
+import org.apache.spark.internal.Logging
 
 class AppMasterEntryPoint {
   private val appMaster: AppMasterJavaBridge = new AppMasterJavaBridge()

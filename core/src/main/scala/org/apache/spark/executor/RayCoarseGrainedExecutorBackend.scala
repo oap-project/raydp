@@ -18,10 +18,13 @@
 package org.apache.spark.executor
 
 import java.io.File
-import java.nio.file.Paths
 import java.net.URL
+import java.nio.file.Paths
 
 import io.ray.runtime.config.RayConfig
+import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
+
+import org.apache.spark.{RayDPException, SecurityManager, SparkConf, SparkEnv}
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.deploy.raydp.{ExecutorStarted, RegisterExecutor}
 import org.apache.spark.internal.Logging
@@ -30,9 +33,7 @@ import org.apache.spark.resource.ResourceProfile
 import org.apache.spark.rpc.{RpcEndpointRef, RpcEnv}
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{RetrieveSparkAppConfig, SparkAppConfig}
 import org.apache.spark.util.Utils
-import org.apache.spark.{RayDPException, SecurityManager, SparkConf, SparkEnv}
 
-import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
 
 class RayCoarseGrainedExecutorBackend(
     val executorId: String,
@@ -88,7 +89,8 @@ class RayCoarseGrainedExecutorBackend(
     setUserDir()
     redirectLog()
 
-    val userClassPath = classPathEntries.split(";").filter(_.nonEmpty).map(new URL(_))
+    val userClassPath = classPathEntries.split(java.io.File.pathSeparator)
+      .filter(_.nonEmpty).map(new File(_).toURI.toURL)
     val createFn: (RpcEnv, SparkEnv, ResourceProfile) =>
       CoarseGrainedExecutorBackend = {
       case (rpcEnv, env, resourceProfile) =>
@@ -97,7 +99,7 @@ class RayCoarseGrainedExecutorBackend(
     }
     executorRunningThread = new Thread() {
       override def run(): Unit = {
-        try{
+        try {
           serveAsExecutor(appId, driverUrl, cores, createFn)
         } catch {
           case e: Exception =>

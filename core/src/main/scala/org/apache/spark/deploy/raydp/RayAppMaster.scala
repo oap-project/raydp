@@ -21,19 +21,19 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
+import scala.collection.JavaConverters._
+import scala.collection.mutable.HashMap
+
 import io.ray.runtime.config.RayConfig
 import io.ray.api.ActorHandle
+
+import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.AppMasterJavaUtils
 import org.apache.spark.deploy.raydp.ExternalShuffleServiceUtils
 import org.apache.spark.deploy.raydp.RayExternalShuffleService
 import org.apache.spark.rpc._
-import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
-import org.apache.spark.internal.config
 import org.apache.spark.util.Utils
-
-import scala.collection.JavaConverters._
-import scala.collection.mutable.HashMap
 
 class RayAppMaster(host: String,
                    port: Int,

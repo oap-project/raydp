@@ -18,14 +18,19 @@
 package org.apache.spark.sql.raydp
 
 import java.io.ByteArrayOutputStream
+import java.util.{List, UUID}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 import java.util.function.{Function => JFunction}
-import java.util.{List, UUID}
+
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 import io.ray.api.{ObjectRef, Ray}
 import io.ray.runtime.RayRuntimeInternal
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
+
 import org.apache.spark.raydp.RayDPUtils
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.execution.arrow.ArrowWriter
@@ -33,10 +38,6 @@ import org.apache.spark.sql.execution.python.BatchIterator
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.util.ArrowUtils
 import org.apache.spark.util.Utils
-
-import scala.collection.JavaConverters._
-import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 /**
  * A batch of record that has been wrote into Ray object store.
