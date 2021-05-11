@@ -71,7 +71,12 @@ PID_FILE=/tmp/.raydp.pid
 case $1 in
   "start")
     # RAY_HOME is required to find ray jars
-    RAY_HOME=$(python3 -c "import os, ray; print(os.path.dirname(ray.__file__))")
+    if [ -z "${RAY_HOME}" ]; then
+      RAY_HOME=$(python3 -c "import os, ray; print(os.path.dirname(ray.__file__))")
+    fi
+    if [ -z "${RAYDP_HOME}" ]; then
+      RAYDP_HOME=$(python3 -c "import os, raydp; print(os.path.dirname(raydp.__file__))")
+    fi
     LOG_DIR=$SPARK_HOME/logs
     mkdir -p $LOG_DIR
     LOG_FILE=$LOG_DIR/raydp-master-$(date +%Y-%m-%d-%H-%M-%S).log
