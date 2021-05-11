@@ -72,7 +72,7 @@ class RayCoarseGrainedExecutorBackend(
       }
     }
 
-    val registeredResult = appMaster.askSync[Boolean](RegisterExecutor(executorId))
+    val registeredResult = appMaster.askSync[Boolean](RegisterExecutor(executorId, nodeIp))
     if (registeredResult) {
       logInfo(s"Executor: ${executorId} register to app master success")
     } else {

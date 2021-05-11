@@ -24,6 +24,7 @@ import struct
 import tempfile
 import time
 from subprocess import Popen, PIPE
+from copy import copy
 import glob
 
 import pyspark
@@ -39,11 +40,12 @@ logger = logging.getLogger(__name__)
 
 
 class RayClusterMaster(ClusterMaster):
-    def __init__(self):
+    def __init__(self, configs):
         self._gateway = None
         self._app_master_java_bridge = None
         self._host = None
         self._started_up = False
+        self._configs = configs
 
     def start_up(self, popen_kwargs=None):
         if self._started_up:
@@ -137,7 +139,7 @@ class RayClusterMaster(ClusterMaster):
 
     def _set_properties(self):
         assert ray.is_initialized()
-        options = {}
+        options = copy(self._configs)
 
         node = ray.worker.global_worker.node
 

@@ -17,21 +17,23 @@
 
 package org.apache.spark.deploy.raydp
 
-import org.apache.spark.rpc.RpcEndpointRef
+import io.ray.api.Ray;
 
-private[deploy] sealed trait RayDPDeployMessage extends Serializable
+import org.apache.spark.{SecurityManager, SparkConf}
+import org.apache.spark.deploy.ExternalShuffleService
+import org.apache.spark.internal.Logging
 
-case class RegisterApplication(appDescription: ApplicationDescription, driver: RpcEndpointRef)
-  extends RayDPDeployMessage
+class RayExternalShuffleService() extends Logging {
+  val conf = new SparkConf()
+  val mgr = new SecurityManager(conf)
+  val instance = new ExternalShuffleService(conf, mgr)
 
-case class RegisteredApplication(appId: String, master: RpcEndpointRef) extends RayDPDeployMessage
+  def start(): Unit = {
+      instance.start()
+  }
 
-case class UnregisterApplication(appId: String) extends RayDPDeployMessage
-
-case class RegisterExecutor(executorId: String, nodeIp: String) extends RayDPDeployMessage
-
-case class ExecutorStarted(executorId: String) extends RayDPDeployMessage
-
-case class RequestExecutors(appId: String, requestedTotal: Int) extends RayDPDeployMessage
-
-case class KillExecutors(appId: String, executorIds: Seq[String]) extends RayDPDeployMessage
+  def stop(): Unit = {
+      instance.stop()
+      Ray.exitActor()
+  }
+}

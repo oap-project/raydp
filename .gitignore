@@ -14,6 +14,7 @@ target/
 
 .vscode
 examples/.ipynb_checkpoints/
+.python-version
 
 # Vim temp files
 *.swp
