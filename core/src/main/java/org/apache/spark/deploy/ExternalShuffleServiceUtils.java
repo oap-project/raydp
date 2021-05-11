@@ -1,8 +1,5 @@
 package org.apache.spark.deploy.raydp;
 
-import org.apache.spark.deploy.raydp.RayExternalShuffleService;
-import org.apache.spark.SparkConf;
-import org.apache.spark.SecurityManager;
 import io.ray.api.ActorHandle;
 import io.ray.api.Ray;
 
