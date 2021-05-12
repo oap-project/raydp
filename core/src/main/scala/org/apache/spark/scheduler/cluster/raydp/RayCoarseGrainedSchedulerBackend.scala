@@ -86,10 +86,6 @@ class RayCoarseGrainedSchedulerBackend(
       throw new RayDPException("We only support client mode currently")
     }
 
-    if (Utils.isDynamicAllocationEnabled(conf)) {
-      throw new RayDPException("Dynamic Allocation is not supported currently")
-    }
-
     launcherBackend.connect()
 
     val driverUrl = RpcEndpointAddress(

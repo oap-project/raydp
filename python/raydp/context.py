@@ -59,7 +59,7 @@ class _SparkContext(ContextDecorator):
     def _get_or_create_spark_cluster(self) -> SparkCluster:
         if self._spark_cluster is not None:
             return self._spark_cluster
-        self._spark_cluster = SparkCluster()
+        self._spark_cluster = SparkCluster(self._configs)
         print("RayDP Master URL: {}".format(self._spark_cluster.get_cluster_url()))
         return self._spark_cluster
 

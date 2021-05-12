@@ -22,22 +22,27 @@ import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.HashMap
 
+import io.ray.api.ActorHandle
 import io.ray.api.Ray
 import io.ray.runtime.config.RayConfig
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
+import org.apache.spark.deploy.raydp.ExternalShuffleServiceUtils
+import org.apache.spark.deploy.raydp.RayExternalShuffleService
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.AppMasterJavaUtils
 import org.apache.spark.rpc._
 import org.apache.spark.util.ShutdownHookManager
-
+import org.apache.spark.util.Utils
 
 class RayAppMaster(host: String,
                    port: Int,
                    actor_extra_classpath: String) extends Serializable with Logging {
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
+  private val conf: SparkConf = new SparkConf()
 
   init()
 
@@ -50,7 +55,7 @@ class RayAppMaster(host: String,
   }
 
   def init(): Unit = {
-    val conf = new SparkConf()
+    Utils.loadDefaultSparkProperties(conf)
     val securityMgr = new SecurityManager(conf)
     rpcEnv = RpcEnv.create(
       RayAppMaster.ENV_NAME,
@@ -94,12 +99,15 @@ class RayAppMaster(host: String,
     }
   }
 
-  class RayAppMasterEndpoint(override val rpcEnv: RpcEnv) extends ThreadSafeRpcEndpoint {
+  class RayAppMasterEndpoint(override val rpcEnv: RpcEnv)
+      extends ThreadSafeRpcEndpoint with Logging {
     // For application IDs
     private def createDateFormat = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US)
     private var driverEndpoint: RpcEndpointRef = null
     private var driverAddress: RpcAddress = null
     private var appInfo: ApplicationInfo = null
+    private var nodesWithShuffleService
+                  = new HashMap[String, ActorHandle[RayExternalShuffleService]]()
 
     private var nextAppNumber = 0
 
@@ -122,9 +130,19 @@ class RayAppMaster(host: String,
     }
 
     override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
-      case RegisterExecutor(executorId) =>
+      case RegisterExecutor(executorId, executorIp) =>
         val success = appInfo.registerExecutor(executorId)
         if (success) {
+          // external shuffle service is enabled
+          if (conf.getBoolean("spark.shuffle.service.enabled", false)) {
+            // the node executor is in has not started shuffle service
+            if (!nodesWithShuffleService.contains(executorIp)) {
+              logInfo(s"Starting shuffle service on ${executorIp}")
+              val service = ExternalShuffleServiceUtils.createShuffleService(executorIp)
+              ExternalShuffleServiceUtils.startShuffleService(service)
+              nodesWithShuffleService(executorIp) = service
+            }
+          }
           setUpExecutor(executorId)
         }
         context.reply(success)
@@ -155,6 +173,15 @@ class RayAppMaster(host: String,
 
     override def onDisconnected(remoteAddress: RpcAddress): Unit = {
       appInfo.kill(remoteAddress)
+    }
+
+    override def onStop(): Unit = {
+      if (nodesWithShuffleService != null) {
+        nodesWithShuffleService.values.foreach(handle =>
+            ExternalShuffleServiceUtils.stopShuffleService(handle)
+        )
+        nodesWithShuffleService = null
+      }
     }
 
     private def createApplication(

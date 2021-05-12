@@ -4,7 +4,7 @@ import numpy as np
 from pyspark.sql.functions import *
 
 # change this to where the dataset is
-NYC_TRAIN_CSV = dirname(realpath(__file__)) + '/fake_nyctaxi.csv'
+NYC_TRAIN_CSV = 'file://' + dirname(realpath(__file__)) + '/fake_nyctaxi.csv'
 
 def clean_up(data):
     data = data.filter(col('pickup_longitude')<=-72) \
@@ -92,3 +92,21 @@ def nyc_taxi_preprocess(data):
     data = add_time_features(data)
     data = add_distance_features(data)
     return drop_col(data)
+
+if __name__ == '__main__':
+    import ray
+    import raydp
+    ray.init()
+    spark = raydp.init_spark("NYCTAXI data processing",
+                             num_executors=1,
+                             executor_cores=1,
+                             executor_memory='500M',
+                             configs={"spark.shuffle.service.enabled": "true"})
+    data = spark.read.format("csv") \
+                     .option("header", "true") \
+                     .option("inferSchema", "true") \
+                     .load(NYC_TRAIN_CSV)
+    # Set spark timezone for processing datetime
+    spark.conf.set("spark.sql.session.timeZone", "UTC")
+    # Transform the dataset
+    data = nyc_taxi_preprocess(data)

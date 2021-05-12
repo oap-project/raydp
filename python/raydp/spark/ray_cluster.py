@@ -26,15 +26,16 @@ from .ray_cluster_master import RayClusterMaster, RAYDP_CP
 
 
 class SparkCluster(Cluster):
-    def __init__(self):
+    def __init__(self, configs):
         super().__init__(None)
         self._app_master_bridge = None
+        self._configs = configs
         self._set_up_master(None, None)
         self._spark_session: SparkSession = None
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[Any, Any]):
         # TODO: specify the app master resource
-        self._app_master_bridge = RayClusterMaster()
+        self._app_master_bridge = RayClusterMaster(self._configs)
         self._app_master_bridge.start_up()
 
     def _set_up_worker(self, resources: Dict[str, float], kwargs: Dict[str, str]):
