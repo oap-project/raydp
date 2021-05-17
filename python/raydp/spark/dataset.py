@@ -37,6 +37,9 @@ class RecordPiece:
     def read(self, shuffle: bool) -> pd.DataFrame:
         raise NotImplementedError
 
+    def with_row_ids(self, new_row_ids) -> "RecordPiece":
+        raise NotImplementedError
+
 
 class RayObjectPiece(RecordPiece):
     def __init__(self,
@@ -56,6 +59,9 @@ class RayObjectPiece(RecordPiece):
         if shuffle:
             df = df.sample(frac=1.0)
         return df
+
+    def with_row_ids(self, new_row_ids) -> "RayObjectPiece":
+        return RayObjectPiece(self.obj_id, new_row_ids)
 
 
 class ParquetPiece(RecordPiece):
@@ -79,6 +85,9 @@ class ParquetPiece(RecordPiece):
         if shuffle:
             pdf = pdf.sample(frac=1.0)
         return pdf
+
+    def with_row_ids(self, new_row_ids) -> "ParquetPiece":
+        return ParquetPiece(self.piece, self.columns, self.partitions, new_row_ids)
 
 
 class RecordBatch(_SourceShard):
@@ -189,9 +198,11 @@ def _create_ml_dataset(name: str,
             piece = record_pieces[index]
             if num_samples != record_size:
                 assert num_samples < record_size
-                piece.row_ids = np.random.choice(
+                new_row_ids = np.random.choice(
                     record_size, size=num_samples).tolist()
+                piece = piece.with_row_ids(new_row_ids)
             pieces.append(piece)
+        np.random.shuffle(pieces)
         record_batches.append(RecordBatchCls(shard_id=rank,
                                              prefix=name,
                                              record_pieces=pieces,
