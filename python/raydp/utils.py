@@ -16,10 +16,12 @@
 #
 
 import atexit
+import math
 import re
 import signal
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
+import numpy as np
 import psutil
 
 MEMORY_SIZE_UNITS = {"K": 2**10, "M": 2**20, "G": 2**30, "T": 2**40}
@@ -146,31 +148,75 @@ def parse_memory_size(memory_size: str) -> int:
 
 def divide_blocks(
         blocks: List[int],
-        world_size: int) -> Dict[int, List[int]]:
+        world_size: int,
+        shuffle: bool = False,
+        shuffle_seed: int = None) -> Dict[int, List[int]]:
     """
     Divide the blocks into world_size partitions, and return the divided block indexes for the
     given work_rank
     :param blocks: the blocks and each item is the given block size
     :param world_size: total world size
-    :return: a dict, the key is the world rank, and the value the block indexes
+    :param shuffle: whether shuffle the blocks before divide
+    :param shuffle_seed: the shuffle seed
+    :return: a dict, the key is the world rank, and the value is a list of pair of block index
+             and the samples selected in that block
     """
     if len(blocks) < world_size:
         raise Exception("do not have enough blocks to divide")
-    results = {}
-    tmp_queue = {}
-    for i in range(world_size):
-        results[i] = []
-        tmp_queue[i] = 0
-    indexes = range(len(blocks))
-    blocks_with_indexes = dict(zip(indexes, blocks))
-    blocks_with_indexes = dict(sorted(blocks_with_indexes.items(),
-                                      key=lambda item: item[1],
-                                      reverse=True))
-    for i, block in blocks_with_indexes.items():
-        rank = sorted(tmp_queue, key=lambda x: tmp_queue[x])[0]
-        results[rank].append(i)
-        tmp_queue[rank] = tmp_queue[rank] + block
 
-    for i, indexes in results.items():
-        results[i] = sorted(indexes)
+    results = {}
+
+    # number of blocks per rank
+    num_blocks_per_rank = int(math.ceil(len(blocks) * 1.0 / world_size))
+    # number of samples per rank
+    num_samples_per_rank = int(math.ceil(sum(blocks) * 1.0 / world_size))
+    # total number of blocks
+    total_num_blocks = num_blocks_per_rank * world_size
+    # global block indexes
+    global_indexes = list(range(len(blocks)))
+
+    # add extra blocks to make it evenly divisible
+    if len(global_indexes) != total_num_blocks:
+        global_indexes += global_indexes[: (total_num_blocks - len(global_indexes))]
+
+    assert len(global_indexes) == total_num_blocks
+
+    if shuffle_seed:
+        np.random.seed(shuffle_seed)
+    else:
+        np.random.seed(0)
+
+    if shuffle:
+        np.random.shuffle(global_indexes)
+
+    def select(index: int, current_size: int, selected: List[Tuple[int, int]]) -> int:
+        block_size = blocks[index]
+        tmp = current_size + block_size
+        if tmp < num_samples_per_rank:
+            selected.append((index, block_size))
+            current_size = tmp
+        elif tmp >= num_samples_per_rank:
+            selected.append((index, (num_samples_per_rank - current_size)))
+            current_size = num_samples_per_rank
+        return current_size
+
+    for rank in range(world_size):
+        indexes = global_indexes[rank: total_num_blocks: world_size]
+        assert len(indexes) == num_blocks_per_rank
+
+        samples_cur_rank = 0
+        selected_indexes = []
+        for i in indexes:
+            samples_cur_rank = select(i, samples_cur_rank, selected_indexes)
+            if samples_cur_rank == num_samples_per_rank:
+                break
+
+        while samples_cur_rank < num_samples_per_rank:
+            index = np.random.choice(global_indexes, size=1)[0]
+            samples_cur_rank = select(index, samples_cur_rank, selected_indexes)
+
+        assert samples_cur_rank == num_samples_per_rank
+
+        results[rank] = selected_indexes
+
     return results

@@ -115,23 +115,47 @@ def test_divide_blocks():
     blocks = [5, 1, 2, 3, 5, 6, 2, 1, 2]
     world_size = 3
 
-    divided_blocks = utils.divide_blocks(blocks, world_size)
+    def get_num_records(sub_blocks):
+        nums = 0
+        for index, num in sub_blocks:
+            assert num <= blocks[index]
+            nums += num
+        return nums
+
+    divided_blocks = utils.divide_blocks(blocks, world_size, False)
     assert len(divided_blocks) == 3
-    blocks_0 = [blocks[i] for i in divided_blocks[0]]
-    blocks_1 = [blocks[i] for i in divided_blocks[1]]
-    blocks_2 = [blocks[i] for i in divided_blocks[2]]
-    assert sum(blocks_0) == sum(blocks_1) == sum(blocks_2)
+
+    blocks_0 = get_num_records(divided_blocks[0])
+    blocks_1 = get_num_records(divided_blocks[1])
+    blocks_2 = get_num_records(divided_blocks[2])
+    assert blocks_0 == blocks_1 == blocks_2
+
+    divided_blocks = utils.divide_blocks(blocks, world_size, True)
+    assert len(divided_blocks) == 3
+
+    blocks_0 = get_num_records(divided_blocks[0])
+    blocks_1 = get_num_records(divided_blocks[1])
+    blocks_2 = get_num_records(divided_blocks[2])
+    assert blocks_0 == blocks_1 == blocks_2
 
     blocks = [5, 1, 2, 3, 5, 6, 2, 2, 2]
     world_size = 3
 
-    divided_blocks = utils.divide_blocks(blocks, world_size)
+    divided_blocks = utils.divide_blocks(blocks, world_size, False)
     assert len(divided_blocks) == 3
-    blocks_0 = [blocks[i] for i in divided_blocks[0]]
-    blocks_1 = [blocks[i] for i in divided_blocks[1]]
-    blocks_2 = [blocks[i] for i in divided_blocks[2]]
-    assert sum(blocks_1) == sum(blocks_2)
-    assert sum(blocks_0) == (sum(blocks_1) + 1)
+
+    blocks_0 = get_num_records(divided_blocks[0])
+    blocks_1 = get_num_records(divided_blocks[1])
+    blocks_2 = get_num_records(divided_blocks[2])
+    assert blocks_0 == blocks_1 == blocks_2
+
+    divided_blocks = utils.divide_blocks(blocks, world_size, True)
+    assert len(divided_blocks) == 3
+
+    blocks_0 = get_num_records(divided_blocks[0])
+    blocks_1 = get_num_records(divided_blocks[1])
+    blocks_2 = get_num_records(divided_blocks[2])
+    assert blocks_0 == blocks_1 == blocks_2
 
 
 if __name__ == "__main__":

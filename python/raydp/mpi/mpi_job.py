@@ -19,10 +19,10 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 from concurrent import futures
 from enum import Enum, unique
 from threading import RLock, Event
-import threading
 from typing import Any, Callable, List
 
 import grpc
@@ -40,16 +40,7 @@ class MPIType(Enum):
     INTEL_MPI = 1
 
 
-@ray.remote
 class MPIWorkerPeer:
-    def __init__(self,
-                 mpi_type: MPIType,
-                 job_id: str,
-                 node_id: int) -> None:
-        self.mpi_type = mpi_type
-        self.job_id = job_id
-        self.node_id = node_id
-
     def get_node_ip(self):
         return ray.services.get_node_ip_address()
 
@@ -59,12 +50,14 @@ class MPIWorkerMeta:
                  rank: int = None,
                  stub: network_pb2_grpc.WorkerServiceStub = None,
                  worker_ip: str = None,
-                 worker_port: int = None):
+                 worker_port: int = None,
+                 peer: ray.actor.ActorHandle = None):
         self.rank = rank
 
         self.stub = stub
         self.worker_ip = worker_ip
         self.worker_port = worker_port
+        self.peer = peer
 
 
 class DriverService(network_pb2_grpc.DriverServiceServicer):
@@ -98,7 +91,8 @@ class MPIJob:
                  num_cpus_per_process: int = 1,
                  num_processes_per_node: int = 1,
                  mpi_script_prepare_fn: Callable = None,
-                 timeout: int = 1) -> None:
+                 timeout: int = 1,
+                 peer_actor_class=MPIWorkerPeer) -> None:
 
         assert world_size % num_processes_per_node == 0,\
          (f"world_size: {world_size} should be multiple of num_processes_per_node: "
@@ -111,12 +105,13 @@ class MPIJob:
         self.num_processes_per_node = num_processes_per_node
         self.mpi_script_prepare_fn = mpi_script_prepare_fn
         self.timeout = timeout
+        self.peer_actor_class = peer_actor_class
 
         self.server_host = None
         self.server_port = None
         self.server = None
 
-        self.node_addresses = None
+        self.node_addresses: List[str] = None
         self.peers = None
         self.pg = None
         self.workers: List[MPIWorkerMeta] = [None] * self.world_size
@@ -169,10 +164,11 @@ class MPIJob:
         assert self.pg.wait(self.timeout), f"{ray.util.placement_group_table(self.pg)}"
         # create the WorkerPeer actor
         peers = []
+        remote_cls = ray.remote(self.peer_actor_class)
         for node_id in range(num_nodes):
-            peer = MPIWorkerPeer.options(
+            peer = remote_cls.options(
                 placement_group=self.pg, placement_group_bundle_index=node_id
-            ).remote(self.mpi_type, self.job_name, node_id)
+            ).remote()
             peers.append(peer)
         # get the node_ip_address
         self.node_addresses = ray.get([peer.get_node_ip.remote() for peer in peers])
@@ -238,13 +234,14 @@ class MPIJob:
             worker = self.workers[world_rank]
             worker.worker_ip = request.worker_ip
             worker.worker_port = request.worker_port
+            worker.peer = self.peers[self.node_addresses.index(request.worker_ip)]
             self.registered += 1
             if self.registered == self.world_size:
                 self.register_event.set()
                 self.registered = 0
         node = ray.worker.global_worker.node
         return network_pb2.RegisterWorkerServiceReply(ray_address=node.redis_address,
-                                                      redis_password=node.redis_password,)
+                                                      redis_password=node.redis_password)
 
     def handle_register_function_result(self, request: network_pb2.FunctionResult):
         with self.func_result.lock:
@@ -260,6 +257,10 @@ class MPIJob:
         if not self.register_event.wait(self.timeout):
             raise Exception("Timeout exception")
         self.register_event.clear()
+
+    def apply_peers(self, fn: Callable):
+        assert self.started
+        return fn(self.workers)
 
     def run(self, mpi_func: Callable, timeout=None) -> Any:
         assert self.started
@@ -277,6 +278,10 @@ class MPIJob:
             else:
                 raise Exception("function call failed")
 
+    def get_rank_addresses(self):
+        assert self.started
+        return [meta.worker_ip for meta in self.workers]
+
     def _reset(self):
         # send stop to all mpi workers
         if self.workers:
@@ -288,7 +293,7 @@ class MPIJob:
                 except Exception:
                     pass
             for meta in self.workers:
-                if meta.stub is None:
+                if not hasattr(meta, "stub") or meta.stub is None:
                     continue
                 send_stop(meta.stub)
 
