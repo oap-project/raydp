@@ -227,8 +227,8 @@ class RayMLDataset:
     @staticmethod
     def from_spark(df: sql.DataFrame,
                    num_shards: int,
-                   shuffle: bool,
-                   shuffle_seed: int,
+                   shuffle: bool = True,
+                   shuffle_seed: int = None,
                    fs_directory: Optional[str] = None,
                    compression: Optional[str] = None,
                    create_ml_ds_actor_fn: Callable = None) -> MLDataset:
@@ -270,8 +270,8 @@ class RayMLDataset:
     @staticmethod
     def from_parquet(paths: Union[str, List[str]],
                      num_shards: int,
-                     shuffle: bool,
-                     shuffle_seed: int,
+                     shuffle: bool = True,
+                     shuffle_seed: int = None,
                      columns: Optional[List[str]] = None,
                      create_ml_ds_actor_fn: Callable = None,
                      **kwargs) -> MLDataset:

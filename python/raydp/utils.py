@@ -149,7 +149,7 @@ def parse_memory_size(memory_size: str) -> int:
 def divide_blocks(
         blocks: List[int],
         world_size: int,
-        shuffle: bool,
+        shuffle: bool = False,
         shuffle_seed: int = None) -> Dict[int, List[int]]:
     """
     Divide the blocks into world_size partitions, and return the divided block indexes for the
