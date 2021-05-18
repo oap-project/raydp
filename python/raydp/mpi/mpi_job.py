@@ -193,12 +193,16 @@ class MPIJob:
         hosts = self._start_peers()
         # prepare the mpirun script
         mpirun_script = self.get_default_mpirun_script(hosts, self.num_processes_per_node)
+        env = os.environ.copy()
 
         if self.mpi_script_prepare_fn is not None:
-            mpirun_script = self.mpi_script_prepare_fn(mpirun_script)
+            mpirun_script, env = self.mpi_script_prepare_fn(mpirun_script)
+
+        # append main class
+        mpirun_script.append(sys.executable)
+        mpirun_script.append(constants.MPI_MAIN_CLASS_PATH)
 
         # prepare the mpirun env
-        env = os.environ.copy()
         env[constants.MPI_TYPE] = str(self.mpi_type.value)
         env[constants.MPI_JOB_ID] = self.job_name
         env[constants.MPI_DRIVER_HOST] = str(self.server_host)
@@ -343,14 +347,12 @@ class OpenMPIJob(MPIJob):
         default_script = ["mpirun", "--allow-run-as-root", "--tag-output",
                           "-bind-to", "none", "-map-by", "slot", "-mca",
                           "pml", "ob1", "-mca", "btl", "^openib", "-H", ",".join(hosts),
-                          "-N", f"{num_process_per_node}", sys.executable,
-                          constants.MPI_MAIN_CLASS_PATH]
+                          "-N", f"{num_process_per_node}"]
         return default_script
 
 
 class IntelMPIJob(MPIJob):
     def get_default_mpirun_script(self, hosts: List[str], num_process_per_node: int) -> List[str]:
         default_script = ["mpirun", "-bind-to", "none", "-map-by", "slot", "-prepend-rank",
-                          "-hosts", ",".join(hosts), "-ppn", f"{num_process_per_node}",
-                          sys.executable, constants.MPI_MAIN_CLASS_PATH]
+                          "-hosts", ",".join(hosts), "-ppn", f"{num_process_per_node}"]
         return default_script
