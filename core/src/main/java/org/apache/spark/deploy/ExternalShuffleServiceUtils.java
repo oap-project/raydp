@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
- package org.apache.spark.deploy.raydp;
+package org.apache.spark.deploy.raydp;
 
 import io.ray.api.ActorHandle;
 import io.ray.api.Ray;
