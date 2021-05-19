@@ -43,12 +43,11 @@ public class RayExecutorUtils {
     ActorCreator<RayCoarseGrainedExecutorBackend> creator = Ray.actor(
             RayCoarseGrainedExecutorBackend::new, executorId, appMasterURL);
     creator.setJvmOptions(javaOpts);
-    System.err.println(javaOpts);
-    // creator.setResource("CPU", (double)cores);
-    // creator.setResource("memory", toMemoryUnits(memoryInMB));
-    // for (Map.Entry<String, Double> entry: resources.entrySet()) {
-    //   creator.setResource(entry.getKey(), entry.getValue());
-    // }
+    creator.setResource("CPU", (double)cores);
+    creator.setResource("memory", toMemoryUnits(memoryInMB));
+    for (Map.Entry<String, Double> entry: resources.entrySet()) {
+      creator.setResource(entry.getKey(), entry.getValue());
+    }
 
     return creator.remote();
   }

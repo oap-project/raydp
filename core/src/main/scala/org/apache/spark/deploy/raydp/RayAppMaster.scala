@@ -70,10 +70,6 @@ class RayAppMaster(host: String,
     endpoint = rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, new RayAppMasterEndpoint(rpcEnv))
   }
 
-  def awaitTermination(): Unit = {
-    rpcEnv.awaitTermination()
-  }
-
   /**
    * Get the app master endpoint URL. The executor will connect to AppMaster by this URL and
    * tell the AppMaster that it has started up successful.
@@ -270,20 +266,7 @@ class RayAppMaster(host: String,
   }
 }
 
-object RayAppMaster extends Serializable with Logging {
+object RayAppMaster extends Serializable {
   val ENV_NAME = "RAY_RPC_ENV"
   val ENDPOINT_NAME = "RAY_APP_MASTER"
-
-  def main(args: Array[String]): Unit = {
-    if (args.length < 1) {
-      logError("Please specify an address to start RayAppMaster as host:port")
-    }
-    val tokens = args(0).split(":")
-    Ray.init()
-    val instance = new RayAppMaster(tokens(0), tokens(1).toInt, "")
-    ShutdownHookManager.addShutdownHook { () =>
-      instance.stop()
-    }
-    instance.awaitTermination()
-  }
 }

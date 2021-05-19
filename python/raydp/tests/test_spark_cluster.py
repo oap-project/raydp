@@ -15,13 +15,10 @@
 # limitations under the License.
 #
 
-import os
-import subprocess
 import sys
 
 import pytest
 import ray
-import pyspark
 
 import raydp
 
