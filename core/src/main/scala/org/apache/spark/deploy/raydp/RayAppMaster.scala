@@ -29,8 +29,6 @@ import io.ray.api.Ray
 import io.ray.runtime.config.RayConfig
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
-import org.apache.spark.deploy.raydp.ExternalShuffleServiceUtils
-import org.apache.spark.deploy.raydp.RayExternalShuffleService
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.RayExecutorUtils
 import org.apache.spark.rpc._
