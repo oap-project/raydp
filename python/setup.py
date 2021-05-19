@@ -40,7 +40,7 @@ BIN_DIR = os.path.abspath("../bin")
 JARS_PATH = glob.glob(os.path.join(CORE_DIR, f"target/raydp-*.jar"))
 JARS_TARGET = os.path.join(TEMP_PATH, "jars")
 
-SCRIPT_PATH = os.path.join(BIN_DIR, f"raydp")
+SCRIPT_PATH = os.path.join(BIN_DIR, f"raydp-submit")
 SCRIPT_TARGET = os.path.join(TEMP_PATH, "bin")
 
 if len(JARS_PATH) == 0:
@@ -121,7 +121,7 @@ try:
         include_package_data=True,
         package_dir={"raydp.jars": "deps/jars", "raydp.bin": "deps/bin",
                      "mpi_network_proto": "raydp/mpi/network"},
-        package_data={"raydp.jars": ["*.jar"], "raydp.bin": ["raydp"]},
+        package_data={"raydp.jars": ["*.jar"], "raydp.bin": ["raydp-submit"]},
         cmdclass={
             'build_proto_modules': CustomBuildPackageProtos,
         },
