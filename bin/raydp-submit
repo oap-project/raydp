@@ -1,0 +1,68 @@
+#!/bin/bash
+
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+if [ "$#" -lt 1 ]; then
+  echo "Not enough arguments! Run raydp-submit help to see instructions"
+  exit 1
+fi
+
+if [ $1 == "help" ]; then
+    echo "raydp-submit [--ray-conf file] spark-arguments"
+    echo "Submit an spark-app to the ray cluster: raydp-submit [--ray-conf file]\\"
+    echo "  --conf spark.example.config ... --class org.foo.bar example.jar"
+    echo "It is recommended to use a ray config file to connect to an existing ray cluster"
+    echo "spark-arguments are handed to SparkSubmit"
+    exit 0
+fi
+
+# set SPARK_HOME
+if [ -z "${SPARK_HOME}" ]; then
+  SPARK_HOME=$(python3 -c "import os, pyspark; print(os.path.dirname(pyspark.__file__))")
+  $SPARK_HOME/sbin/spark-config.sh
+fi
+# set RAYDP_HOME
+if [ -z "${RAYDP_HOME}" ]; then
+  RAYDP_HOME=$(python3 -c "import os, raydp; print(os.path.dirname(raydp.__file__))")
+fi
+# set RAY_HOME
+if [ -z "${RAY_HOME}" ]; then
+  RAY_HOME=$(python3 -c "import os, ray; print(os.path.dirname(ray.__file__))")
+fi
+
+# Find the java binary
+if [ -n "${JAVA_HOME}" ]; then
+  RUNNER="${JAVA_HOME}/bin/java"
+else
+  if [ "$(command -v java)" ]; then
+    RUNNER="java"
+  else
+    echo "JAVA_HOME is not set" >&2
+    exit 1
+  fi
+fi
+# All classpath used
+RAYDP_CLASS_PATH="-cp $RAYDP_HOME/jars/*:$RAY_HOME/jars/*:$SPARK_HOME/conf:$SPARK_HOME/jars/*"
+
+if [ $1 == "--ray-conf" ]; then
+  RAY_CONF=$2
+  shift 2
+  $RUNNER $RAYDP_CLASS_PATH -Dray.config-file=$RAY_CONF org.apache.spark.deploy.SparkSubmit --master ray "$@"
+else
+  $RUNNER $RAYDP_CLASS_PATH org.apache.spark.deploy.SparkSubmit --master ray "$@"
+fi

@@ -17,11 +17,14 @@
 
 package org.apache.spark.scheduler.cluster.raydp
 
+import java.net.URI
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
+
+import io.ray.api.{ActorHandle, Ray}
 
 import org.apache.spark.{RayDPException, SparkConf, SparkContext}
 import org.apache.spark.deploy.raydp._
@@ -42,9 +45,10 @@ class RayCoarseGrainedSchedulerBackend(
     masterURL: String)
   extends CoarseGrainedSchedulerBackend(scheduler, sc.env.rpcEnv) with Logging {
 
-  private val masterSparkUrl = transferToSparkUrl(masterURL).toString
+  private val masterSparkUrl = transferOrCreateRPCEndpoint(masterURL).toString
 
   private val appId = new AtomicReference[String]()
+  private var masterHandle: ActorHandle[RayAppMaster] = _
   private val appMasterRef = new AtomicReference[RpcEndpointRef]()
   private val stopped = new AtomicBoolean()
 
@@ -55,9 +59,18 @@ class RayCoarseGrainedSchedulerBackend(
     override protected def onStopRequest(): Unit = stop(SparkAppHandle.State.KILLED)
   }
 
-  def transferToSparkUrl(sparkUrl: String): RpcEndpointAddress = {
+  def transferOrCreateRPCEndpoint(sparkUrl: String): RpcEndpointAddress = {
     try {
-      val uri = new java.net.URI(sparkUrl)
+      var uri: URI = null
+      if (sparkUrl == "ray") {
+        // not yet started
+        Ray.init()
+        val cp = sys.props("java.class.path")
+        masterHandle = RayAppMasterUtils.createAppMaster(cp)
+        uri = new URI(RayAppMasterUtils.getMasterUrl(masterHandle))
+      } else {
+        uri = new URI(sparkUrl)
+      }
       val host = uri.getHost
       val port = uri.getPort
       val name = uri.getUserInfo
@@ -138,6 +151,9 @@ class RayCoarseGrainedSchedulerBackend(
 
   override def stop(): Unit = {
     stop(SparkAppHandle.State.FINISHED)
+    if (masterHandle != null) {
+      RayAppMasterUtils.stopAppMaster(masterHandle)
+    }
   }
 
   private def transferResourceRequirements(

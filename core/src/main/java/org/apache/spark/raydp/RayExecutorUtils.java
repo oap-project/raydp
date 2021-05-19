@@ -23,7 +23,7 @@ import io.ray.api.call.ActorCreator;
 import java.util.Map;
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;
 
-public class AppMasterJavaUtils {
+public class RayExecutorUtils {
   /**
    * Convert from mbs -> memory units. The memory units in ray is byte
    */
@@ -42,13 +42,13 @@ public class AppMasterJavaUtils {
       String javaOpts) {
     ActorCreator<RayCoarseGrainedExecutorBackend> creator = Ray.actor(
             RayCoarseGrainedExecutorBackend::new, executorId, appMasterURL);
-
     creator.setJvmOptions(javaOpts);
-    creator.setResource("CPU", (double)cores);
-    creator.setResource("memory", toMemoryUnits(memoryInMB));
-    for (Map.Entry<String, Double> entry: resources.entrySet()) {
-      creator.setResource(entry.getKey(), entry.getValue());
-    }
+    System.err.println(javaOpts);
+    // creator.setResource("CPU", (double)cores);
+    // creator.setResource("memory", toMemoryUnits(memoryInMB));
+    // for (Map.Entry<String, Double> entry: resources.entrySet()) {
+    //   creator.setResource(entry.getKey(), entry.getValue());
+    // }
 
     return creator.remote();
   }
