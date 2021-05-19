@@ -19,6 +19,7 @@ with open(conf_path, "w") as f:
 command = ["bin/raydp-submit", "--ray-conf", conf_path]
 command += ["--conf", "spark.executor.cores=1"]
 command += ["--conf", "spark.executor.instances=1"]
+command += ["--conf", "spark.executor.memory=500m"]
 example_path = dirname(pyspark.__file__)
 # run SparkPi as example
 command.append(example_path + "/examples/src/main/python/pi.py")
