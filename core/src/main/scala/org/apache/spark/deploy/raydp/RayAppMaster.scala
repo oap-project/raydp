@@ -25,14 +25,14 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 
 import io.ray.api.ActorHandle
+import io.ray.api.Ray
 import io.ray.runtime.config.RayConfig
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
-import org.apache.spark.deploy.raydp.ExternalShuffleServiceUtils
-import org.apache.spark.deploy.raydp.RayExternalShuffleService
 import org.apache.spark.internal.Logging
-import org.apache.spark.raydp.AppMasterJavaUtils
+import org.apache.spark.raydp.RayExecutorUtils
 import org.apache.spark.rpc._
+import org.apache.spark.util.ShutdownHookManager
 import org.apache.spark.util.Utils
 
 class RayAppMaster(host: String,
@@ -84,12 +84,14 @@ class RayAppMaster(host: String,
     url.replace("spark", "ray")
   }
 
-  def stop(): Unit = {
+  def stop(): Int = {
+    logInfo("Stopping RayAppMaster")
     if (rpcEnv != null) {
       rpcEnv.shutdown()
       endpoint = null
       rpcEnv = null
     }
+    0
   }
 
   class RayAppMasterEndpoint(override val rpcEnv: RpcEnv)
@@ -216,7 +218,7 @@ class RayAppMaster(host: String,
       val memory = appInfo.desc.memoryPerExecutorMB
       val executorId = s"${appInfo.getNextExecutorId()}"
       val javaOpts = appInfo.desc.command.javaOpts.mkString(" ")
-      val handler = AppMasterJavaUtils.createExecutorActor(
+      val handler = RayExecutorUtils.createExecutorActor(
         executorId, getAppMasterEndpointUrl(), cores,
         memory,
         appInfo.desc.resourceReqsPerExecutor.map(pair => (pair._1, Double.box(pair._2))).asJava,
@@ -231,13 +233,11 @@ class RayAppMaster(host: String,
         if ("-cp" == javaOpts(i) || "-classpath" == javaOpts(i)) {
           user_set_cp = true
         }
-
         i += 1
       }
 
       if (user_set_cp) {
         // user has set '-cp' or '-classpath'
-        i += 1
         if (i == javaOpts.size) {
           throw new RayDPException(
             s"Found ${javaOpts(i - 1)} while not classpath url in executor java opts")
@@ -259,7 +259,7 @@ class RayAppMaster(host: String,
       val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
       val appId = appInfo.id
       val classPathEntries = appInfo.desc.command.classPathEntries.mkString(";")
-      AppMasterJavaUtils.setUpExecutor(handlerOpt.get, appId, driverUrl, cores, classPathEntries)
+      RayExecutorUtils.setUpExecutor(handlerOpt.get, appId, driverUrl, cores, classPathEntries)
     }
   }
 }

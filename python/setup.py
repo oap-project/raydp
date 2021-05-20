@@ -35,9 +35,13 @@ ROOT_DIR = os.path.dirname(__file__)
 
 TEMP_PATH = "deps"
 CORE_DIR = os.path.abspath("../core")
+BIN_DIR = os.path.abspath("../bin")
 
 JARS_PATH = glob.glob(os.path.join(CORE_DIR, f"target/raydp-*.jar"))
 JARS_TARGET = os.path.join(TEMP_PATH, "jars")
+
+SCRIPT_PATH = os.path.join(BIN_DIR, f"raydp-submit")
+SCRIPT_TARGET = os.path.join(TEMP_PATH, "bin")
 
 if len(JARS_PATH) == 0:
     print("Can't find core module jars, you need to build the jars with 'mvn clean package'"
@@ -50,6 +54,7 @@ else:
 try:
     os.mkdir(TEMP_PATH)
     os.mkdir(JARS_TARGET)
+    os.mkdir(SCRIPT_TARGET)
 except:
     print(f"Temp path for symlink to parent already exists {TEMP_PATH}", file=sys.stderr)
     sys.exit(-1)
@@ -82,6 +87,7 @@ class CustomBuildPackageProtos(Command):
 
 try:
     copy2(JARS_PATH, JARS_TARGET)
+    copy2(SCRIPT_PATH, SCRIPT_TARGET)
 
     install_requires = [
         "numpy",
@@ -95,6 +101,7 @@ try:
 
     _packages = find_packages()
     _packages.append("raydp.jars")
+    _packages.append("raydp.bin")
 
     setup(
         name=package_name,
@@ -112,9 +119,9 @@ try:
         long_description_content_type="text/markdown",
         packages=_packages,
         include_package_data=True,
-        package_dir={"raydp.jars": "deps/jars",
+        package_dir={"raydp.jars": "deps/jars", "raydp.bin": "deps/bin",
                      "mpi_network_proto": "raydp/mpi/network"},
-        package_data={"raydp.jars": ["*.jar"]},
+        package_data={"raydp.jars": ["*.jar"], "raydp.bin": ["raydp-submit"]},
         cmdclass={
             'build_proto_modules': CustomBuildPackageProtos,
         },
@@ -129,4 +136,5 @@ try:
     )
 finally:
     rmtree(os.path.join(TEMP_PATH, "jars"))
+    rmtree(os.path.join(TEMP_PATH, "bin"))
     os.rmdir(TEMP_PATH)

@@ -93,6 +93,9 @@ jobs:
           pytest python/raydp/tests/
       - name: Test Examples
         run: |
+          ray start --head
+          python examples/raydp-submit.py
+          ray stop
           python examples/random_nyctaxi.py
           python examples/pytorch_nyctaxi.py
           python examples/tensorflow_nyctaxi.py
