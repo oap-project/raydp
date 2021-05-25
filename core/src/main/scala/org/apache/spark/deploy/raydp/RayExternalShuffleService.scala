@@ -37,3 +37,21 @@ class RayExternalShuffleService() extends Logging {
       Ray.exitActor()
   }
 }
+
+object RayExternalShuffleService {
+    def getShuffleConf(conf: SparkConf): String = {
+    // all conf needed by external shuffle service
+    var shuffleConf = conf.getAll.filter {
+      case (k, v) => k.startsWith("spark.shuffle")
+    }.map {
+      case (k, v) =>
+      "-D" + k + "=" + v
+    }
+    val localDirKey = "spark.local.dir"
+    if (conf.contains(localDirKey)) {
+      shuffleConf = shuffleConf :+
+        "-D" + localDirKey + "=" + conf.get(localDirKey)
+    }
+    shuffleConf.mkString(" ")
+  }
+}

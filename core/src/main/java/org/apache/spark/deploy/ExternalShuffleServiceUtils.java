@@ -22,9 +22,10 @@ import io.ray.api.Ray;
 
 public class ExternalShuffleServiceUtils {
   public static ActorHandle<RayExternalShuffleService> createShuffleService(
-      String node) {
+      String node, String options) {
     return Ray.actor(RayExternalShuffleService::new)
-              .setResource("node:" + node, 0.01).remote();
+              .setResource("node:" + node, 0.01)
+              .setJvmOptions(options).remote();
   }
 
   public static void startShuffleService(
