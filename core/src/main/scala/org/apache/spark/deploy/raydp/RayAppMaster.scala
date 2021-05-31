@@ -105,6 +105,7 @@ class RayAppMaster(host: String,
                   = new HashMap[String, ActorHandle[RayExternalShuffleService]]()
 
     private var nextAppNumber = 0
+    private val shuffleServiceOptions = RayExternalShuffleService.getShuffleConf(conf)
 
     override def receive: PartialFunction[Any, Unit] = {
       case RegisterApplication(appDescription: ApplicationDescription, driver: RpcEndpointRef) =>
@@ -133,7 +134,8 @@ class RayAppMaster(host: String,
             // the node executor is in has not started shuffle service
             if (!nodesWithShuffleService.contains(executorIp)) {
               logInfo(s"Starting shuffle service on ${executorIp}")
-              val service = ExternalShuffleServiceUtils.createShuffleService(executorIp)
+              val service = ExternalShuffleServiceUtils.createShuffleService(
+                executorIp, shuffleServiceOptions)
               ExternalShuffleServiceUtils.startShuffleService(service)
               nodesWithShuffleService(executorIp) = service
             }
