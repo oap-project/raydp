@@ -16,7 +16,7 @@
 #
 
 
-from typing import Callable
+from typing import Callable, List
 
 from raydp.mpi.mpi_job import MPIJob, MPIType, IntelMPIJob, OpenMPIJob, MPIWorkerPeer
 
@@ -37,7 +37,8 @@ def create_mpi_job(job_name: str,
                    mpi_script_prepare_fn: Callable = None,
                    timeout: int = 1,
                    mpi_type: str = "intel_mpi",
-                   mpi_peer_actor_class=MPIWorkerPeer) -> MPIJob:
+                   placement_group=None,
+                   placement_group_bundle_indexes: List[int] = None) -> MPIJob:
     mpi_type = _get_mpi_type(mpi_type)
     if mpi_type == MPIType.OPEN_MPI:
         return OpenMPIJob(mpi_type=MPIType.OPEN_MPI,
@@ -47,7 +48,8 @@ def create_mpi_job(job_name: str,
                           num_processes_per_node=num_processes_per_node,
                           mpi_script_prepare_fn=mpi_script_prepare_fn,
                           timeout=timeout,
-                          peer_actor_class=mpi_peer_actor_class)
+                          placement_group=placement_group,
+                          placement_group_bundle_indexes=placement_group_bundle_indexes)
     elif mpi_type == MPIType.INTEL_MPI:
         return IntelMPIJob(mpi_type=MPIType.INTEL_MPI,
                            job_name=job_name,
@@ -56,6 +58,7 @@ def create_mpi_job(job_name: str,
                            num_processes_per_node=num_processes_per_node,
                            mpi_script_prepare_fn=mpi_script_prepare_fn,
                            timeout=timeout,
-                           peer_actor_class=mpi_peer_actor_class)
+                           placement_group=placement_group,
+                           placement_group_bundle_indexes=placement_group_bundle_indexes)
     else:
         raise Exception(f"MPI type: {mpi_type} not supported now")

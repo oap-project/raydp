@@ -92,7 +92,8 @@ class MPIJob:
                  num_processes_per_node: int = 1,
                  mpi_script_prepare_fn: Callable = None,
                  timeout: int = 1,
-                 peer_actor_class=MPIWorkerPeer) -> None:
+                 placement_group=None,
+                 placement_group_bundle_indexes: List[int] = None) -> None:
 
         assert world_size % num_processes_per_node == 0,\
          (f"world_size: {world_size} should be multiple of num_processes_per_node: "
@@ -105,7 +106,8 @@ class MPIJob:
         self.num_processes_per_node = num_processes_per_node
         self.mpi_script_prepare_fn = mpi_script_prepare_fn
         self.timeout = timeout
-        self.peer_actor_class = peer_actor_class
+        self.placement_group = placement_group
+        self.placement_group_bundle_indexes = placement_group_bundle_indexes
 
         self.server_host = None
         self.server_port = None
@@ -158,16 +160,27 @@ class MPIJob:
     def _start_peers(self):
         num_nodes = self.world_size // self.num_processes_per_node
         cpus_per_node = self.num_cpus_per_process * self.num_processes_per_node
-        bundles = [{"CPU": cpus_per_node}] * num_nodes
-        self.pg = ray.util.placement_group(
-            bundles=bundles, strategy="STRICT_SPREAD", name=f"{self.job_name}_pg")
-        assert self.pg.wait(self.timeout), f"{ray.util.placement_group_table(self.pg)}"
+        if self.placement_group is None:
+            assert (len(self.placement_group_bundle_indexes) == num_nodes,
+                    f"The length of placement_group_bundle_indexes"
+                    f"({len(self.placement_group_bundle_indexes)}) should be equal "
+                    f"with the number of nodes({num_nodes})")
+            pg = self.placement_group
+            pg_indexes = self.placement_group_bundle_indexes
+        else:
+            bundles = [{"CPU": cpus_per_node}] * num_nodes
+            self.pg = ray.util.placement_group(
+                bundles=bundles, strategy="STRICT_SPREAD", name=f"{self.job_name}_pg")
+            assert self.pg.wait(self.timeout), f"{ray.util.placement_group_table(self.pg)}"
+            pg = self.pg
+            pg_indexes = list(range(num_nodes))
+
         # create the WorkerPeer actor
         peers = []
-        remote_cls = ray.remote(self.peer_actor_class)
-        for node_id in range(num_nodes):
+        remote_cls = ray.remote(MPIWorkerPeer)
+        for pg_index in pg_indexes:
             peer = remote_cls.options(
-                placement_group=self.pg, placement_group_bundle_index=node_id
+                placement_group=pg, placement_group_bundle_index=pg_index
             ).remote()
             peers.append(peer)
         # get the node_ip_address

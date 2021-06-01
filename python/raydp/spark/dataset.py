@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, List, NoReturn, Optional, Iterable, Union
+from typing import Dict, List, NoReturn, Optional, Iterable, Union
 
 import numpy as np
 import pandas as pd
@@ -26,6 +26,7 @@ import ray.util.data as ml_dataset
 import ray.util.iter as parallel_it
 from ray.util.data import MLDataset
 from ray.util.data.interface import _SourceShard
+from ray.util.iter import ParallelIteratorWorker
 
 from raydp.utils import divide_blocks
 
@@ -177,7 +178,8 @@ def _create_ml_dataset(name: str,
                        shuffle: bool,
                        shuffle_seed: int,
                        RecordBatchCls,
-                       create_ml_ds_actor_fn) -> MLDataset:
+                       placement_group=None,
+                       placement_group_bundle_indexes: List[int] = None) -> MLDataset:
     if shuffle_seed:
         np.random.seed(shuffle_seed)
     else:
@@ -202,22 +204,32 @@ def _create_ml_dataset(name: str,
                     record_size, size=num_samples).tolist()
                 piece = piece.with_row_ids(new_row_ids)
             pieces.append(piece)
-        np.random.shuffle(pieces)
+
+        if shuffle:
+            np.random.shuffle(pieces)
         record_batches.append(RecordBatchCls(shard_id=rank,
                                              prefix=name,
                                              record_pieces=pieces,
                                              shuffle=shuffle,
                                              shuffle_seed=shuffle_seed))
 
-    if create_ml_ds_actor_fn is not None:
+    if placement_group is not None:
+        assert (len(placement_group_bundle_indexes) == num_shards,
+                f"The length of placement_group_bundle_indexes"
+                f"({len(placement_group_bundle_indexes)}) should be equal "
+                f"with the num_shards({num_shards})")
+        worker_cls = ray.remote(ParallelIteratorWorker)
         actors = []
-        for rank, record_batch in enumerate(record_batches):
-            actors.append(create_ml_ds_actor_fn(rank, record_batch))
-        it = parallel_it.from_actors(actors, name=name)
+        for g, index in zip(record_batches, placement_group_bundle_indexes):
+            actor = worker_cls.options(placement_group=placement_group,
+                                       placement_group_bundle_index=index).remote(g, False)
+            actors.append(actor)
+        it = parallel_it.from_actors(actors, name)
     else:
         it = parallel_it.from_iterators(generators=record_batches,
                                         name=name,
                                         repeat=False)
+
     ds = ml_dataset.from_parallel_iter(
         it, need_convert=False, batch_size=0, repeated=False)
     return ds
@@ -231,7 +243,8 @@ class RayMLDataset:
                    shuffle_seed: int = None,
                    fs_directory: Optional[str] = None,
                    compression: Optional[str] = None,
-                   create_ml_ds_actor_fn: Callable = None) -> MLDataset:
+                   placement_group=None,
+                   placement_group_bundle_indexes: List[int] = None) -> MLDataset:
         """ Create a MLDataset from Spark DataFrame
 
         This method will create a MLDataset from Spark DataFrame.
@@ -246,8 +259,8 @@ class RayMLDataset:
             object store.
         :param compression: the optional compression for write the DataFrame as parquet
             file. This is only useful when the fs_directory set.
-        :param create_ml_ds_actor_fn: a function to create the MLDataset actor, the input is
-               the rank_id and the given RecordBatch for the rank.
+        :param placement_group: the placement_group
+        :param placement_group_bundle_indexes: this length should be equal with num_shards
         :return: a MLDataset
         """
         df = df.repartition(num_shards)
@@ -258,13 +271,12 @@ class RayMLDataset:
 
             return _create_ml_dataset("from_spark", record_pieces, block_sizes, num_shards,
                                       shuffle, shuffle_seed, RayRecordBatch,
-                                      create_ml_ds_actor_fn)
+                                      placement_group, placement_group_bundle_indexes)
         else:
             # fs_directory has provided, we write the Spark DataFrame as Parquet files
             df.write.parquet(fs_directory, compression=compression)
             # create the MLDataset from the parquet file
-            ds = RayMLDataset.from_parquet(fs_directory, num_shards, shuffle, shuffle_seed,
-                                           create_ml_ds_actor_fn=create_ml_ds_actor_fn)
+            ds = RayMLDataset.from_parquet(fs_directory, num_shards, shuffle, shuffle_seed)
             return ds
 
     @staticmethod
@@ -273,9 +285,25 @@ class RayMLDataset:
                      shuffle: bool = True,
                      shuffle_seed: int = None,
                      columns: Optional[List[str]] = None,
-                     create_ml_ds_actor_fn: Callable = None,
-                     **kwargs) -> MLDataset:
-        ds = pq.ParquetDataset(paths, **kwargs)
+                     placement_group=None,
+                     placement_group_bundle_indexes: List[int] = None,
+                     extra_parquet_arguments: Dict = None) -> MLDataset:
+        """ Create a MLDataset from Parquet files.
+
+        :param paths: the parquet files path
+        :param num_shards: the number of shards will be created for the MLDataset
+        :param shuffle: whether need to shuffle the blocks when create the MLDataset
+        :param shuffle_seed: the shuffle seed, default is 0
+        :param columns: the columns that need to read
+        :param placement_group: the placement_group
+        :param placement_group_bundle_indexes: this length should be equal with num_shards
+        :param extra_parquet_arguments: the extra arguments need to pass into the parquet file
+            reading
+        :return: a MLDataset
+        """
+        if not extra_parquet_arguments:
+            extra_parquet_arguments = {}
+        ds = pq.ParquetDataset(paths, **extra_parquet_arguments)
         pieces = ds.pieces
         record_pieces = []
         record_sizes = []
@@ -296,7 +324,8 @@ class RayMLDataset:
                 record_sizes.append(row_groups[i]["num_rows"])
 
         return _create_ml_dataset("from_parquet", record_pieces, record_sizes, num_shards,
-                                  shuffle, shuffle_seed, RecordBatch, create_ml_ds_actor_fn)
+                                  shuffle, shuffle_seed, RecordBatch, placement_group,
+                                  placement_group_bundle_indexes)
 
 
 def create_ml_dataset_from_spark(df: sql.DataFrame,
@@ -304,6 +333,9 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
                                  shuffle: bool,
                                  shuffle_seed: int,
                                  fs_directory: Optional[str] = None,
-                                 compression: Optional[str] = None) -> MLDataset:
+                                 compression: Optional[str] = None,
+                                 placement_group=None,
+                                 placement_group_bundle_indexes: List[int] = None) -> MLDataset:
     return RayMLDataset.from_spark(
-        df, num_shards, shuffle, shuffle_seed, fs_directory, compression)
+        df, num_shards, shuffle, shuffle_seed, fs_directory,
+        compression, placement_group, placement_group_bundle_indexes)
