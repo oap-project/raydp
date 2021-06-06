@@ -109,11 +109,11 @@ def create_data_loader(
     :param local_rank: the node local rank
     :param batch_size: the batch_size of the DtaLoader
     :param collate_fn: the collate_fn that create tensors from a pandas DataFrame
-    :param shuffle: wthether
-    :param shuffle_seed:
-    :param prefer_node:
-    :param prefetch:
-    :return:
+    :param shuffle: whether shuffle each batch of data
+    :param shuffle_seed: the shuffle seed
+    :param prefer_node: the prefer node for create the MLDataset actor
+    :param prefetch: prefetch the data of DataLoader with one thread
+    :return: a pytorch DataLoader
     """
     num_shards = ds.num_shards()
     assert num_shards % world_size == 0,\

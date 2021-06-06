@@ -43,15 +43,17 @@ class WorkerContext:
     def __init__(self,
                  job_id: str,
                  world_rank: int,
-                 local_rank: int):
+                 local_rank: int,
+                 node_ip: str):
         self.job_id = job_id
         self.world_rank = world_rank
         self.local_rank = local_rank
+        self.node_ip = node_ip
 
 
 WORLD_RANK = -1
 LOCAL_RANK = -1
-worker_context = WorkerContext("", -1, -1)
+worker_context = WorkerContext("", -1, -1, None)
 failed_exception = None
 
 
@@ -164,14 +166,14 @@ class MPIWorker:
         self.stop()
 
     def handle_register_reply(self, reply: network_pb2.RegisterWorkerReply):
-        # init ray
-        worker_context.job_id = self.job_id
-        worker_context.world_rank = WORLD_RANK
-        worker_context.local_rank = LOCAL_RANK
-
         node_ip_address = get_node_ip_address(reply.node_addresses)
         assert node_ip_address is not None, "Could not find the current node_ip_address"
         self.node_ip_address = node_ip_address
+
+        worker_context.job_id = self.job_id
+        worker_context.world_rank = WORLD_RANK
+        worker_context.local_rank = LOCAL_RANK
+        worker_context.node_ip = node_ip_address
 
     def handle_run_command(self, func: network_pb2.Function):
         self.task_queue.put((self.expected_func_id, func))
