@@ -22,7 +22,7 @@ from ray.util.iter import ParallelIteratorWorker
 
 class ParallelIteratorWorkerWithLen(ParallelIteratorWorker):
     def __init__(self, item_generator: Any, repeat: bool, num_records: int):
-        super(ParallelIteratorWorkerWithLen, self).__init__(item_generator, repeat)
+        super().__init__(item_generator, repeat)
         self.num_records = num_records
 
     def __len__(self):

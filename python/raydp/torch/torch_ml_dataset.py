@@ -93,7 +93,7 @@ class PrefetchedDataLoader:
                 except StopIteration:
                     self.queue.put(None)
                     break
-                except:  # pylint: disable=W0707
+                except:  # pylint: disable=W0707, W0706
                     raise
         self.fetcher = threading.Thread(target=fetch_task)
         self.fetcher.start()
