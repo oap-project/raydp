@@ -47,6 +47,24 @@ class TorchMLDataset(IterableDataset):
                 pdf = pdf.sample(frac=1.0, random_state=self.shuffle_seed)
             yield self.collate_fn(pdf)
 
+    def __len__(self):
+        all_actors = []
+        for actor_set in self.ds.actor_sets:
+            all_actors.extend(actor_set.actors)
+        assert len(all_actors) > 0
+        if "__len__" in dir(all_actors[0]):
+            # This is a very hack method to get the length of the iterator
+            num_records = sum([ray.get(actor.__len__.remote()) for actor in all_actors])
+        else:
+            logger.warning("The MLDataset has not provide the __len__ method, we will iter all "
+                           "data to count the number of rows. This should be pretty slowly.")
+            it = self.ds.gather_async(batch_ms=0, num_async=self.ds.num_shards())
+            it = iter(it)
+            num_records = 0
+            for pdf in it:
+                num_records += pdf.shape[0]
+        return num_records
+
 
 class PrefetchedDataLoader:
     def __init__(self, base_loader, max_size: int = 5):
@@ -88,6 +106,9 @@ class PrefetchedDataLoader:
                 yield fetched_data
             else:
                 break
+
+    def __len__(self):
+        return len(self.base_loader)
 
 
 def create_data_loader(

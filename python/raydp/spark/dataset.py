@@ -26,14 +26,15 @@ import ray.util.data as ml_dataset
 import ray.util.iter as parallel_it
 from ray.util.data import MLDataset
 from ray.util.data.interface import _SourceShard
-from ray.util.iter import ParallelIteratorWorker
 
+from raydp.spark.parallel_iterator_worker import ParallelIteratorWorkerWithLen
 from raydp.utils import divide_blocks
 
 
 class RecordPiece:
-    def __init__(self, row_ids):
+    def __init__(self, row_ids, num_rows: int):
         self.row_ids = row_ids
+        self.num_rows = num_rows
 
     def read(self, shuffle: bool) -> pd.DataFrame:
         raise NotImplementedError
@@ -41,12 +42,17 @@ class RecordPiece:
     def with_row_ids(self, new_row_ids) -> "RecordPiece":
         raise NotImplementedError
 
+    def __len__(self):
+        """Return the number of rows"""
+        return self.num_rows
+
 
 class RayObjectPiece(RecordPiece):
     def __init__(self,
                  obj_id: ray.ObjectRef,
-                 row_ids: Optional[List[int]]):
-        super().__init__(row_ids)
+                 row_ids: Optional[List[int]],
+                 num_rows: int):
+        super().__init__(row_ids, num_rows)
         self.obj_id = obj_id
 
     def read(self, shuffle: bool) -> pd.DataFrame:
@@ -62,7 +68,16 @@ class RayObjectPiece(RecordPiece):
         return df
 
     def with_row_ids(self, new_row_ids) -> "RayObjectPiece":
-        return RayObjectPiece(self.obj_id, new_row_ids)
+        """chang the num_rows to the length of new_row_ids. Keep the original size if
+        the new_row_ids is None.
+        """
+
+        if new_row_ids:
+            num_rows = len(new_row_ids)
+        else:
+            num_rows = self.num_rows
+
+        return RayObjectPiece(self.obj_id, new_row_ids, num_rows)
 
 
 class ParquetPiece(RecordPiece):
@@ -70,8 +85,9 @@ class ParquetPiece(RecordPiece):
                  piece: pq.ParquetDatasetPiece,
                  columns: List[str],
                  partitions: pq.ParquetPartitions,
-                 row_ids: Optional[List[int]]):
-        super().__init__(row_ids)
+                 row_ids: Optional[List[int]],
+                 num_rows: int):
+        super().__init__(row_ids, num_rows)
         self.piece = piece
         self.columns = columns
         self.partitions = partitions
@@ -88,7 +104,15 @@ class ParquetPiece(RecordPiece):
         return pdf
 
     def with_row_ids(self, new_row_ids) -> "ParquetPiece":
-        return ParquetPiece(self.piece, self.columns, self.partitions, new_row_ids)
+        """
+        chang the num_rows to the length of new_row_ids. Keep the original size if
+        the new_row_ids is None.
+        """
+        if new_row_ids:
+            num_rows = len(new_row_ids)
+        else:
+            num_rows = self.num_rows
+        return ParquetPiece(self.piece, self.columns, self.partitions, new_row_ids, num_rows)
 
 
 class RecordBatch(_SourceShard):
@@ -118,6 +142,9 @@ class RecordBatch(_SourceShard):
 
         for piece in self.record_pieces:
             yield piece.read(self.shuffle)
+
+    def __len__(self):
+        return sum([len(piece) for piece in self.record_pieces])
 
 
 class RayRecordBatch(RecordBatch):
@@ -215,21 +242,19 @@ def _create_ml_dataset(name: str,
                                              shuffle=shuffle,
                                              shuffle_seed=shuffle_seed))
 
+    worker_cls = ray.remote(ParallelIteratorWorkerWithLen)
     if node_hints is not None:
-        worker_cls = ray.remote(ParallelIteratorWorker)
         actors = []
-
         multiplier = num_shards // len(node_hints)
         resource_keys = [node_hints[i // multiplier] for i in range(num_shards)]
         for g, resource_key in zip(record_batches, resource_keys):
-            actor = worker_cls.options(resources={resource_key: 0.01}).remote(g, False)
+            actor = worker_cls.options(resources={resource_key: 0.01}).remote(g, False, len(g))
             actors.append(actor)
-        it = parallel_it.from_actors(actors, name)
     else:
-        it = parallel_it.from_iterators(generators=record_batches,
-                                        name=name,
-                                        repeat=False)
+        worker_cls = ray.remote(ParallelIteratorWorkerWithLen)
+        actors = [worker_cls.remote(g, False, len(g)) for g in record_batches]
 
+    it = parallel_it.from_actors(actors, name)
     ds = ml_dataset.from_parallel_iter(
         it, need_convert=False, batch_size=0, repeated=False)
     return ds
@@ -265,7 +290,8 @@ class RayMLDataset:
         if fs_directory is None:
             # fs_directory has not provided, we save the Spark DataFrame to ray object store
             blocks, block_sizes = _save_spark_df_to_object_store(df)
-            record_pieces = [RayObjectPiece(obj, None) for obj in blocks]
+            record_pieces = [RayObjectPiece(obj, None, num_rows)
+                             for obj, num_rows in zip(blocks, block_sizes)]
 
             return _create_ml_dataset("from_spark", record_pieces, block_sizes, num_shards,
                                       shuffle, shuffle_seed, RayRecordBatch,
@@ -310,6 +336,7 @@ class RayMLDataset:
             num_row_groups = meta_data["num_row_groups"]
             row_groups = meta_data["row_groups"]
             for i in range(num_row_groups):
+                num_rows = row_groups[i]["num_rows"]
                 parquet_ds_piece = pq.ParquetDatasetPiece(piece.path, piece.open_file_func,
                                                           piece.file_options, i,
                                                           piece.partition_keys)
@@ -317,8 +344,9 @@ class RayMLDataset:
                 record_pieces.append(ParquetPiece(piece=parquet_ds_piece,
                                                   columns=columns,
                                                   partitions=ds.partitions,
-                                                  row_ids=None))
-                record_sizes.append(row_groups[i]["num_rows"])
+                                                  row_ids=None,
+                                                  num_rows=num_rows))
+                record_sizes.append(num_rows)
 
         return _create_ml_dataset("from_parquet", record_pieces, record_sizes, num_shards,
                                   shuffle, shuffle_seed, RecordBatch, node_hints)
