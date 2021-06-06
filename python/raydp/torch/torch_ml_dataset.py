@@ -34,6 +34,7 @@ class TorchMLDataset(IterableDataset):
                  collate_fn: Callable,
                  shuffle: bool = False,
                  shuffle_seed: int = None):
+        super().__init__()
         self.ds = ds
         self.collate_fn = collate_fn
         self.shuffle = shuffle
