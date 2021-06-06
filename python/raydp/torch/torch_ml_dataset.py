@@ -148,7 +148,7 @@ def create_data_loader(
         # after union()
 
         def location_check(actor):
-            address = ray.actors(actor)["Address"]["IPAddress"]
+            address = ray.actors(actor._actor_id.hex())["Address"]["IPAddress"]
             return address == prefer_node
 
         actors = ds.actor_sets[0].actors
