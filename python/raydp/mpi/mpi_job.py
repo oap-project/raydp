@@ -160,7 +160,7 @@ class MPIJob:
     def _start_peers(self):
         num_nodes = self.world_size // self.num_processes_per_node
         cpus_per_node = self.num_cpus_per_process * self.num_processes_per_node
-        if self.placement_group is None:
+        if self.placement_group is not None:
             assert (len(self.placement_group_bundle_indexes) == num_nodes,
                     f"The length of placement_group_bundle_indexes"
                     f"({len(self.placement_group_bundle_indexes)}) should be equal "
