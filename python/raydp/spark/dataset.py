@@ -246,7 +246,7 @@ def _create_ml_dataset(name: str,
     if node_hints is not None:
         actors = []
         multiplier = num_shards // len(node_hints)
-        resource_keys = [node_hints[i // multiplier] for i in range(num_shards)]
+        resource_keys = [f"node:{node_hints[i // multiplier]}" for i in range(num_shards)]
         for g, resource_key in zip(record_batches, resource_keys):
             actor = worker_cls.options(resources={resource_key: 0.01}).remote(g, False, len(g))
             actors.append(actor)
