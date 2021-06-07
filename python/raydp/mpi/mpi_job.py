@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import logging
 import os
 import signal
 import subprocess
@@ -23,7 +24,7 @@ import threading
 from concurrent import futures
 from enum import Enum, unique
 from threading import RLock, Event
-from typing import Any, Callable, List
+from typing import Any, Callable, Dict, List
 
 import grpc
 import ray
@@ -32,6 +33,8 @@ import ray.cloudpickle as cloudpickle
 from raydp.mpi import constants
 from raydp.mpi.network import network_pb2, network_pb2_grpc
 from raydp.mpi.utils import create_insecure_channel, run_cmd, StoppableThread
+
+logger = logging.getLogger(__name__)
 
 
 @unique
@@ -83,6 +86,34 @@ class FunctionResults:
         self.done: Event = Event()
 
 
+class MPIJobContext:
+    def __init__(self,
+                 hosts: List[str],
+                 num_procs_per_node: int,
+                 env: Dict[str, str]):
+        self._hosts = hosts
+        self._num_procs_per_node = num_procs_per_node
+        self._env = env
+
+    @property
+    def hosts(self) -> List[str]:
+        return self._hosts
+
+    @property
+    def num_procs_per_node(self) -> int:
+        return self._num_procs_per_node
+
+    @property
+    def env(self):
+        return self._env
+
+    def add_env(self, key: str, value: str):
+        self._env[key] = value
+
+    def add_envs(self, envs: Dict[str, str]):
+        self._env.update(envs)
+
+
 class MPIJob:
     def __init__(self,
                  mpi_type: MPIType,
@@ -92,7 +123,8 @@ class MPIJob:
                  num_processes_per_node: int = 1,
                  mpi_script_prepare_fn: Callable = None,
                  timeout: int = 1,
-                 peer_actor_class=MPIWorkerPeer) -> None:
+                 placement_group=None,
+                 placement_group_bundle_indexes: List[int] = None) -> None:
 
         assert world_size % num_processes_per_node == 0,\
          (f"world_size: {world_size} should be multiple of num_processes_per_node: "
@@ -105,7 +137,8 @@ class MPIJob:
         self.num_processes_per_node = num_processes_per_node
         self.mpi_script_prepare_fn = mpi_script_prepare_fn
         self.timeout = timeout
-        self.peer_actor_class = peer_actor_class
+        self.placement_group = placement_group
+        self.placement_group_bundle_indexes = placement_group_bundle_indexes
 
         self.server_host = None
         self.server_port = None
@@ -158,16 +191,27 @@ class MPIJob:
     def _start_peers(self):
         num_nodes = self.world_size // self.num_processes_per_node
         cpus_per_node = self.num_cpus_per_process * self.num_processes_per_node
-        bundles = [{"CPU": cpus_per_node}] * num_nodes
-        self.pg = ray.util.placement_group(
-            bundles=bundles, strategy="STRICT_SPREAD", name=f"{self.job_name}_pg")
-        assert self.pg.wait(self.timeout), f"{ray.util.placement_group_table(self.pg)}"
+        if self.placement_group is not None:
+            assert len(self.placement_group_bundle_indexes) == num_nodes,\
+                (f"The length of placement_group_bundle_indexes"
+                 f"({len(self.placement_group_bundle_indexes)}) should be equal "
+                 f"with the number of nodes({num_nodes})")
+            pg = self.placement_group
+            pg_indexes = self.placement_group_bundle_indexes
+        else:
+            bundles = [{"CPU": cpus_per_node}] * num_nodes
+            self.pg = ray.util.placement_group(
+                bundles=bundles, strategy="STRICT_SPREAD", name=f"{self.job_name}_pg")
+            assert self.pg.wait(self.timeout), f"{ray.util.placement_group_table(self.pg)}"
+            pg = self.pg
+            pg_indexes = list(range(num_nodes))
+
         # create the WorkerPeer actor
         peers = []
-        remote_cls = ray.remote(self.peer_actor_class)
-        for node_id in range(num_nodes):
+        remote_cls = ray.remote(MPIWorkerPeer)
+        for pg_index in pg_indexes:
             peer = remote_cls.options(
-                placement_group=self.pg, placement_group_bundle_index=node_id
+                placement_group=pg, placement_group_bundle_index=pg_index
             ).remote()
             peers.append(peer)
         # get the node_ip_address
@@ -186,19 +230,26 @@ class MPIJob:
         self.server_port = self.server.add_insecure_port(f"{self.server_host}:0")
         self.server.start()
 
-    def get_default_mpirun_script(self, hosts: List[str], num_process_per_node: int) -> List[str]:
+    def get_default_mpirun_script(self, context: MPIJobContext) -> List[str]:
         raise NotImplementedError
 
     def _start_mpirun(self):
-        hosts = self._start_peers()
         # prepare the mpirun script
-        mpirun_script = self.get_default_mpirun_script(hosts, self.num_processes_per_node)
+        hosts = self._start_peers()
+        env = os.environ.copy()
+        context = MPIJobContext(hosts, self.num_processes_per_node, env)
+        if self.mpi_script_prepare_fn:
+            mpirun_script = self.mpi_script_prepare_fn(context)
+            if isinstance(mpirun_script, str):
+                mpirun_script = mpirun_script.split()
+        else:
+            mpirun_script = self.get_default_mpirun_script(context)
 
-        if self.mpi_script_prepare_fn is not None:
-            mpirun_script = self.mpi_script_prepare_fn(mpirun_script)
+        # append main class
+        mpirun_script.append(sys.executable)
+        mpirun_script.append(constants.MPI_MAIN_CLASS_PATH)
 
         # prepare the mpirun env
-        env = os.environ.copy()
         env[constants.MPI_TYPE] = str(self.mpi_type.value)
         env[constants.MPI_JOB_ID] = self.job_name
         env[constants.MPI_DRIVER_HOST] = str(self.server_host)
@@ -206,13 +257,16 @@ class MPIJob:
 
         # start up the mpirun in separate thread
         script = subprocess.list2cmdline(mpirun_script)
+        logging.info(f"MPI Job script: {mpirun_script}")
+        logging.debug(f"MPI Job environ: {context.env}")
 
         def failed_callback():
             self.stop()
 
         (self.mpirun_proc,
          self.mpirun_check_thread,
-         self.mpirun_forward_thread) = run_cmd(script, env, failed_callback=failed_callback)
+         self.mpirun_forward_thread) = run_cmd(
+            script, context.env, failed_callback=failed_callback)
 
         # wait for the worker register
         self._wait_client_register()
@@ -339,18 +393,17 @@ class MPIJob:
 
 
 class OpenMPIJob(MPIJob):
-    def get_default_mpirun_script(self, hosts: List[str], num_process_per_node: int) -> List[str]:
+    def get_default_mpirun_script(self, context: MPIJobContext) -> List[str]:
         default_script = ["mpirun", "--allow-run-as-root", "--tag-output",
                           "-bind-to", "none", "-map-by", "slot", "-mca",
-                          "pml", "ob1", "-mca", "btl", "^openib", "-H", ",".join(hosts),
-                          "-N", f"{num_process_per_node}", sys.executable,
-                          constants.MPI_MAIN_CLASS_PATH]
+                          "pml", "ob1", "-mca", "btl", "^openib", "-H", ",".join(context.hosts),
+                          "-N", f"{context.num_procs_per_node}"]
         return default_script
 
 
 class IntelMPIJob(MPIJob):
-    def get_default_mpirun_script(self, hosts: List[str], num_process_per_node: int) -> List[str]:
+    def get_default_mpirun_script(self, context: MPIJobContext) -> List[str]:
         default_script = ["mpirun", "-bind-to", "none", "-map-by", "slot", "-prepend-rank",
-                          "-hosts", ",".join(hosts), "-ppn", f"{num_process_per_node}",
-                          sys.executable, constants.MPI_MAIN_CLASS_PATH]
+                          "-hosts", ",".join(context.hosts), "-ppn",
+                          f"{context.num_procs_per_node}"]
         return default_script

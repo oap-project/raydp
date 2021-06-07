@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, List, NoReturn, Optional, Iterable, Union
+import logging
+from typing import Callable, Dict, List, NoReturn, Optional, Iterable, Union
 
 import numpy as np
 import pandas as pd
@@ -27,12 +28,16 @@ import ray.util.iter as parallel_it
 from ray.util.data import MLDataset
 from ray.util.data.interface import _SourceShard
 
+from raydp.spark.parallel_iterator_worker import ParallelIteratorWorkerWithLen
 from raydp.utils import divide_blocks
+
+logger = logging.getLogger(__name__)
 
 
 class RecordPiece:
-    def __init__(self, row_ids):
+    def __init__(self, row_ids, num_rows: int):
         self.row_ids = row_ids
+        self.num_rows = num_rows
 
     def read(self, shuffle: bool) -> pd.DataFrame:
         raise NotImplementedError
@@ -40,12 +45,17 @@ class RecordPiece:
     def with_row_ids(self, new_row_ids) -> "RecordPiece":
         raise NotImplementedError
 
+    def __len__(self):
+        """Return the number of rows"""
+        return self.num_rows
+
 
 class RayObjectPiece(RecordPiece):
     def __init__(self,
                  obj_id: ray.ObjectRef,
-                 row_ids: Optional[List[int]]):
-        super().__init__(row_ids)
+                 row_ids: Optional[List[int]],
+                 num_rows: int):
+        super().__init__(row_ids, num_rows)
         self.obj_id = obj_id
 
     def read(self, shuffle: bool) -> pd.DataFrame:
@@ -61,7 +71,16 @@ class RayObjectPiece(RecordPiece):
         return df
 
     def with_row_ids(self, new_row_ids) -> "RayObjectPiece":
-        return RayObjectPiece(self.obj_id, new_row_ids)
+        """chang the num_rows to the length of new_row_ids. Keep the original size if
+        the new_row_ids is None.
+        """
+
+        if new_row_ids:
+            num_rows = len(new_row_ids)
+        else:
+            num_rows = self.num_rows
+
+        return RayObjectPiece(self.obj_id, new_row_ids, num_rows)
 
 
 class ParquetPiece(RecordPiece):
@@ -69,8 +88,9 @@ class ParquetPiece(RecordPiece):
                  piece: pq.ParquetDatasetPiece,
                  columns: List[str],
                  partitions: pq.ParquetPartitions,
-                 row_ids: Optional[List[int]]):
-        super().__init__(row_ids)
+                 row_ids: Optional[List[int]],
+                 num_rows: int):
+        super().__init__(row_ids, num_rows)
         self.piece = piece
         self.columns = columns
         self.partitions = partitions
@@ -87,7 +107,15 @@ class ParquetPiece(RecordPiece):
         return pdf
 
     def with_row_ids(self, new_row_ids) -> "ParquetPiece":
-        return ParquetPiece(self.piece, self.columns, self.partitions, new_row_ids)
+        """
+        chang the num_rows to the length of new_row_ids. Keep the original size if
+        the new_row_ids is None.
+        """
+        if new_row_ids:
+            num_rows = len(new_row_ids)
+        else:
+            num_rows = self.num_rows
+        return ParquetPiece(self.piece, self.columns, self.partitions, new_row_ids, num_rows)
 
 
 class RecordBatch(_SourceShard):
@@ -117,6 +145,9 @@ class RecordBatch(_SourceShard):
 
         for piece in self.record_pieces:
             yield piece.read(self.shuffle)
+
+    def __len__(self):
+        return sum([len(piece) for piece in self.record_pieces])
 
 
 class RayRecordBatch(RecordBatch):
@@ -177,7 +208,10 @@ def _create_ml_dataset(name: str,
                        shuffle: bool,
                        shuffle_seed: int,
                        RecordBatchCls,
-                       create_ml_ds_actor_fn) -> MLDataset:
+                       node_hints: List[str] = None) -> MLDataset:
+    if node_hints is not None:
+        assert num_shards % len(node_hints) == 0,\
+            f"num_shards: {num_shards} should be a multiple of length of node_hints: {node_hints}"
     if shuffle_seed:
         np.random.seed(shuffle_seed)
     else:
@@ -202,22 +236,28 @@ def _create_ml_dataset(name: str,
                     record_size, size=num_samples).tolist()
                 piece = piece.with_row_ids(new_row_ids)
             pieces.append(piece)
-        np.random.shuffle(pieces)
+
+        if shuffle:
+            np.random.shuffle(pieces)
         record_batches.append(RecordBatchCls(shard_id=rank,
                                              prefix=name,
                                              record_pieces=pieces,
                                              shuffle=shuffle,
                                              shuffle_seed=shuffle_seed))
 
-    if create_ml_ds_actor_fn is not None:
+    worker_cls = ray.remote(ParallelIteratorWorkerWithLen)
+    if node_hints is not None:
         actors = []
-        for rank, record_batch in enumerate(record_batches):
-            actors.append(create_ml_ds_actor_fn(rank, record_batch))
-        it = parallel_it.from_actors(actors, name=name)
+        multiplier = num_shards // len(node_hints)
+        resource_keys = [f"node:{node_hints[i // multiplier]}" for i in range(num_shards)]
+        for g, resource_key in zip(record_batches, resource_keys):
+            actor = worker_cls.options(resources={resource_key: 0.01}).remote(g, False, len(g))
+            actors.append(actor)
     else:
-        it = parallel_it.from_iterators(generators=record_batches,
-                                        name=name,
-                                        repeat=False)
+        worker_cls = ray.remote(ParallelIteratorWorkerWithLen)
+        actors = [worker_cls.remote(g, False, len(g)) for g in record_batches]
+
+    it = parallel_it.from_actors(actors, name)
     ds = ml_dataset.from_parallel_iter(
         it, need_convert=False, batch_size=0, repeated=False)
     return ds
@@ -231,7 +271,7 @@ class RayMLDataset:
                    shuffle_seed: int = None,
                    fs_directory: Optional[str] = None,
                    compression: Optional[str] = None,
-                   create_ml_ds_actor_fn: Callable = None) -> MLDataset:
+                   node_hints: List[str] = None) -> MLDataset:
         """ Create a MLDataset from Spark DataFrame
 
         This method will create a MLDataset from Spark DataFrame.
@@ -246,25 +286,25 @@ class RayMLDataset:
             object store.
         :param compression: the optional compression for write the DataFrame as parquet
             file. This is only useful when the fs_directory set.
-        :param create_ml_ds_actor_fn: a function to create the MLDataset actor, the input is
-               the rank_id and the given RecordBatch for the rank.
+        :param node_hints: the node hints to create MLDataset actors
         :return: a MLDataset
         """
         df = df.repartition(num_shards)
         if fs_directory is None:
             # fs_directory has not provided, we save the Spark DataFrame to ray object store
             blocks, block_sizes = _save_spark_df_to_object_store(df)
-            record_pieces = [RayObjectPiece(obj, None) for obj in blocks]
+            record_pieces = [RayObjectPiece(obj, None, num_rows)
+                             for obj, num_rows in zip(blocks, block_sizes)]
 
             return _create_ml_dataset("from_spark", record_pieces, block_sizes, num_shards,
                                       shuffle, shuffle_seed, RayRecordBatch,
-                                      create_ml_ds_actor_fn)
+                                      node_hints)
         else:
             # fs_directory has provided, we write the Spark DataFrame as Parquet files
             df.write.parquet(fs_directory, compression=compression)
             # create the MLDataset from the parquet file
-            ds = RayMLDataset.from_parquet(fs_directory, num_shards, shuffle, shuffle_seed,
-                                           create_ml_ds_actor_fn=create_ml_ds_actor_fn)
+            ds = RayMLDataset.from_parquet(
+                fs_directory, num_shards, shuffle, shuffle_seed, node_hints)
             return ds
 
     @staticmethod
@@ -273,9 +313,23 @@ class RayMLDataset:
                      shuffle: bool = True,
                      shuffle_seed: int = None,
                      columns: Optional[List[str]] = None,
-                     create_ml_ds_actor_fn: Callable = None,
-                     **kwargs) -> MLDataset:
-        ds = pq.ParquetDataset(paths, **kwargs)
+                     node_hints: List[str] = None,
+                     extra_parquet_arguments: Dict = None) -> MLDataset:
+        """ Create a MLDataset from Parquet files.
+
+        :param paths: the parquet files path
+        :param num_shards: the number of shards will be created for the MLDataset
+        :param shuffle: whether need to shuffle the blocks when create the MLDataset
+        :param shuffle_seed: the shuffle seed, default is 0
+        :param columns: the columns that need to read
+        :param node_hints: the node hints to create MLDataset actors
+        :param extra_parquet_arguments: the extra arguments need to pass into the parquet file
+            reading
+        :return: a MLDataset
+        """
+        if not extra_parquet_arguments:
+            extra_parquet_arguments = {}
+        ds = pq.ParquetDataset(paths, **extra_parquet_arguments)
         pieces = ds.pieces
         record_pieces = []
         record_sizes = []
@@ -285,6 +339,7 @@ class RayMLDataset:
             num_row_groups = meta_data["num_row_groups"]
             row_groups = meta_data["row_groups"]
             for i in range(num_row_groups):
+                num_rows = row_groups[i]["num_rows"]
                 parquet_ds_piece = pq.ParquetDatasetPiece(piece.path, piece.open_file_func,
                                                           piece.file_options, i,
                                                           piece.partition_keys)
@@ -292,11 +347,95 @@ class RayMLDataset:
                 record_pieces.append(ParquetPiece(piece=parquet_ds_piece,
                                                   columns=columns,
                                                   partitions=ds.partitions,
-                                                  row_ids=None))
-                record_sizes.append(row_groups[i]["num_rows"])
+                                                  row_ids=None,
+                                                  num_rows=num_rows))
+                record_sizes.append(num_rows)
 
         return _create_ml_dataset("from_parquet", record_pieces, record_sizes, num_shards,
-                                  shuffle, shuffle_seed, RecordBatch, create_ml_ds_actor_fn)
+                                  shuffle, shuffle_seed, RecordBatch, node_hints)
+
+    @staticmethod
+    def to_torch(
+            ds: MLDataset,
+            world_size: int,
+            world_rank: int,
+            batch_size: int,
+            collate_fn: Callable,
+            shuffle: bool = False,
+            shuffle_seed: int = None,
+            local_rank: int = -1,
+            prefer_node: str = None,
+            prefetch: bool = False):
+        """
+        Create DataLoader from a MLDataset
+        :param ds: the MLDataset
+        :param world_size: the world_size of distributed model training
+        :param world_rank: create the DataLoader for the given world_rank
+        :param batch_size: the batch_size of the DtaLoader
+        :param collate_fn: the collate_fn that create tensors from a pandas DataFrame
+        :param shuffle: whether shuffle each batch of data
+        :param shuffle_seed: the shuffle seed
+        :param local_rank: the node local rank. It must be provided if prefer_node is
+               not None.
+        :param prefer_node: the prefer node for create the MLDataset actor
+        :param prefetch: prefetch the data of DataLoader with one thread
+        :return: a pytorch DataLoader
+        """
+        # pylint: disable=C0415
+        import torch
+        from raydp.torch.torch_ml_dataset import PrefetchedDataLoader, TorchMLDataset
+
+        num_shards = ds.num_shards()
+        assert num_shards % world_size == 0, \
+            (f"The number shards of MLDataset({ds}) should be a multiple of "
+             f"world_size({world_size})")
+        multiplier = num_shards // world_size
+
+        selected_ds = None
+        if prefer_node is not None:
+            assert 0 <= local_rank < world_size
+
+            # get all actors
+            # there should be only one actor_set because of select_shards() is not allowed
+            # after union()
+
+            def location_check(actor):
+                address = ray.actors(actor._actor_id.hex())["Address"]["IPAddress"]
+                return address == prefer_node
+
+            actors = ds.actor_sets[0].actors
+            actor_indexes = [i for i, actor in enumerate(actors) if location_check(actor)]
+            if len(actor_indexes) % multiplier == 0:
+                selected_ds = None
+                logger.warning(f"We could not find enough shard actor in prefer "
+                               f"node({prefer_node}), fail back to normal select_shards().")
+            else:
+                shard_ids = actor_indexes[local_rank: local_rank + multiplier]
+                selected_ds = ds.select_shards(shard_ids)
+
+        if selected_ds is None:
+            shard_ids = []
+            i = world_rank
+            step = world_size
+            while i < num_shards:
+                shard_ids.append(i)
+                i += step
+            selected_ds = ds.select_shards(shard_ids)
+
+        selected_ds = selected_ds.batch(batch_size)
+        torch_ds = TorchMLDataset(selected_ds, collate_fn, shuffle, shuffle_seed)
+        data_loader = torch.utils.data.DataLoader(dataset=torch_ds,
+                                                  batch_size=None,
+                                                  batch_sampler=None,
+                                                  shuffle=False,
+                                                  num_workers=0,
+                                                  collate_fn=None,
+                                                  pin_memory=False,
+                                                  drop_last=False,
+                                                  sampler=None)
+        if prefetch:
+            data_loader = PrefetchedDataLoader(data_loader)
+        return data_loader
 
 
 def create_ml_dataset_from_spark(df: sql.DataFrame,
@@ -304,6 +443,7 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
                                  shuffle: bool,
                                  shuffle_seed: int,
                                  fs_directory: Optional[str] = None,
-                                 compression: Optional[str] = None) -> MLDataset:
+                                 compression: Optional[str] = None,
+                                 node_hints: List[str] = None) -> MLDataset:
     return RayMLDataset.from_spark(
-        df, num_shards, shuffle, shuffle_seed, fs_directory, compression)
+        df, num_shards, shuffle, shuffle_seed, fs_directory, compression, node_hints)

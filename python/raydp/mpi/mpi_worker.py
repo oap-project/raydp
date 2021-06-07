@@ -31,28 +31,29 @@ from raydp.mpi.utils import create_insecure_channel, get_environ_value, get_node
 
 def get_rank(mpi_type: MPIType):
     if mpi_type == MPIType.OPEN_MPI:
-        return int(os.environ["OMPI_COMM_WORLD_RANK"])
+        return (int(os.environ["OMPI_COMM_WORLD_RANK"]),
+                int(os.environ["OMPI_COMM_WORLD_LOCAL_RANK"]))
     elif mpi_type == MPIType.INTEL_MPI:
-        return int(os.environ["PMI_RANK"])
+        return int(os.environ["PMI_RANK"]), int(os.environ["MPI_LOCALRANKID"])
     else:
-        try:
-            from mpi4py import MPI  # pylint: disable=C0415
-            comm = MPI.COMM_WORLD
-            return comm.Get_rank()
-        except:  # pylint: disable=W0707
-            raise Exception(f"Not supported MPI type: {mpi_type}")
+        raise Exception(f"Not supported MPI type: {mpi_type}")
 
 
 class WorkerContext:
     def __init__(self,
                  job_id: str,
-                 world_rank: int):
+                 world_rank: int,
+                 local_rank: int,
+                 node_ip: str):
         self.job_id = job_id
         self.world_rank = world_rank
+        self.local_rank = local_rank
+        self.node_ip = node_ip
 
 
 WORLD_RANK = -1
-worker_context = WorkerContext("", -1)
+LOCAL_RANK = -1
+worker_context = WorkerContext("", -1, -1, None)
 failed_exception = None
 
 
@@ -165,13 +166,14 @@ class MPIWorker:
         self.stop()
 
     def handle_register_reply(self, reply: network_pb2.RegisterWorkerReply):
-        # init ray
-        worker_context.job_id = self.job_id
-        worker_context.world_rank = WORLD_RANK
-
         node_ip_address = get_node_ip_address(reply.node_addresses)
         assert node_ip_address is not None, "Could not find the current node_ip_address"
         self.node_ip_address = node_ip_address
+
+        worker_context.job_id = self.job_id
+        worker_context.world_rank = WORLD_RANK
+        worker_context.local_rank = LOCAL_RANK
+        worker_context.node_ip = node_ip_address
 
     def handle_run_command(self, func: network_pb2.Function):
         self.task_queue.put((self.expected_func_id, func))
@@ -202,7 +204,7 @@ if __name__ == "__main__":
     driver_host = get_environ_value(constants.MPI_DRIVER_HOST)
     driver_port = int(get_environ_value(constants.MPI_DRIVER_PORT))
 
-    WORLD_RANK = get_rank(mpi_type)
+    WORLD_RANK, LOCAL_RANK = get_rank(mpi_type)
     worker = MPIWorker(job_id, driver_host, driver_port)
     worker.start()
     worker.wait_for_termination()
