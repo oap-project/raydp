@@ -380,6 +380,7 @@ class RayMLDataset:
         :param prefetch: prefetch the data of DataLoader with one thread
         :return: a pytorch DataLoader
         """
+        # pylint: disable=C0415
         import torch
         from raydp.torch.torch_ml_dataset import PrefetchedDataLoader, TorchMLDataset
 
