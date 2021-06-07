@@ -18,7 +18,7 @@
 
 from typing import Callable, List
 
-from raydp.mpi.mpi_job import MPIJob, MPIType, IntelMPIJob, OpenMPIJob, MPIWorkerPeer
+from raydp.mpi.mpi_job import MPIJob, MPIType, IntelMPIJob, OpenMPIJob, MPIJobContext
 
 
 def _get_mpi_type(mpi_type: str) -> MPIType:
@@ -39,6 +39,20 @@ def create_mpi_job(job_name: str,
                    mpi_type: str = "intel_mpi",
                    placement_group=None,
                    placement_group_bundle_indexes: List[int] = None) -> MPIJob:
+    """
+    Create a MPI Job
+    :param job_name: the job name
+    :param world_size: the world size
+    :param num_cpus_per_process: num cpus per process, this used to request resource from Ray
+    :param num_processes_per_node: num processes per node
+    :param mpi_script_prepare_fn: a function used to create mpi script, it will pass in a
+        MPIJobcontext instance. It will use the default script if not provides.
+    :param timeout: the timeout used to wait for job creation
+    :param mpi_type: the mpi type, now only support openmpi and intel_mpi
+    :param placement_group: the placement_group for request mpi resources
+    :param placement_group_bundle_indexes: this should be equal with
+        world_size / num_processes_per_node if provides.
+    """
     mpi_type = _get_mpi_type(mpi_type)
     if mpi_type == MPIType.OPEN_MPI:
         return OpenMPIJob(mpi_type=MPIType.OPEN_MPI,
@@ -62,3 +76,6 @@ def create_mpi_job(job_name: str,
                            placement_group_bundle_indexes=placement_group_bundle_indexes)
     else:
         raise Exception(f"MPI type: {mpi_type} not supported now")
+
+
+__all__ = ["create_mpi_job", "MPIJobContext"]
