@@ -16,6 +16,5 @@
 #
 
 from .estimator import TorchEstimator
-from .torch_ml_dataset import create_data_loader
 
-__all__ = ["create_data_loader", "TorchEstimator"]
+__all__ = ["TorchEstimator"]

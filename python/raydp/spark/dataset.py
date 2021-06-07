@@ -359,11 +359,11 @@ class RayMLDataset:
             ds: MLDataset,
             world_size: int,
             world_rank: int,
-            local_rank: int,
             batch_size: int,
             collate_fn: Callable,
-            shuffle: bool,
+            shuffle: bool = False,
             shuffle_seed: int = None,
+            local_rank: int = -1,
             prefer_node: str = None,
             prefetch: bool = False):
         """
@@ -371,11 +371,12 @@ class RayMLDataset:
         :param ds: the MLDataset
         :param world_size: the world_size of distributed model training
         :param world_rank: create the DataLoader for the given world_rank
-        :param local_rank: the node local rank
         :param batch_size: the batch_size of the DtaLoader
         :param collate_fn: the collate_fn that create tensors from a pandas DataFrame
         :param shuffle: whether shuffle each batch of data
         :param shuffle_seed: the shuffle seed
+        :param local_rank: the node local rank. It must be provided if prefer_node is
+               not None.
         :param prefer_node: the prefer node for create the MLDataset actor
         :param prefetch: prefetch the data of DataLoader with one thread
         :return: a pytorch DataLoader
@@ -392,6 +393,8 @@ class RayMLDataset:
 
         selected_ds = None
         if prefer_node is not None:
+            assert 0 <= local_rank < world_size
+
             # get all actors
             # there should be only one actor_set because of select_shards() is not allowed
             # after union()
