@@ -28,6 +28,7 @@ import io.ray.api.{ActorHandle, Ray}
 
 import org.apache.spark.{RayDPException, SparkConf, SparkContext}
 import org.apache.spark.deploy.raydp._
+import org.apache.spark.deploy.security.HadoopDelegationTokenManager
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.launcher.{LauncherBackend, SparkAppHandle}
 import org.apache.spark.resource.{ResourceRequirement, ResourceUtils}
@@ -89,6 +90,10 @@ class RayCoarseGrainedSchedulerBackend(
       case e: java.net.URISyntaxException =>
         throw new RayDPException("Invalid Ray Master URL: " + sparkUrl, e)
     }
+  }
+
+  override def createTokenManager(): Option[HadoopDelegationTokenManager] = {
+    Some(new HadoopDelegationTokenManager(sc.conf, sc.hadoopConfiguration, driverEndpoint))
   }
 
   override def start(): Unit = {
