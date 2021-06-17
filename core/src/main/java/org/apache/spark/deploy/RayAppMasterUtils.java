@@ -22,8 +22,8 @@ import io.ray.api.Ray;
 
 public class RayAppMasterUtils {
   public static ActorHandle<RayAppMaster> createAppMaster(
-      String cp, String jvmOptions) {
-    return Ray.actor(RayAppMaster::new, cp).setJvmOptions(jvmOptions).remote();
+      String jvmOptions) {
+    return Ray.actor(RayAppMaster::new).setJvmOptions(jvmOptions).remote();
   }
 
   public static String getMasterUrl(

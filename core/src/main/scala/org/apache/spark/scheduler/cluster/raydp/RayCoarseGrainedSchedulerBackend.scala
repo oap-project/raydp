@@ -68,7 +68,7 @@ class RayCoarseGrainedSchedulerBackend(
         Ray.init()
         val cp = sys.props("java.class.path")
         val options = RayExternalShuffleService.getShuffleConf(conf)
-        masterHandle = RayAppMasterUtils.createAppMaster(cp, options)
+        masterHandle = RayAppMasterUtils.createAppMaster(options)
         uri = new URI(RayAppMasterUtils.getMasterUrl(masterHandle))
       } else {
         uri = new URI(sparkUrl)

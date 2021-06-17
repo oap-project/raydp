@@ -30,19 +30,14 @@ import glob
 import pyspark
 import ray
 import ray.services
-from py4j.java_gateway import JavaGateway, GatewayParameters
 
 from raydp.services import ClusterMaster
-
-RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
 
 logger = logging.getLogger(__name__)
 
 
 class RayClusterMaster(ClusterMaster):
     def __init__(self, configs):
-        self._gateway = None
-        self._app_master_java_bridge = None
         self._host = None
         self._started_up = False
         self._configs = configs
@@ -51,18 +46,21 @@ class RayClusterMaster(ClusterMaster):
         if self._started_up:
             logger.warning("The RayClusterMaster has started already. Do not call it twice")
             return
-        extra_classpath = os.pathsep.join(self._prepare_jvm_classpath())
-        self._gateway = self._launch_gateway(extra_classpath, popen_kwargs)
-        self._app_master_java_bridge = self._gateway.entry_point.getAppMasterBridge()
-        self._set_properties()
-        self._host = ray._private.services.get_node_ip_address()
-        self._create_app_master(extra_classpath)
+        appMasterCls = ray.java_actor_class("org.apache.spark.deploy.raydp.RayAppMaster")
+        self._instance = appMasterCls.remote()
+        self._master_url = ray.get(self._instance.getMasterUrl.remote())
+        # extra_classpath = os.pathsep.join(self._prepare_jvm_classpath())
+        # self._gateway = self._launch_gateway(extra_classpath, popen_kwargs)
+        # self._app_master_java_bridge = self._gateway.entry_point.getAppMasterBridge()
+        # self._set_properties()
+        # self._host = ray._private.services.get_node_ip_address()
+        # self._create_app_master(extra_classpath)
         self._started_up = True
 
     def _prepare_jvm_classpath(self):
         cp_list = []
         # find RayDP core path
-        cp_list.append(RAYDP_CP)
+        # cp_list.append(RAYDP_CP)
         # find ray jar path
         ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
         cp_list.append(ray_cp)
@@ -170,19 +168,19 @@ class RayClusterMaster(ClusterMaster):
 
     def get_master_url(self):
         assert self._started_up
-        return self._app_master_java_bridge.getMasterUrl()
+        return self._master_url
 
     def stop(self):
         if not self._started_up:
             return
 
-        if self._app_master_java_bridge is not None:
-            self._app_master_java_bridge.stop()
-            self._app_master_java_bridge = None
+        # if self._app_master_java_bridge is not None:
+        #     self._app_master_java_bridge.stop()
+        #     self._app_master_java_bridge = None
 
-        if self._gateway is not None:
-            self._gateway.shutdown()
-            self._gateway.proc.terminate()
-            self._gateway = None
+        # if self._gateway is not None:
+        #     self._gateway.shutdown()
+        #     self._gateway.proc.terminate()
+        #     self._gateway = None
 
         self._started_up = False

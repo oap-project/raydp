@@ -35,22 +35,14 @@ import org.apache.spark.rpc._
 import org.apache.spark.util.ShutdownHookManager
 import org.apache.spark.util.Utils
 
-class RayAppMaster(host: String,
-                   port: Int,
-                   actor_extra_classpath: String) extends Serializable with Logging {
+class RayAppMaster() extends Serializable with Logging {
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
   private val conf: SparkConf = new SparkConf()
 
+  private val host: String = RayConfig.create().nodeIp
+  private val actor_extra_classpath: String = ""
   init()
-
-  def this() = {
-    this(RayConfig.create().nodeIp, 0, "")
-  }
-
-  def this(actor_extra_classpath: String) = {
-    this(RayConfig.create().nodeIp, 0, actor_extra_classpath)
-  }
 
   def init(): Unit = {
     Utils.loadDefaultSparkProperties(conf)
@@ -59,7 +51,7 @@ class RayAppMaster(host: String,
       RayAppMaster.ENV_NAME,
       host,
       host,
-      port,
+      0,
       conf,
       securityMgr,
       numUsableCores = 0,
