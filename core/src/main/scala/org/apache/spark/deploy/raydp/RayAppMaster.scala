@@ -219,12 +219,11 @@ class RayAppMaster(host: String,
       val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
       val memory = appInfo.desc.memoryPerExecutorMB
       val executorId = s"${appInfo.getNextExecutorId()}"
-      val javaOpts = appInfo.desc.command.javaOpts.mkString(" ")
       val handler = RayExecutorUtils.createExecutorActor(
         executorId, getAppMasterEndpointUrl(), cores,
         memory,
         appInfo.desc.resourceReqsPerExecutor.map(pair => (pair._1, Double.box(pair._2))).asJava,
-        javaOpts)
+        appInfo.desc.command.javaOpts)
       appInfo.addPendingRegisterExecutor(executorId, handler, cores, memory)
     }
 

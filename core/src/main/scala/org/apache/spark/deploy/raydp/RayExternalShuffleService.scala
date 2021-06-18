@@ -52,6 +52,6 @@ object RayExternalShuffleService {
       shuffleConf = shuffleConf :+
         "-D" + localDirKey + "=" + conf.get(localDirKey)
     }
-    shuffleConf.mkString(" ")
+    shuffleConf
   }
 }
