@@ -39,7 +39,7 @@ class RayExternalShuffleService() extends Logging {
 }
 
 object RayExternalShuffleService {
-    def getShuffleConf(conf: SparkConf): String = {
+    def getShuffleConf(conf: SparkConf): Array[String] = {
     // all conf needed by external shuffle service
     var shuffleConf = conf.getAll.filter {
       case (k, v) => k.startsWith("spark.shuffle")

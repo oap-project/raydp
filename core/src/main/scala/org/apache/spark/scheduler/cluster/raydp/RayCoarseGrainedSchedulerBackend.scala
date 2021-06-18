@@ -21,6 +21,7 @@ import java.net.URI
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
 
@@ -68,7 +69,7 @@ class RayCoarseGrainedSchedulerBackend(
         Ray.init()
         val cp = sys.props("java.class.path")
         val options = RayExternalShuffleService.getShuffleConf(conf)
-        masterHandle = RayAppMasterUtils.createAppMaster(cp, options)
+        masterHandle = RayAppMasterUtils.createAppMaster(cp, options.toBuffer.asJava)
         uri = new URI(RayAppMasterUtils.getMasterUrl(masterHandle))
       } else {
         uri = new URI(sparkUrl)

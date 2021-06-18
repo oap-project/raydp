@@ -135,7 +135,7 @@ class RayAppMaster(host: String,
             if (!nodesWithShuffleService.contains(executorIp)) {
               logInfo(s"Starting shuffle service on ${executorIp}")
               val service = ExternalShuffleServiceUtils.createShuffleService(
-                executorIp, shuffleServiceOptions)
+                executorIp, shuffleServiceOptions.toBuffer.asJava)
               ExternalShuffleServiceUtils.startShuffleService(service)
               nodesWithShuffleService(executorIp) = service
             }
@@ -223,7 +223,7 @@ class RayAppMaster(host: String,
         executorId, getAppMasterEndpointUrl(), cores,
         memory,
         appInfo.desc.resourceReqsPerExecutor.map(pair => (pair._1, Double.box(pair._2))).asJava,
-        appInfo.desc.command.javaOpts)
+        seqAsJavaList(appInfo.desc.command.javaOpts))
       appInfo.addPendingRegisterExecutor(executorId, handler, cores, memory)
     }
 

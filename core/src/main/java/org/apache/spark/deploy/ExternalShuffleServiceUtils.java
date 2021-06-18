@@ -17,12 +17,14 @@
 
 package org.apache.spark.deploy.raydp;
 
+import java.util.List;
+
 import io.ray.api.ActorHandle;
 import io.ray.api.Ray;
 
 public class ExternalShuffleServiceUtils {
   public static ActorHandle<RayExternalShuffleService> createShuffleService(
-      String node, String options) {
+      String node, List<String> options) {
     return Ray.actor(RayExternalShuffleService::new)
               .setResource("node:" + node, 0.01)
               .setJvmOptions(options).remote();
