@@ -17,6 +17,6 @@
 
 from .dataset import RayMLDataset
 from .interfaces import SparkEstimatorInterface
-from .ray_cluster import SparkCluster, RAYDP_CP
+from .ray_cluster import SparkCluster
 
-__all__ = ["RayMLDataset", "SparkCluster", "SparkEstimatorInterface", "RAYDP_CP"]
+__all__ = ["RayMLDataset", "SparkCluster", "SparkEstimatorInterface"]

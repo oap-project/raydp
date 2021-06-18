@@ -17,19 +17,23 @@
 
 import atexit
 import math
-import re
+import re, os
 import signal
 from typing import Dict, List, Tuple
 
 import numpy as np
 import psutil
+import pyspark
 
 MEMORY_SIZE_UNITS = {"K": 2**10, "M": 2**20, "G": 2**30, "T": 2**40}
-
+SPARK_CP = os.path.join(os.path.dirname(pyspark.__file__), "jars")
+RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../jars"))
 # we use 4 bytes for block size, this means each block can contain
 # 4294967296 records
 BLOCK_SIZE_BIT = 32
 
+def get_code_search_path() -> List:
+    return [RAYDP_CP, SPARK_CP]
 
 def get_node_address() -> str:
     """

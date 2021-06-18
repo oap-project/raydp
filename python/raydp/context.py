@@ -25,10 +25,8 @@ from ray.job_config import JobConfig
 import pyspark
 from pyspark.sql import SparkSession
 
-from raydp.spark import SparkCluster, RAYDP_CP
-from raydp.utils import parse_memory_size
-
-SPARK_CP = os.path.join(os.path.dirname(pyspark.__file__), "jars/*")
+from raydp.spark import SparkCluster
+from raydp.utils import get_code_search_path, parse_memory_size
 
 class _SparkContext(ContextDecorator):
     """A class used to create the Spark cluster and get the Spark session.
@@ -114,7 +112,7 @@ def init_spark(app_name: str,
 
     if not ray.is_initialized():
         # ray has not initialized, init local
-        ray.init(job_config=JobConfig(java_code_search_path=[RAYDP_CP, SPARK_CP]))
+        ray.init(job_config=JobConfig(java_code_search_path=get_code_search_path()))
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is None:
