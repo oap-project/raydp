@@ -87,11 +87,11 @@ raydp.stop_spark()
 ```
 
 ## Dynamic Executor Allocation
-RayDP will support External Shuffle Serivce in the next release(0.3.0). You can also try it out by installing `raydp-nightly`. To enable it, you can either set `spark.shuffle.service.enabled` to `true` in `$SPARK_HOME/conf/spark-defaults.conf`, or you can provide a config to `raydp.init_spark`, as shown below:
+RayDP now supports External Shuffle Serivce. To enable it, you can either set `spark.shuffle.service.enabled` to `true` in `spark-defaults.conf`, or you can provide a config to `raydp.init_spark`, as shown below:
 ```python
 raydp.init_spark(..., configs={"spark.shuffle.service.enabled": "true"})
 ```
-The user-provided config will overwrite those specified in `spark-defaults.conf`.
+The user-provided config will overwrite those specified in `spark-defaults.conf`. By default Spark will load `spark-defaults.conf` from `$SPARK_HOME/conf`, you can also modify this location by setting `SPARK_CONF_DIR`.
 
 Similarly, you can also enable Dynamic Executor Allocation this way. However, because Ray does not support object ownership tranferring now(1.3.0), you must use Dynamic Executor Allocation with data persistence. You can write the data frame in spark to HDFS as a parquet as shown below:
 ```python

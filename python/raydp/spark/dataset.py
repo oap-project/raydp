@@ -405,10 +405,12 @@ class RayMLDataset:
 
             actors = ds.actor_sets[0].actors
             actor_indexes = [i for i, actor in enumerate(actors) if location_check(actor)]
-            if len(actor_indexes) % multiplier == 0:
+            if len(actor_indexes) % multiplier != 0:
                 selected_ds = None
                 logger.warning(f"We could not find enough shard actor in prefer "
-                               f"node({prefer_node}), fail back to normal select_shards().")
+                               f"node({prefer_node}), fail back to normal select_shards(). "
+                               f"Found: ({actor_indexes}) which length is not multiple of "
+                               f"num_shards({num_shards}) // world_size({world_size}).")
             else:
                 shard_ids = actor_indexes[local_rank: local_rank + multiplier]
                 selected_ds = ds.select_shards(shard_ids)
