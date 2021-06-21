@@ -15,34 +15,34 @@
 # limitations under the License.
 #
 
-import glob
+import glob, os
 from typing import Any, Dict
 
 import ray
 from pyspark.sql.session import SparkSession
 
 from raydp.services import Cluster
-from .ray_cluster_master import RayClusterMaster, RAYDP_CP
+from .ray_cluster_master import RayClusterMaster, RAYDP_JARS
 
 
 class SparkCluster(Cluster):
     def __init__(self, configs):
         super().__init__(None)
-        self._app_master_bridge = None
+        self._app_master = None
         self._configs = configs
         self._set_up_master(None, None)
         self._spark_session: SparkSession = None
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[Any, Any]):
         # TODO: specify the app master resource
-        self._app_master_bridge = RayClusterMaster(self._configs)
-        self._app_master_bridge.start_up()
+        self._app_master = RayClusterMaster(self._configs)
+        self._app_master.start_up()
 
     def _set_up_worker(self, resources: Dict[str, float], kwargs: Dict[str, str]):
         raise Exception("Unsupported operation")
 
     def get_cluster_url(self) -> str:
-        return self._app_master_bridge.get_master_url()
+        return self._app_master.get_master_url()
 
     def get_spark_session(self,
                           app_name: str,
@@ -58,19 +58,19 @@ class SparkCluster(Cluster):
         extra_conf["spark.executor.instances"] = str(num_executors)
         extra_conf["spark.executor.cores"] = str(executor_cores)
         extra_conf["spark.executor.memory"] = str(executor_memory)
-        driver_node_ip = ray.services.get_node_ip_address()
+        driver_node_ip = ray.util.get_node_ip_address()
         extra_conf["spark.driver.host"] = str(driver_node_ip)
         extra_conf["spark.driver.bindAddress"] = str(driver_node_ip)
         try:
             extra_jars = [extra_conf["spark.jars"]]
         except KeyError:
             extra_jars = []
-        extra_conf["spark.jars"] = ",".join(glob.glob(RAYDP_CP) + extra_jars)
+        extra_conf["spark.jars"] = ",".join(glob.glob(RAYDP_JARS) + extra_jars)
         driver_cp = "spark.driver.extraClassPath"
         if driver_cp in extra_conf:
-            extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP)) + ":" + extra_conf[driver_cp]
+            extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_JARS)) + ":" + extra_conf[driver_cp]
         else:
-            extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP))
+            extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_JARS))
         spark_builder = SparkSession.builder
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
@@ -83,6 +83,6 @@ class SparkCluster(Cluster):
             self._spark_session.stop()
             self._spark_session = None
 
-        if self._app_master_bridge is not None:
-            self._app_master_bridge.stop()
-            self._app_master_bridge = None
+        if self._app_master is not None:
+            self._app_master.stop()
+            self._app_master = None

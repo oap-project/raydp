@@ -16,7 +16,7 @@
 #
 
 from raydp.context import init_spark, stop_spark
-
+from raydp.utils import get_code_search_path
 __version__ = "0.4.0.dev0"
 
-__all__ = ["init_spark", "stop_spark"]
+__all__ = ["init_spark", "stop_spark", "get_code_search_path"]

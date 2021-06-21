@@ -15,17 +15,18 @@
 # limitations under the License.
 #
 
-import atexit
+import atexit, os
 from contextlib import ContextDecorator
 from threading import RLock
 from typing import Dict, Union, Optional
 
 import ray
+from ray.job_config import JobConfig
+import pyspark
 from pyspark.sql import SparkSession
 
 from raydp.spark import SparkCluster
-from raydp.utils import parse_memory_size
-
+from raydp.utils import get_code_search_path, parse_memory_size
 
 class _SparkContext(ContextDecorator):
     """A class used to create the Spark cluster and get the Spark session.
@@ -111,8 +112,7 @@ def init_spark(app_name: str,
 
     if not ray.is_initialized():
         # ray has not initialized, init local
-        ray.init()
-
+        ray.init(job_config=JobConfig(java_code_search_path=get_code_search_path()))
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is None:

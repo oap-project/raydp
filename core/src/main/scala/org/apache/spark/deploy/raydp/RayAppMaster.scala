@@ -35,22 +35,15 @@ import org.apache.spark.rpc._
 import org.apache.spark.util.ShutdownHookManager
 import org.apache.spark.util.Utils
 
-class RayAppMaster(host: String,
-                   port: Int,
-                   actor_extra_classpath: String) extends Serializable with Logging {
+class RayAppMaster() extends Serializable with Logging {
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
   private val conf: SparkConf = new SparkConf()
 
+  private val host: String = RayConfig.create().nodeIp
+  private var actorExtraClasspath: String = _
+
   init()
-
-  def this() = {
-    this(RayConfig.create().nodeIp, 0, "")
-  }
-
-  def this(actor_extra_classpath: String) = {
-    this(RayConfig.create().nodeIp, 0, actor_extra_classpath)
-  }
 
   def init(): Unit = {
     Utils.loadDefaultSparkProperties(conf)
@@ -59,13 +52,18 @@ class RayAppMaster(host: String,
       RayAppMaster.ENV_NAME,
       host,
       host,
-      port,
+      0,
       conf,
       securityMgr,
       numUsableCores = 0,
       clientMode = false)
     // register endpoint
     endpoint = rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, new RayAppMasterEndpoint(rpcEnv))
+  }
+
+  def setActorClasspath(cp: String): Int = {
+    actorExtraClasspath = cp
+    0
   }
 
   /**
@@ -84,14 +82,14 @@ class RayAppMaster(host: String,
     url.replace("spark", "ray")
   }
 
-  def stop(): Int = {
+  def stop(): Unit = {
     logInfo("Stopping RayAppMaster")
     if (rpcEnv != null) {
       rpcEnv.shutdown()
       endpoint = null
       rpcEnv = null
     }
-    0
+    Ray.exitActor()
   }
 
   class RayAppMasterEndpoint(override val rpcEnv: RpcEnv)
@@ -244,10 +242,10 @@ class RayAppMaster(host: String,
             s"Found ${javaOpts(i - 1)} while not classpath url in executor java opts")
         }
 
-        javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actor_extra_classpath)
+        javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actorExtraClasspath)
       } else {
         // user has not set, we append the actor extra classpath in the end
-        javaOpts ++ Seq("-cp", actor_extra_classpath)
+        javaOpts ++ Seq("-cp", actorExtraClasspath)
       }
     }
 
