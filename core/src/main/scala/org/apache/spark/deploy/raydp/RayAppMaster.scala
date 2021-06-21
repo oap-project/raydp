@@ -41,7 +41,8 @@ class RayAppMaster() extends Serializable with Logging {
   private val conf: SparkConf = new SparkConf()
 
   private val host: String = RayConfig.create().nodeIp
-  private val actor_extra_classpath: String = ""
+  private var actorExtraClasspath: String = _
+
   init()
 
   def init(): Unit = {
@@ -60,6 +61,11 @@ class RayAppMaster() extends Serializable with Logging {
     endpoint = rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, new RayAppMasterEndpoint(rpcEnv))
   }
 
+  def setActorClasspath(cp: String): Int = {
+    actorExtraClasspath = cp
+    0
+  }
+
   /**
    * Get the app master endpoint URL. The executor will connect to AppMaster by this URL and
    * tell the AppMaster that it has started up successful.
@@ -76,14 +82,14 @@ class RayAppMaster() extends Serializable with Logging {
     url.replace("spark", "ray")
   }
 
-  def stop(): Int = {
+  def stop(): Unit = {
     logInfo("Stopping RayAppMaster")
     if (rpcEnv != null) {
       rpcEnv.shutdown()
       endpoint = null
       rpcEnv = null
     }
-    0
+    Ray.exitActor()
   }
 
   class RayAppMasterEndpoint(override val rpcEnv: RpcEnv)
@@ -236,10 +242,10 @@ class RayAppMaster() extends Serializable with Logging {
             s"Found ${javaOpts(i - 1)} while not classpath url in executor java opts")
         }
 
-        javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actor_extra_classpath)
+        javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actorExtraClasspath)
       } else {
         // user has not set, we append the actor extra classpath in the end
-        javaOpts ++ Seq("-cp", actor_extra_classpath)
+        javaOpts ++ Seq("-cp", actorExtraClasspath)
       }
     }
 

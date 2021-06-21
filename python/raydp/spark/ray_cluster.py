@@ -22,9 +22,8 @@ import ray
 from pyspark.sql.session import SparkSession
 
 from raydp.services import Cluster
-from .ray_cluster_master import RayClusterMaster
+from .ray_cluster_master import RayClusterMaster, RAYDP_JARS
 
-RAYDP_JARS = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
 
 class SparkCluster(Cluster):
     def __init__(self, configs):
@@ -59,7 +58,7 @@ class SparkCluster(Cluster):
         extra_conf["spark.executor.instances"] = str(num_executors)
         extra_conf["spark.executor.cores"] = str(executor_cores)
         extra_conf["spark.executor.memory"] = str(executor_memory)
-        driver_node_ip = ray.services.get_node_ip_address()
+        driver_node_ip = ray.util.get_node_ip_address()
         extra_conf["spark.driver.host"] = str(driver_node_ip)
         extra_conf["spark.driver.bindAddress"] = str(driver_node_ip)
         try:

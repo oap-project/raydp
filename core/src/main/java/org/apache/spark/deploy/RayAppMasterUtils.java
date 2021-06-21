@@ -35,7 +35,6 @@ public class RayAppMasterUtils {
 
   public static void stopAppMaster(
       ActorHandle<RayAppMaster> handle) {
-    handle.task(RayAppMaster::stop).remote().get();
-    handle.kill();
+    handle.task(RayAppMaster::stop).remote();
   }
 }
