@@ -17,12 +17,14 @@
 
 package org.apache.spark.deploy.raydp;
 
+import java.util.List;
+
 import io.ray.api.ActorHandle;
 import io.ray.api.Ray;
 
 public class RayAppMasterUtils {
   public static ActorHandle<RayAppMaster> createAppMaster(
-      String cp, String jvmOptions) {
+      String cp, List<String> jvmOptions) {
     return Ray.actor(RayAppMaster::new, cp).setJvmOptions(jvmOptions).remote();
   }
 
