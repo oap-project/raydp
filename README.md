@@ -28,7 +28,7 @@ pip install dist/raydp*.whl
 
 RayDP provides an API for starting a Spark job on Ray in your python program without a need to setup a Spark cluster manually. RayDP supports Ray as a Spark resource manger and runs Spark executors in Ray actors. RayDP utilizes Ray's in-memory object store to efficiently exchange data between Spark and other Ray libraries. You can use Spark to read the input data, process the data using SQL, Spark DataFrame, or Pandas (via [Koalas](https://github.com/databricks/koalas)) API, extract and transform features using Spark MLLib, and feed the output to deep learning and machine learning frameworks.
 
-###Classic Spark Word Count Example
+### Classic Spark Word Count Example
 
 To start a Spark job on Ray, you can use the `raydp.init_spark` API. After we use RayDP to initialize a Spark cluster, we can use Spark as usual. 
 
@@ -55,7 +55,7 @@ word_count.show()
 raydp.stop_spark()
 ```
 
-###Dynamic Resource Allocation
+### Dynamic Resource Allocation
 
 RayDP now supports External Shuffle Serivce. To enable it, you can either set `spark.shuffle.service.enabled` to `true` in `spark-defaults.conf`, or you can provide a config to `raydp.init_spark`, as shown below:
 
@@ -71,7 +71,7 @@ Similarly, you can also enable Dynamic Executor Allocation this way. However, be
 ds = RayMLDataset.from_spark(..., fs_directory="hdfs://host:port/your/directory")
 ```
 
-###Spark Submit
+### Spark Submit
 
 RayDP provides a substitute for spark-submit in Apache Spark. You can run your java or scala application on RayDP cluster by using `bin/raydp-submit`. You can add it to `PATH` for convenience. When using `raydp-submit`, you should specify number of executors, number of cores and memory each executor by Spark properties, such as `--conf spark.executor.cores=1`, `--conf spark.executor.instances=1` and `--conf spark.executor.memory=500m`. `raydp-submit` only supports Ray cluster. Spark standalone, Apache Mesos, Apache Yarn are not supported, please use traditional `spark-submit` in that case. For the same reason, you do not need to specify `--master` in the command. Besides, RayDP does not support cluster as deploy-mode.
 
@@ -119,6 +119,3 @@ RayDP also provides a simple API to running MPI job on top of Ray. Currently, we
 
 ## More Examples
 Not sure how to use RayDP? Check the `examples` folder. We have added many examples showing how RayDP works together with PyTorch, TensorFlow, XGBoost, Horovod, and so on. If you still cannot find what you want, feel free to post an issue to ask us!
-
-
-

@@ -48,7 +48,7 @@ jobs:
         run: |
           brew install libuv libomp mpich
       - name: Install extra dependencies for Ubuntu
-        if: matrix.os == "ubuntu-latest"
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y mpich
 
