@@ -31,7 +31,7 @@ import ray
 import ray._private.services
 import ray.cloudpickle as cloudpickle
 
-from raydp.mpi import constants
+import raydp.mpi.constants as constants
 from raydp.mpi.network import network_pb2, network_pb2_grpc
 from raydp.mpi.utils import create_insecure_channel, run_cmd, StoppableThread
 
@@ -323,7 +323,7 @@ class MPIJob:
         func_request = network_pb2.Function(func_id=self.func_id, func=cloudpickle.dumps(mpi_func))
         with self.lock:
             self.func_result = FunctionResults(self.func_id, self.world_size)
-        [meta.stub.RunFunction(func_request) for meta in self.workers]
+        send = [meta.stub.RunFunction(func_request) for meta in self.workers]
         self.func_id += 1
         self.func_result.done.wait(None)
         with self.lock:
