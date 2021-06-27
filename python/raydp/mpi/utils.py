@@ -66,25 +66,16 @@ def run_cmd(cmd: str, env, failed_callback):
     check_thread = StoppableThread(target=check_failed)
 
     def redirect_stream(streams):
-        epoll = select.epoll()
-        fileno_mapping = {}
-        for stream in streams:
-            epoll.register(stream, select.EPOLLIN)
-            fileno_mapping[stream.fileno()] = stream
-        try:
-            while not threading.current_thread().stopped():
-                events = epoll.poll(0.5)
-                for fileno, events in events:
-                    stream = fileno_mapping.get(fileno, None)
-                    if not stream:
-                        continue
-                    line = stream.readline()
-                    if not line:
-                        epoll.unregister(fileno)
-                    else:
-                        print(line.decode().strip("\n"))
-        finally:
-            epoll.close()
+        while not threading.current_thread().stopped() and streams:
+            readable, _, _ = select.select(streams, [], [], 0.5)
+            for stream in readable:
+                if not stream:
+                    continue
+                line = stream.readline()
+                if not line:
+                    streams.remove(stream)
+                else:
+                    print(line.decode().strip("\n"))
 
     redirect_thread = StoppableThread(target=redirect_stream, args=([proc.stdout, proc.stderr],))
     check_thread.start()

@@ -18,7 +18,8 @@
 
 from typing import Callable, List
 
-from raydp.mpi.mpi_job import MPIJob, MPIType, IntelMPIJob, OpenMPIJob, MPIJobContext
+from raydp.mpi.mpi_job import MPIJob, MPIType, IntelMPIJob, OpenMPIJob, MPICHJob, MPIJobContext
+from raydp.mpi.mpi_worker import WorkerContext
 
 
 def _get_mpi_type(mpi_type: str) -> MPIType:
@@ -26,6 +27,8 @@ def _get_mpi_type(mpi_type: str) -> MPIType:
         return MPIType.OPEN_MPI
     elif mpi_type.strip().lower() == "intel_mpi":
         return MPIType.INTEL_MPI
+    elif mpi_type.strip().lower() == "mpich":
+        return MPIType.MPICH
     else:
         return None
 
@@ -39,8 +42,8 @@ def create_mpi_job(job_name: str,
                    mpi_type: str = "intel_mpi",
                    placement_group=None,
                    placement_group_bundle_indexes: List[int] = None) -> MPIJob:
-    """
-    Create a MPI Job
+    """Create a MPI Job
+
     :param job_name: the job name
     :param world_size: the world size
     :param num_cpus_per_process: num cpus per process, this used to request resource from Ray
@@ -48,7 +51,7 @@ def create_mpi_job(job_name: str,
     :param mpi_script_prepare_fn: a function used to create mpi script, it will pass in a
         MPIJobcontext instance. It will use the default script if not provides.
     :param timeout: the timeout used to wait for job creation
-    :param mpi_type: the mpi type, now only support openmpi and intel_mpi
+    :param mpi_type: the mpi type, now only support openmpi, intel_mpi and MPICH
     :param placement_group: the placement_group for request mpi resources
     :param placement_group_bundle_indexes: this should be equal with
         world_size / num_processes_per_node if provides.
@@ -74,8 +77,18 @@ def create_mpi_job(job_name: str,
                            timeout=timeout,
                            placement_group=placement_group,
                            placement_group_bundle_indexes=placement_group_bundle_indexes)
+    elif mpi_type == MPIType.MPICH:
+        return MPICHJob(mpi_type=MPIType.MPICH,
+                        job_name=job_name,
+                        world_size=world_size,
+                        num_cpus_per_process=num_cpus_per_process,
+                        num_processes_per_node=num_processes_per_node,
+                        mpi_script_prepare_fn=mpi_script_prepare_fn,
+                        timeout=timeout,
+                        placement_group=placement_group,
+                        placement_group_bundle_indexes=placement_group_bundle_indexes)
     else:
         raise Exception(f"MPI type: {mpi_type} not supported now")
 
 
-__all__ = ["create_mpi_job", "MPIJobContext"]
+__all__ = ["create_mpi_job", "MPIJobContext", "WorkerContext"]

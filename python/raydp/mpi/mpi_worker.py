@@ -35,6 +35,8 @@ def get_rank(mpi_type: MPIType):
                 int(os.environ["OMPI_COMM_WORLD_LOCAL_RANK"]))
     elif mpi_type == MPIType.INTEL_MPI:
         return int(os.environ["PMI_RANK"]), int(os.environ["MPI_LOCALRANKID"])
+    elif mpi_type == MPIType.MPICH:
+        return int(os.environ["PMI_RANK"]), int(os.environ["MPI_LOCALRANKID"])
     else:
         raise Exception(f"Not supported MPI type: {mpi_type}")
 
@@ -188,7 +190,7 @@ class MPIWorker:
         if self.server:
             self.task_thread.stop()
             self.server.stop(None)
-            self.server.wait_for_termination()
+            self.server.wait_for_termination(timeout=1)
             self.server = None
             self.server_port = None
             self.expected_func_id = 0

@@ -28,6 +28,7 @@ from typing import Any, Callable, Dict, List
 
 import grpc
 import ray
+import ray._private.services
 import ray.cloudpickle as cloudpickle
 
 from raydp.mpi import constants
@@ -41,11 +42,12 @@ logger = logging.getLogger(__name__)
 class MPIType(Enum):
     OPEN_MPI = 0
     INTEL_MPI = 1
+    MPICH = 2
 
 
 class MPIWorkerPeer:
     def get_node_ip(self):
-        return ray.services.get_node_ip_address()
+        return ray._private.services.get_node_ip_address()
 
 
 class MPIWorkerMeta:
@@ -190,7 +192,6 @@ class MPIJob:
 
     def _start_peers(self):
         num_nodes = self.world_size // self.num_processes_per_node
-        cpus_per_node = self.num_cpus_per_process * self.num_processes_per_node
         if self.placement_group is not None:
             assert len(self.placement_group_bundle_indexes) == num_nodes,\
                 (f"The length of placement_group_bundle_indexes"
@@ -199,6 +200,7 @@ class MPIJob:
             pg = self.placement_group
             pg_indexes = self.placement_group_bundle_indexes
         else:
+            cpus_per_node = self.num_cpus_per_process * self.num_processes_per_node
             bundles = [{"CPU": cpus_per_node}] * num_nodes
             self.pg = ray.util.placement_group(
                 bundles=bundles, strategy="STRICT_SPREAD", name=f"{self.job_name}_pg")
@@ -226,7 +228,7 @@ class MPIJob:
                                   options=options)
         network_pb2_grpc.add_DriverServiceServicer_to_server(DriverService(self), self.server)
         # start network server
-        self.server_host = ray.services.get_node_ip_address()
+        self.server_host = ray._private.services.get_node_ip_address()
         self.server_port = self.server.add_insecure_port(f"{self.server_host}:0")
         self.server.start()
 
@@ -250,10 +252,10 @@ class MPIJob:
         mpirun_script.append(constants.MPI_MAIN_CLASS_PATH)
 
         # prepare the mpirun env
-        env[constants.MPI_TYPE] = str(self.mpi_type.value)
-        env[constants.MPI_JOB_ID] = self.job_name
-        env[constants.MPI_DRIVER_HOST] = str(self.server_host)
-        env[constants.MPI_DRIVER_PORT] = str(self.server_port)
+        context.add_env(constants.MPI_TYPE, str(self.mpi_type.value))
+        context.add_env(constants.MPI_JOB_ID, self.job_name)
+        context.add_env(constants.MPI_DRIVER_HOST, str(self.server_host))
+        context.add_env(constants.MPI_DRIVER_PORT, str(self.server_port))
 
         # start up the mpirun in separate thread
         script = subprocess.list2cmdline(mpirun_script)
@@ -316,14 +318,14 @@ class MPIJob:
         assert self.started
         return fn(self.workers)
 
-    def run(self, mpi_func: Callable, timeout=None) -> Any:
+    def run(self, mpi_func: Callable) -> Any:
         assert self.started
         func_request = network_pb2.Function(func_id=self.func_id, func=cloudpickle.dumps(mpi_func))
         with self.lock:
             self.func_result = FunctionResults(self.func_id, self.world_size)
-        send = [meta.stub.RunFunction(func_request) for meta in self.workers]
+        [meta.stub.RunFunction(func_request) for meta in self.workers]
         self.func_id += 1
-        self.func_result.done.wait(timeout)
+        self.func_result.done.wait(None)
         with self.lock:
             if self.func_result:
                 results = self.func_result.results
@@ -356,11 +358,15 @@ class MPIJob:
             self.mpirun_forward_thread.stop()
             self.mpirun_forward_thread = None
         if (self.mpirun_check_thread is not None
-            and threading.current_thread().ident != self.mpirun_check_thread.ident):
+                and threading.current_thread().ident != self.mpirun_check_thread.ident):
             self.mpirun_check_thread.join(1)
             if self.mpirun_check_thread.is_alive():
-                # kill the mpirun process
-                os.killpg(os.getpgid(self.mpirun_proc.pid), signal.SIGTERM)
+                try:
+                    # kill the mpirun process
+                    os.killpg(os.getpgid(self.mpirun_proc.pid), signal.SIGTERM)
+                except ProcessLookupError:
+                    # the process has been exited.
+                    pass
                 self.mpirun_check_thread.stop()
                 self.mpirun_check_thread = None
         self.mpirun_proc = None
@@ -391,19 +397,30 @@ class MPIJob:
     def __del__(self):
         self.stop()
 
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+
 
 class OpenMPIJob(MPIJob):
     def get_default_mpirun_script(self, context: MPIJobContext) -> List[str]:
-        default_script = ["mpirun", "--allow-run-as-root", "--tag-output",
-                          "-bind-to", "none", "-map-by", "slot", "-mca",
-                          "pml", "ob1", "-mca", "btl", "^openib", "-H", ",".join(context.hosts),
-                          "-N", f"{context.num_procs_per_node}"]
+        default_script = ["mpirun", "--tag-output", "-H",
+                          ",".join(context.hosts), "-N", f"{context.num_procs_per_node}"]
         return default_script
 
 
 class IntelMPIJob(MPIJob):
     def get_default_mpirun_script(self, context: MPIJobContext) -> List[str]:
-        default_script = ["mpirun", "-bind-to", "none", "-map-by", "slot", "-prepend-rank",
-                          "-hosts", ",".join(context.hosts), "-ppn",
+        default_script = ["mpirun", "-prepend-rank", "-hosts", ",".join(context.hosts), "-ppn",
+                          f"{context.num_procs_per_node}"]
+        return default_script
+
+
+class MPICHJob(MPIJob):
+    def get_default_mpirun_script(self, context: MPIJobContext) -> List[str]:
+        default_script = ["mpirun", "-prepend-rank", "-hosts", ",".join(context.hosts), "-ppn",
                           f"{context.num_procs_per_node}"]
         return default_script
