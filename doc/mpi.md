@@ -1,6 +1,6 @@
 # MPI on Ray
 
-RayDP also provides a simple API to running MPI job on top of Ray. Currently, we support three types of MPI: `intel_mpi`, `openmpi` and `MPICH`.
+RayDP also provides a simple API to running MPI job on top of Ray. Currently, we support three types of MPI: `intel_mpi`, `openmpi` and `MPICH`. To use the following API, make sure you have installed the given type of MPI on each of Ray worker node.
 
 ### API
 
@@ -29,8 +29,6 @@ def create_mpi_job(job_name: str,
         world_size / num_processes_per_node if provides.
     """
 ```
-
-
 
 ### Create a simple MPI Job
 
@@ -98,4 +96,3 @@ job = create_mpi_job(job_name="example",
                      mpi_type="intel_mpi",
                      mpi_script_prepare_fn=script_prepare_fn)
 ```
-
