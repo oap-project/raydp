@@ -49,7 +49,7 @@ def create_mpi_job(job_name: str,
     :param num_cpus_per_process: num cpus per process, this used to request resource from Ray
     :param num_processes_per_node: num processes per node
     :param mpi_script_prepare_fn: a function used to create mpi script, it will pass in a
-        MPIJobcontext instance. It will use the default script if not provides.
+        MPIJobContext instance. It will use the default script if not provides.
     :param timeout: the timeout used to wait for job creation
     :param mpi_type: the mpi type, now only support openmpi, intel_mpi and MPICH
     :param placement_group: the placement_group for request mpi resources

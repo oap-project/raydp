@@ -31,9 +31,9 @@ import ray
 import ray._private.services
 import ray.cloudpickle as cloudpickle
 
-import raydp.mpi.constants as constants
 from raydp.mpi.network import network_pb2, network_pb2_grpc
 from raydp.mpi.utils import create_insecure_channel, run_cmd, StoppableThread
+from . import constants
 
 logger = logging.getLogger(__name__)
 
