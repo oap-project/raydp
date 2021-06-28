@@ -96,7 +96,8 @@ try:
         "psutil",
         "pyarrow >= 0.10",
         "ray == 1.4.0",
-        "pyspark >= 3.0.0, < 3.1.0"
+        "pyspark >= 3.0.0, < 3.1.0",
+        "netifaces"
     ]
 
     _packages = find_packages()
