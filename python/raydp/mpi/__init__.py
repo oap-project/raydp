@@ -18,8 +18,8 @@
 
 from typing import Callable, List
 
-from raydp.mpi.mpi_job import MPIJob, MPIType, IntelMPIJob, OpenMPIJob, MPICHJob, MPIJobContext
-from raydp.mpi.mpi_worker import WorkerContext
+from .mpi_job import MPIJob, MPIType, IntelMPIJob, OpenMPIJob, MPICHJob, MPIJobContext
+from .mpi_worker import WorkerContext
 
 
 def _get_mpi_type(mpi_type: str) -> MPIType:

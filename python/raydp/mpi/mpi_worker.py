@@ -24,10 +24,10 @@ import grpc
 import ray
 import ray.cloudpickle as cloudpickle
 
+from raydp.mpi import constants
 from raydp.mpi.mpi_job import MPIType
 from raydp.mpi.network import network_pb2, network_pb2_grpc
 from raydp.mpi.utils import create_insecure_channel, get_environ_value, get_node_ip_address, StoppableThread
-from . import constants
 
 
 def get_rank(mpi_type: MPIType):
