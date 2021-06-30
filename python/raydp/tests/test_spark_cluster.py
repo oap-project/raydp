@@ -19,6 +19,7 @@ import sys
 
 import pytest
 import ray
+import ray._private.services
 
 import raydp
 
@@ -53,7 +54,7 @@ def test_spark_remote(ray_cluster):
 
 def test_spark_driver_and_executor_hostname(spark_on_ray_small):
     conf = spark_on_ray_small.conf
-    node_ip_address = ray.services.get_node_ip_address()
+    node_ip_address = ray._private.services.get_node_ip_address()
 
     driver_host_name = conf.get("spark.driver.host")
     assert node_ip_address == driver_host_name
