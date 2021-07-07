@@ -23,10 +23,14 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pyspark.sql as sql
 import ray
+from ray.experimental.data.impl.block import BlockMetadata
+from ray.experimental.data.impl.block_list import BlockList
 import ray.util.data as ml_dataset
 import ray.util.iter as parallel_it
 from ray.util.data import MLDataset
 from ray.util.data.interface import _SourceShard
+from ray.experimental.data.impl.arrow_block import ArrowBlock
+from ray.experimental.data.dataset import Dataset
 
 from raydp.spark.parallel_iterator_worker import ParallelIteratorWorkerWithLen
 from raydp.utils import divide_blocks
@@ -449,3 +453,27 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
                                  node_hints: List[str] = None) -> MLDataset:
     return RayMLDataset.from_spark(
         df, num_shards, shuffle, shuffle_seed, fs_directory, compression, node_hints)
+
+@ray.remote(num_returns=2)
+def make_arrow_block(data_ref: ray.ObjectRef):
+    data = ray.get(data_ref)
+    reader = pa.ipc.open_stream(data)
+    table = reader.read_all()
+    return ArrowBlock(table), table.schema
+
+def create_ray_dataset_from_spark(df: sql.DataFrame):
+    # call java function from python
+    jvm = df.sql_ctx.sparkSession.sparkContext._jvm
+    jdf = df._jdf
+    object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
+    records = object_store_writer.save()
+    blocks = []
+    block_metadatas = []
+    for record in records:
+        ref = ray.ObjectRef(record.objectId())
+        block, schema = make_arrow_block.remote(ref)
+        blocks.append(block)
+        num_records = record.numRecords()
+        block_metadatas.append(BlockMetadata(num_records, None, ray.get(schema)))
+    block_list = BlockList(blocks, block_metadatas)
+    return Dataset(block_list)
