@@ -90,14 +90,14 @@ try:
     copy2(SCRIPT_PATH, SCRIPT_TARGET)
 
     install_requires = [
-        "numpy",
-        "typing",
-        "pandas == 1.1.4",
-        "psutil",
-        "pyarrow >= 0.10",
-        "ray == 1.4.0",
-        "pyspark >= 3.0.0, < 3.1.0",
-        "netifaces"
+        "numpy < 2.0.0",
+        "typing < 4.0.0",
+        "pandas >= 1.1.4, < 2.0.0",
+        "psutil < 6.0.0",
+        "pyarrow >= 0.10, < 5.0.0",
+        "ray >= 1.4.0, < 2.0.0",
+        "pyspark >= 3.0.0, < 4.0.0",
+        "netifaces < 1.0.0"
     ]
 
     _packages = find_packages()
