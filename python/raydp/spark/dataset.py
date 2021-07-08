@@ -462,15 +462,19 @@ def make_arrow_block(data_ref: ray.ObjectRef):
     return ArrowBlock(table), table.schema
 
 def create_ray_dataset_from_spark(df: sql.DataFrame):
-    # call java function from python
     jvm = df.sql_ctx.sparkSession.sparkContext._jvm
     jdf = df._jdf
     object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
     records = object_store_writer.save()
     blocks = []
     block_metadatas = []
+    worker = ray.worker.global_worker
     for record in records:
         ref = ray.ObjectRef(record.objectId())
+        # Register the ownership of the ObjectRef
+        # This should be removed after ownership transfer is implemented
+        worker.core_worker.deserialize_and_register_object_ref(
+            ref.binary(), ray.ObjectRef.nil(), record.ownerAddress())
         block, schema = make_arrow_block.remote(ref)
         blocks.append(block)
         num_records = record.numRecords()
