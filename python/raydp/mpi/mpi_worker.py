@@ -24,7 +24,8 @@ import grpc
 import ray
 import ray.cloudpickle as cloudpickle
 
-from raydp.mpi import constants, MPIType
+from raydp.mpi import constants
+from raydp.mpi.mpi_job import MPIType
 from raydp.mpi.network import network_pb2, network_pb2_grpc
 from raydp.mpi.utils import create_insecure_channel, get_environ_value, get_node_ip_address, StoppableThread
 
@@ -34,6 +35,8 @@ def get_rank(mpi_type: MPIType):
         return (int(os.environ["OMPI_COMM_WORLD_RANK"]),
                 int(os.environ["OMPI_COMM_WORLD_LOCAL_RANK"]))
     elif mpi_type == MPIType.INTEL_MPI:
+        return int(os.environ["PMI_RANK"]), int(os.environ["MPI_LOCALRANKID"])
+    elif mpi_type == MPIType.MPICH:
         return int(os.environ["PMI_RANK"]), int(os.environ["MPI_LOCALRANKID"])
     else:
         raise Exception(f"Not supported MPI type: {mpi_type}")
@@ -188,7 +191,7 @@ class MPIWorker:
         if self.server:
             self.task_thread.stop()
             self.server.stop(None)
-            self.server.wait_for_termination()
+            self.server.wait_for_termination(timeout=1)
             self.server = None
             self.server_port = None
             self.expected_func_id = 0

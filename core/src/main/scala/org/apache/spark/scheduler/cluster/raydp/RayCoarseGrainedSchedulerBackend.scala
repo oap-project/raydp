@@ -21,6 +21,7 @@ import java.net.URI
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
 
@@ -28,6 +29,7 @@ import io.ray.api.{ActorHandle, Ray}
 
 import org.apache.spark.{RayDPException, SparkConf, SparkContext}
 import org.apache.spark.deploy.raydp._
+import org.apache.spark.deploy.security.HadoopDelegationTokenManager
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.launcher.{LauncherBackend, SparkAppHandle}
 import org.apache.spark.resource.{ResourceRequirement, ResourceUtils, ResourceProfile}
@@ -67,7 +69,7 @@ class RayCoarseGrainedSchedulerBackend(
         Ray.init()
         val cp = sys.props("java.class.path")
         val options = RayExternalShuffleService.getShuffleConf(conf)
-        masterHandle = RayAppMasterUtils.createAppMaster(cp, options)
+        masterHandle = RayAppMasterUtils.createAppMaster(cp, options.toBuffer.asJava)
         uri = new URI(RayAppMasterUtils.getMasterUrl(masterHandle))
       } else {
         uri = new URI(sparkUrl)
@@ -89,6 +91,10 @@ class RayCoarseGrainedSchedulerBackend(
       case e: java.net.URISyntaxException =>
         throw new RayDPException("Invalid Ray Master URL: " + sparkUrl, e)
     }
+  }
+
+  override def createTokenManager(): Option[HadoopDelegationTokenManager] = {
+    Some(new HadoopDelegationTokenManager(sc.conf, sc.hadoopConfiguration, driverEndpoint))
   }
 
   override def start(): Unit = {

@@ -46,7 +46,12 @@ jobs:
       - name: Install extra dependencies for macOS
         if: matrix.os == 'macos-latest'
         run: |
-          brew install libuv libomp
+          brew install libuv libomp mpich
+      - name: Install extra dependencies for Ubuntu
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install -y mpich
+
       - name: Cache pip - Ubuntu
         if: matrix.os == 'ubuntu-latest'
         uses: actions/cache@v2
@@ -69,7 +74,7 @@ jobs:
           else
             pip install torch
           fi
-          pip install pytest koalas tensorflow tabulate ray[tune] xgboost_ray grpcio-tools
+          pip install pytest koalas tensorflow tabulate ray[tune]==1.4.0 xgboost_ray grpcio-tools
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
           pip install horovod[pytorch,ray]
@@ -86,7 +91,7 @@ jobs:
           pip install dist/raydp-*.whl
       - name: Lint
         run: |
-          pip install pylint
+          pip install pylint==2.8.3
           pylint --rcfile=python/pylintrc python/raydp
       - name: Test with pytest
         run: |
