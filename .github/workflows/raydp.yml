@@ -68,13 +68,26 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install wheel
+          # install ray-nightly
+          SUBVERSION=$(python -c 'import sys; print(sys.version_info[1])')
+          case $SUBVERSION in
+            6)
+              pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp36-cp36m-manylinux2014_x86_64.whl
+              ;;
+            7)
+              pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
+              ;;
+            8)
+              pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp38-cp38-manylinux2014_x86_64.whl
+              ;;
+          esac
           if [ "$(uname -s)" == "Linux" ]
           then
             pip install torch==1.8.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
           else
             pip install torch
           fi
-          pip install pytest koalas tensorflow tabulate ray[tune]==1.4.0 xgboost_ray grpcio-tools
+          pip install pytest koalas tensorflow tabulate xgboost_ray grpcio-tools
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
           pip install horovod[pytorch,ray]
