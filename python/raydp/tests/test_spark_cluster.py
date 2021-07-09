@@ -61,6 +61,12 @@ def test_spark_driver_and_executor_hostname(spark_on_ray_small):
     driver_bind_address = conf.get("spark.driver.bindAddress")
     assert node_ip_address == driver_bind_address
 
+def test_ray_dataset_from_and_to_spark(spark_on_ray_small):
+    spark = spark_on_ray_small
+    words_df = spark.createDataFrame([('look',), ('spark',), ('tutorial',), ('spark',), ('look', ), ('python', )], ['word'])
+    ds = raydp.spark.dataset.create_ray_dataset_from_spark(words_df)
+    df = raydp.spark.dataset.create_spark_dataframe_from_ray(spark, ds)
+    assert words_df.toPandas().equals(df.toPandas())
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))
