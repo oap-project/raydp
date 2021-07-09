@@ -23,7 +23,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pyspark
 import pyspark.sql as sql
-from pyspark.sql.types import *
+from pyspark.sql.types import StructField, StructType, BinaryType
 import ray
 from ray.experimental.data.impl.block import BlockMetadata
 from ray.experimental.data.impl.block_list import BlockList
