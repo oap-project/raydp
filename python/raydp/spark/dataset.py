@@ -504,5 +504,4 @@ def create_spark_dataframe_from_ray(spark: pyspark.sql.SparkSession, ds: Dataset
     blocks_df = spark.createDataFrame(ref_list, schema)
     # assume same schema
     schema = ds._blocks._metadata[0].schema
-    print(schema.pandas_metadata)
     return blocks_df.mapInPandas(_convert_blocks_to_dataframe, schema.to_string())
