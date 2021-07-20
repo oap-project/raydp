@@ -19,9 +19,9 @@ name: RayDP CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ master ]
+    branches: [ main, master ]
 
 jobs:
   build-and-test:
@@ -29,6 +29,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
+        pyspark-version: [3.0.0, 3.1.2]
         python-version: [3.6, 3.7, 3.8]
 
     runs-on: ${{ matrix.os }}
@@ -51,7 +52,6 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y mpich
-
       - name: Cache pip - Ubuntu
         if: matrix.os == 'ubuntu-latest'
         uses: actions/cache@v2
@@ -87,6 +87,7 @@ jobs:
         env:
           GITHUB_CI: 1
         run: |
+          pip install pyspark==${{ matrix.pyspark-version }}
           ./build.sh
           pip install dist/raydp-*.whl
       - name: Lint
