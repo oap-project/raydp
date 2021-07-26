@@ -25,14 +25,12 @@ import pyspark
 import pyspark.sql as sql
 from pyspark.sql.types import StructField, StructType, BinaryType
 import ray
-from ray.experimental.data.impl.block import BlockMetadata
-from ray.experimental.data.impl.block_list import BlockList
+from ray.experimental.data import from_arrow
+from ray.experimental.data.dataset import Dataset
 import ray.util.data as ml_dataset
 import ray.util.iter as parallel_it
 from ray.util.data import MLDataset
 from ray.util.data.interface import _SourceShard
-from ray.experimental.data.impl.arrow_block import ArrowBlock
-from ray.experimental.data.dataset import Dataset
 
 from raydp.spark.parallel_iterator_worker import ParallelIteratorWorkerWithLen
 from raydp.utils import divide_blocks
@@ -456,52 +454,28 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
     return RayMLDataset.from_spark(
         df, num_shards, shuffle, shuffle_seed, fs_directory, compression, node_hints)
 
-@ray.remote(num_returns=2)
-def make_arrow_block(data):
-    reader = pa.ipc.open_stream(data)
-    table = reader.read_all()
-    return ArrowBlock(table), table.schema
-
 def create_ray_dataset_from_spark(df: sql.DataFrame):
-    jvm = df.sql_ctx.sparkSession.sparkContext._jvm
-    jdf = df._jdf
-    object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
-    records = object_store_writer.save()
-    blocks = []
-    block_metadatas = []
-    worker = ray.worker.global_worker
-    for record in records:
-        ref = ray.ObjectRef(record.objectId())
-        # Register the ownership of the ObjectRef
-        # we should be able to remove this after ownership transfer is implemented?
-        worker.core_worker.deserialize_and_register_object_ref(
-            ref.binary(), ray.ObjectRef.nil(), record.ownerAddress(), "")
-        block, schema = make_arrow_block.remote(ref)
-        blocks.append(block)
-        num_records = record.numRecords()
-        block_metadatas.append(BlockMetadata(num_rows=num_records,
-                                             size_bytes=None,
-                                             schema=ray.get(schema),
-                                             input_files=None))
-    block_list = BlockList(blocks, block_metadatas)
-    return Dataset(block_list)
+    blocks, _ = _save_spark_df_to_object_store(df)
+    return from_arrow(blocks)
 
 def _convert_blocks_to_dataframe(blocks):
     # connect to ray
     if not ray.is_initialized():
-        ray.client().connect()
+        # raise log level to avoid filling log with this
+        ray.init(address='auto', logging_level=logging.WARN)
     for block in blocks:
         dfs = []
         for b in block["ref"]:
             ref = ray.cloudpickle.loads(b)
             data = ray.get(ref)
-            dfs.append(data.to_pandas())
+            s = pa.ipc.open_stream(data)
+            dfs.append(s.read_all().to_pandas())
         yield pd.concat(dfs)
 
-def create_spark_dataframe_from_ray(spark: pyspark.sql.SparkSession, ds: Dataset):
+def create_spark_dataframe_from_ray(spark: sql.SparkSession, ds: Dataset):
     schema = StructType([StructField("ref", BinaryType(), False)])
     ref_list = [(ray.cloudpickle.dumps(block),) for block in ds._blocks._blocks]
     blocks_df = spark.createDataFrame(ref_list, schema)
     # assume same schema
-    schema = ds._blocks._metadata[0].schema
-    return blocks_df.mapInPandas(_convert_blocks_to_dataframe, schema.to_string())
+    schema = ds._blocks._metadata[0].schema.to_string()
+    return blocks_df.mapInPandas(_convert_blocks_to_dataframe, schema)
