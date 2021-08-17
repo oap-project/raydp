@@ -21,12 +21,14 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-import pyspark
 import pyspark.sql as sql
+from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import StructField, StructType, BinaryType
+from pyspark.sql.pandas.types import from_arrow_type
 import ray
 from ray.experimental.data import from_arrow
 from ray.experimental.data.dataset import Dataset
+from ray.types import ObjectRef
 import ray.util.data as ml_dataset
 import ray.util.iter as parallel_it
 from ray.util.data import MLDataset
@@ -454,7 +456,7 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
     return RayMLDataset.from_spark(
         df, num_shards, shuffle, shuffle_seed, fs_directory, compression, node_hints)
 
-def create_ray_dataset_from_spark(df: sql.DataFrame):
+def spark_dataframe_to_ray_dataset(df: sql.DataFrame):
     blocks, _ = _save_spark_df_to_object_store(df)
     return from_arrow(blocks)
 
@@ -462,20 +464,50 @@ def _convert_blocks_to_dataframe(blocks):
     # connect to ray
     if not ray.is_initialized():
         # raise log level to avoid filling log with this
-        ray.init(address='auto', logging_level=logging.WARN)
+        ray.init(address="auto", logging_level=logging.WARN)
     for block in blocks:
         dfs = []
         for b in block["ref"]:
             ref = ray.cloudpickle.loads(b)
             data = ray.get(ref)
-            s = pa.ipc.open_stream(data)
-            dfs.append(s.read_all().to_pandas())
+            dfs.append(data.to_pandas())
         yield pd.concat(dfs)
 
-def create_spark_dataframe_from_ray(spark: sql.SparkSession, ds: Dataset):
-    schema = StructType([StructField("ref", BinaryType(), False)])
-    ref_list = [(ray.cloudpickle.dumps(block),) for block in ds._blocks._blocks]
+def _convert_by_udf(spark: sql.SparkSession,
+                    blocks: List[ObjectRef],
+                    schema: StructType) -> DataFrame:
+    s = StructType([StructField("ref", BinaryType(), False)])
+    ref_list = [(ray.cloudpickle.dumps(block),) for block in blocks]
     blocks_df = spark.createDataFrame(ref_list, schema)
-    # assume same schema
-    schema = ds._blocks._metadata[0].schema.to_string()
     return blocks_df.mapInPandas(_convert_blocks_to_dataframe, schema)
+
+def _convert_by_rdd(spark: sql.SparkSession, blocks: Dataset, schema: StructType) -> DataFrame:
+    object_ids = []
+    locations = []
+    for block in blocks:
+        # address is needed for locality
+        locations.append(ray.worker.global_worker.core_worker.get_owner_address(block))
+        object_ids.append(block.binary())
+    schema_str = schema.json()
+    jvm = spark.sparkContext._jvm
+    # create rdd in java
+    rdd = jvm.org.apache.spark.rdd.RayDatasetRDD(spark._jsc, object_ids, locations)
+    # convert the rdd to dataframe
+    object_store_reader = jvm.org.apache.spark.sql.raydp.ObjectStoreReader
+    jdf = object_store_reader.RayDatasetToDataFrame(spark._jsparkSession, rdd, schema_str)
+    return DataFrame(jdf, spark._wrapped)
+
+def ray_dataset_to_spark_dataframe(spark: sql.SparkSession, ds: Dataset) -> DataFrame:
+    blocks = ds.get_blocks()
+    # assume same schema
+    schema = StructType()
+    for field in ds._blocks._metadata[0].schema:
+        schema.add(field.name, from_arrow_type(field.type), nullable=field.nullable)
+    #TODO how to branch on type of block?
+    sample = ray.get(blocks[0])
+    if isinstance(sample, bytes):
+        return _convert_by_rdd(spark, blocks, schema)
+    elif isinstance(sample, pa.Table):
+        return _convert_by_udf(spark, blocks, schema)
+    else:
+        raise Exception("ray.to_spark only supports arrow type blocks")
