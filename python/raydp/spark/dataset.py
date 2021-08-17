@@ -26,8 +26,8 @@ from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import StructField, StructType, BinaryType
 from pyspark.sql.pandas.types import from_arrow_type
 import ray
-from ray.experimental.data import from_arrow
-from ray.experimental.data.dataset import Dataset
+from ray.data import from_arrow
+from ray.data import Dataset
 from ray.types import ObjectRef
 import ray.util.data as ml_dataset
 import ray.util.iter as parallel_it
