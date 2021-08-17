@@ -67,7 +67,7 @@ class RayClusterMaster(ClusterMaster):
         cp_list.append(RAY_CP)
         # find pyspark jars path
         spark_home = os.path.dirname(pyspark.__file__)
-        spark_jars_dir = os.path.join(spark_home, "jars/*")
+        spark_jars_dir = os.path.abspath(os.path.join(spark_home, "jars/*"))
         spark_jars = [jar for jar in glob.glob(spark_jars_dir) if "slf4j-log4j" not in jar]
         cp_list.extend(spark_jars)
         return cp_list
