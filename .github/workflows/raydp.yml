@@ -71,35 +71,11 @@ jobs:
           SUBVERSION=$(python -c 'import sys; print(sys.version_info[1])')
           if [ "$(uname -s)" == "Linux" ]
           then
-            # install ray-nightly for linux
-            case $SUBVERSION in
-              6)
-                pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp36-cp36m-manylinux2014_x86_64.whl
-                ;;
-              7)
-                pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl
-                ;;
-              8)
-                pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp38-cp38-manylinux2014_x86_64.whl
-                ;;
-            esac
             pip install torch==1.8.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
           else
-          # install ray-nightly for mac
-          case $SUBVERSION in
-            6)
-              pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp36-cp36m-macosx_10_13_intel.whl
-              ;;
-            7)
-              pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp37-cp37m-macosx_10_13_intel.whl
-              ;;
-            8)
-              pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-2.0.0.dev0-cp38-cp38-macosx_10_13_x86_64.whl
-              ;;
-          esac
             pip install torch
           fi
-          pip install pytest koalas tensorflow tabulate xgboost_ray grpcio-tools
+          pip install pytest koalas tensorflow tabulate xgboost_ray grpcio-tools ray[tune]
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
           pip install horovod[pytorch,ray]
