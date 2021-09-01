@@ -24,32 +24,33 @@ import scala.collection.JavaConverters._
 import io.ray.runtime.generated.Common.Address
 
 import org.apache.spark.{Partition, SparkContext, TaskContext}
-import org.apache.spark.api.java.JavaSparkContext
 import org.apache.spark.raydp.RayDPUtils
-import org.apache.spark.sql.raydp.ObjectStoreReader
+import org.apache.spark.sql.Row
 
-private[spark] class RayDatasetRDDPartition(val ref: Array[Byte], idx: Int) extends Partition {
+private[spark] class RayObjectRefRDDPartition(idx: Int) extends Partition {
   val index = idx
 }
 
 private[spark]
-class RayDatasetRDD(jsc: JavaSparkContext,
-                    @transient val objectIds: List[Array[Byte]],
+class RayObjectRefRDD(sc: SparkContext,
+                    val objectIds: List[Array[Byte]],
                     val locations: List[Array[Byte]])
-  extends RDD[Array[Byte]](jsc.sc, Nil) {
+  extends RDD[Row](sc, Nil) {
+
+  val refs = objectIds.asScala
 
   override def getPartitions: Array[Partition] = {
-    objectIds.asScala.zipWithIndex.map { case (k, i) =>
-      new RayDatasetRDDPartition(k, i).asInstanceOf[Partition]
+    (0 until refs.length).map { i =>
+      new RayObjectRefRDDPartition(i).asInstanceOf[Partition]
     }.toArray
   }
 
-  override def compute(split: Partition, context: TaskContext): Iterator[Array[Byte]] = {
-    val ref = split.asInstanceOf[RayDatasetRDDPartition].ref
-    ObjectStoreReader.getBatchesFromStream(ref, locations.get(split.index))
+  override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
+    (Row(refs(split.index)) :: Nil).iterator
   }
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
     Seq(Address.parseFrom(locations.get(split.index)).getIpAddress())
   }
 }
+

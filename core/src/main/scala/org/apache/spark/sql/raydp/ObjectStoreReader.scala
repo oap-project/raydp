@@ -21,13 +21,23 @@ import java.io.ByteArrayInputStream
 import java.nio.channels.{Channels, ReadableByteChannel}
 import java.util.List
 
-import org.apache.spark.api.java.JavaRDD
+import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.raydp.RayDPUtils
-import org.apache.spark.rdd.RayDatasetRDD
+import org.apache.spark.rdd.{RayDatasetRDD, RayObjectRefRDD}
 import org.apache.spark.sql.{DataFrame, SparkSession, SQLContext}
+import org.apache.spark.sql.catalyst.expressions.GenericRow
+import org.apache.spark.sql.types.{StructType, BinaryType}
 import org.apache.spark.sql.execution.arrow.ArrowConverters
 
 object ObjectStoreReader {
+  def createRayObjectRefDF(spark: SparkSession,
+                    objectIds: List[Array[Byte]],
+                    locations: List[Array[Byte]]): DataFrame = {
+    val rdd = new RayObjectRefRDD(spark.sparkContext, objectIds, locations)
+    val schema = new StructType().add("ref", BinaryType)
+    spark.createDataFrame(rdd, schema)
+  }
+
   def RayDatasetToDataFrame(sparkSession: SparkSession,
                             rdd: RayDatasetRDD, schema: String): DataFrame = {
     ArrowConverters.toDataFrame(JavaRDD.fromRDD(rdd), schema, new SQLContext(sparkSession))
