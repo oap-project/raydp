@@ -26,8 +26,8 @@ import org.apache.spark.raydp.RayDPUtils
 import org.apache.spark.rdd.{RayDatasetRDD, RayObjectRefRDD}
 import org.apache.spark.sql.{DataFrame, SparkSession, SQLContext}
 import org.apache.spark.sql.catalyst.expressions.GenericRow
-import org.apache.spark.sql.types.{StructType, BinaryType}
 import org.apache.spark.sql.execution.arrow.ArrowConverters
+import org.apache.spark.sql.types.{BinaryType, StructType}
 
 object ObjectStoreReader {
   def createRayObjectRefDF(spark: SparkSession,
