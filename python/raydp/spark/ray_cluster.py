@@ -23,7 +23,7 @@ import ray._private.services
 from pyspark.sql.session import SparkSession
 
 from raydp.services import Cluster
-from .ray_cluster_master import RayClusterMaster, RAYDP_CP
+from .ray_cluster_master import RayClusterMaster, RAYDP_CP, RAY_CP
 
 
 class SparkCluster(Cluster):
@@ -67,11 +67,12 @@ class SparkCluster(Cluster):
         except KeyError:
             extra_jars = []
         extra_conf["spark.jars"] = ",".join(glob.glob(RAYDP_CP) + extra_jars)
-        driver_cp = "spark.driver.extraClassPath"
-        if driver_cp in extra_conf:
-            extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP)) + ":" + extra_conf[driver_cp]
+        driver_cp_key = "spark.driver.extraClassPath"
+        driver_cp = ":".join(glob.glob(RAYDP_CP) + glob.glob(RAY_CP))
+        if driver_cp_key in extra_conf:
+            extra_conf[driver_cp_key] = driver_cp + ":" + extra_conf[driver_cp_key]
         else:
-            extra_conf[driver_cp] = ":".join(glob.glob(RAYDP_CP))
+            extra_conf[driver_cp_key] = driver_cp
         spark_builder = SparkSession.builder
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
