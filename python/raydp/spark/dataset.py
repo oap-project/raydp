@@ -458,7 +458,7 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
 
 def spark_dataframe_to_ray_dataset(df: sql.DataFrame, parallelism: int = 0):
     num_part = df.rdd.getNumPartitions()
-    if parallelism == 0 or parallelism == num_part:
+    if parallelism in (0, num_part):
         pass
     elif parallelism < num_part:
         df = df.coalesce(parallelism)
