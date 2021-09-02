@@ -69,13 +69,15 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
   /**
    * Save the DataFrame to Ray object store with Apache Arrow format.
    */
-  def save(): List[RecordBatch] = {
+  def save(useBatch: Boolean): List[RecordBatch] = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
-    val batchSize = conf.getConf(SQLConf.ARROW_EXECUTION_MAX_RECORDS_PER_BATCH)
+    var batchSize = conf.getConf(SQLConf.ARROW_EXECUTION_MAX_RECORDS_PER_BATCH)
+    if (!useBatch) {
+      batchSize = 0
+    }
     val schema = df.schema
 
-    //
     val objectIds = df.queryExecution.toRdd.mapPartitions{ iter =>
       val queue = ObjectRefHolder.getQueue(uuid)
 
