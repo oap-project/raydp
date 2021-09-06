@@ -21,7 +21,7 @@
     <fasterxml.jackson.version>2.12.2</fasterxml.jackson.version>
     <jersey.version>2.31</jersey.version>
     <scala.binary.version>2.12</scala.binary.version>
-    <ray.version>1.4.0</ray.version>
+    <ray.version>1.6.0</ray.version>
   </properties>
 
   <repositories>
