@@ -41,7 +41,8 @@ object ObjectStoreReader {
 
   def RayDatasetToDataFrame(
       sparkSession: SparkSession,
-      rdd: RayDatasetRDD, schema: String): DataFrame = {
+      rdd: RayDatasetRDD,
+      schema: String): DataFrame = {
     ArrowConverters.toDataFrame(JavaRDD.fromRDD(rdd), schema, new SQLContext(sparkSession))
   }
 
