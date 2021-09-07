@@ -45,17 +45,19 @@ import org.apache.spark.util.Utils
  * @param objectId the ObjectId for the stored data
  * @param numRecords the number of records for the stored data
  */
-case class RecordBatch(ownerAddress: Array[Byte],
-                       objectId: Array[Byte],
-                       numRecords: Int)
+case class RecordBatch(
+    ownerAddress: Array[Byte],
+    objectId: Array[Byte],
+    numRecords: Int)
 
 class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
   val uuid: UUID = ObjectStoreWriter.dfToId.getOrElseUpdate(df, UUID.randomUUID())
 
-  def writeToRay(data: Array[Byte],
-                 numRecords: Int,
-                 queue: ObjectRefHolder.Queue): RecordBatch = {
+  def writeToRay(
+      data: Array[Byte],
+      numRecords: Int,
+      queue: ObjectRefHolder.Queue): RecordBatch = {
     val objectRef = Ray.put(data)
     // add the objectRef to the objectRefHolder to avoid reference GC
     queue.add(objectRef)

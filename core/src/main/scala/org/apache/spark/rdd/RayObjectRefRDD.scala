@@ -32,9 +32,10 @@ private[spark] class RayObjectRefRDDPartition(idx: Int) extends Partition {
 }
 
 private[spark]
-class RayObjectRefRDD(sc: SparkContext,
-                    val objectIds: List[Array[Byte]],
-                    val locations: List[Array[Byte]])
+class RayObjectRefRDD(
+    sc: SparkContext,
+    objectIds: List[Array[Byte]],
+    locations: List[Array[Byte]])
   extends RDD[Row](sc, Nil) {
 
   val refs = objectIds.asScala
