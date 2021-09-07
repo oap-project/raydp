@@ -505,9 +505,10 @@ def _convert_by_rdd(spark: sql.SparkSession,
     jdf = object_store_reader.RayDatasetToDataFrame(spark._jsparkSession, rdd, schema_str)
     return DataFrame(jdf, spark._wrapped)
 
-def ray_dataset_to_spark_dataframe(spark: sql.SparkSession, ds: Dataset) -> DataFrame:
+def ray_dataset_to_spark_dataframe(spark: sql.SparkSession,
+                                   ds: Dataset,
+                                   locations: List[bytes]) -> DataFrame:
     blocks = ds.get_blocks()
-    locations = ds.get_block_locations()
     # assume same schema
     schema = StructType()
     for field in ds._blocks._metadata[0].schema:
