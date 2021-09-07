@@ -33,9 +33,10 @@ private[spark] class RayDatasetRDDPartition(val ref: Array[Byte], idx: Int) exte
 }
 
 private[spark]
-class RayDatasetRDD(jsc: JavaSparkContext,
-                    @transient val objectIds: List[Array[Byte]],
-                    val locations: List[Array[Byte]])
+class RayDatasetRDD(
+    jsc: JavaSparkContext,
+    @transient val objectIds: List[Array[Byte]],
+    locations: List[Array[Byte]])
   extends RDD[Array[Byte]](jsc.sc, Nil) {
 
   override def getPartitions: Array[Partition] = {

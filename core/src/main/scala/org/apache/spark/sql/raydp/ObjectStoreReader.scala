@@ -30,20 +30,24 @@ import org.apache.spark.sql.execution.arrow.ArrowConverters
 import org.apache.spark.sql.types.{BinaryType, StructType}
 
 object ObjectStoreReader {
-  def createRayObjectRefDF(spark: SparkSession,
-                    objectIds: List[Array[Byte]],
-                    locations: List[Array[Byte]]): DataFrame = {
+  def createRayObjectRefDF(
+      spark: SparkSession,
+      objectIds: List[Array[Byte]],
+      locations: List[Array[Byte]]): DataFrame = {
     val rdd = new RayObjectRefRDD(spark.sparkContext, objectIds, locations)
     val schema = new StructType().add("ref", BinaryType)
     spark.createDataFrame(rdd, schema)
   }
 
-  def RayDatasetToDataFrame(sparkSession: SparkSession,
-                            rdd: RayDatasetRDD, schema: String): DataFrame = {
+  def RayDatasetToDataFrame(
+      sparkSession: SparkSession,
+      rdd: RayDatasetRDD, schema: String): DataFrame = {
     ArrowConverters.toDataFrame(JavaRDD.fromRDD(rdd), schema, new SQLContext(sparkSession))
   }
 
-  def getBatchesFromStream(ref: Array[Byte], ownerAddress: Array[Byte]): Iterator[Array[Byte]] = {
+  def getBatchesFromStream(
+      ref: Array[Byte],
+      ownerAddress: Array[Byte]): Iterator[Array[Byte]] = {
     val objectRef = RayDPUtils.readBinary(ref, classOf[Array[Byte]], ownerAddress)
     ArrowConverters.getBatchesFromStream(
         Channels.newChannel(new ByteArrayInputStream(objectRef.get)))
