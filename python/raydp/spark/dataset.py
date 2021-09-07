@@ -506,12 +506,14 @@ def _convert_by_rdd(spark: sql.SparkSession,
     return DataFrame(jdf, spark._wrapped)
 
 def ray_dataset_to_spark_dataframe(spark: sql.SparkSession,
-                                   ds: Dataset,
+                                   arrow_schema: "pa.lib.Schema",
+                                   blocks: List[ObjectRef],
                                    locations: List[bytes]) -> DataFrame:
-    blocks = ds.get_blocks()
-    # assume same schema
+    if not isinstance(arrow_schema, pa.lib.Schema):
+        raise RuntimeError("Schema is {}, required pyarrow.lib.Schema" \
+            .format(type(arrow_schema)))
     schema = StructType()
-    for field in ds._blocks._metadata[0].schema:
+    for field in arrow_schema:
         schema.add(field.name, from_arrow_type(field.type), nullable=field.nullable)
     #TODO how to branch on type of block?
     sample = ray.get(blocks[0])
@@ -520,4 +522,4 @@ def ray_dataset_to_spark_dataframe(spark: sql.SparkSession,
     elif isinstance(sample, pa.Table):
         return _convert_by_udf(spark, blocks, locations, schema)
     else:
-        raise Exception("ray.to_spark only supports arrow type blocks")
+        raise RuntimeError("ray.to_spark only supports arrow type blocks")

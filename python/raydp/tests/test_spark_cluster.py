@@ -65,10 +65,10 @@ def test_ray_dataset_from_and_to_spark(spark_on_ray_small):
     spark = spark_on_ray_small
     spark_df = spark.createDataFrame([(1, "a"), (2, "b"), (3, "c")], ["one", "two"])
     rows = [(r.one, r.two) for r in spark_df.take(3)]
-    ds = raydp.spark.spark_dataframe_to_ray_dataset(spark_df)
+    ds = ray.data.from_spark(spark_df)
     values = [(r["one"], r["two"]) for r in ds.take(6)]
     assert values == rows
-    df = raydp.spark.ray_dataset_to_spark_dataframe(spark, ds)
+    df = ds.to_spark(spark)
     rows_2 = [(r.one, r.two) for r in df.take(3)]
     assert values == rows_2
 
@@ -77,7 +77,7 @@ def test_raydp_to_spark(spark_on_ray_small):
     n = 5
     ds = ray.data.range_arrow(n)
     values = [r["value"] for r in ds.take(5)]
-    df = raydp.spark.ray_dataset_to_spark_dataframe(spark, ds)
+    df = ds.to_spark(spark)
     rows = [r.value for r in df.take(5)]
     assert values == rows
 
