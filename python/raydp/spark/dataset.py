@@ -456,14 +456,14 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
     return RayMLDataset.from_spark(
         df, num_shards, shuffle, shuffle_seed, fs_directory, compression, node_hints)
 
-def spark_dataframe_to_ray_dataset(df: sql.DataFrame, parallelism: int = 0):
+def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
+                                   parallelism: Optional[int] = None):
     num_part = df.rdd.getNumPartitions()
-    if parallelism in (0, num_part):
-        pass
-    elif parallelism < num_part:
-        df = df.coalesce(parallelism)
-    else:
-        df = df.repartition(parallelism)
+    if parallelism is not None:
+        if parallelism < num_part:
+            df = df.coalesce(parallelism)
+        elif parallelism > num_part:
+            df = df.repartition(parallelism)
     blocks, _ = _save_spark_df_to_object_store(df, False)
     return from_arrow(blocks)
 
