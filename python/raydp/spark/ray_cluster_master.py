@@ -35,7 +35,7 @@ from py4j.java_gateway import JavaGateway, GatewayParameters
 from raydp.services import ClusterMaster
 
 RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
-
+RAY_CP = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
 logger = logging.getLogger(__name__)
 
 
@@ -64,11 +64,10 @@ class RayClusterMaster(ClusterMaster):
         # find RayDP core path
         cp_list.append(RAYDP_CP)
         # find ray jar path
-        ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
-        cp_list.append(ray_cp)
+        cp_list.append(RAY_CP)
         # find pyspark jars path
         spark_home = os.path.dirname(pyspark.__file__)
-        spark_jars_dir = os.path.join(spark_home, "jars/*")
+        spark_jars_dir = os.path.abspath(os.path.join(spark_home, "jars/*"))
         spark_jars = [jar for jar in glob.glob(spark_jars_dir) if "slf4j-log4j" not in jar]
         cp_list.extend(spark_jars)
         return cp_list

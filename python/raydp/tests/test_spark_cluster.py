@@ -61,6 +61,25 @@ def test_spark_driver_and_executor_hostname(spark_on_ray_small):
     driver_bind_address = conf.get("spark.driver.bindAddress")
     assert node_ip_address == driver_bind_address
 
+def test_ray_dataset_from_and_to_spark(spark_on_ray_small):
+    spark = spark_on_ray_small
+    spark_df = spark.createDataFrame([(1, "a"), (2, "b"), (3, "c")], ["one", "two"])
+    rows = [(r.one, r.two) for r in spark_df.take(3)]
+    ds = ray.data.from_spark(spark_df)
+    values = [(r["one"], r["two"]) for r in ds.take(6)]
+    assert values == rows
+    df = ds.to_spark(spark)
+    rows_2 = [(r.one, r.two) for r in df.take(3)]
+    assert values == rows_2
+
+def test_raydp_to_spark(spark_on_ray_small):
+    spark = spark_on_ray_small
+    n = 5
+    ds = ray.data.range_arrow(n)
+    values = [r["value"] for r in ds.take(5)]
+    df = ds.to_spark(spark)
+    rows = [r.value for r in df.take(5)]
+    assert values == rows
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))

@@ -45,17 +45,19 @@ import org.apache.spark.util.Utils
  * @param objectId the ObjectId for the stored data
  * @param numRecords the number of records for the stored data
  */
-case class RecordBatch(ownerAddress: Array[Byte],
-                       objectId: Array[Byte],
-                       numRecords: Int)
+case class RecordBatch(
+    ownerAddress: Array[Byte],
+    objectId: Array[Byte],
+    numRecords: Int)
 
 class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
   val uuid: UUID = ObjectStoreWriter.dfToId.getOrElseUpdate(df, UUID.randomUUID())
 
-  def writeToRay(data: Array[Byte],
-                 numRecords: Int,
-                 queue: ObjectRefHolder.Queue): RecordBatch = {
+  def writeToRay(
+      data: Array[Byte],
+      numRecords: Int,
+      queue: ObjectRefHolder.Queue): RecordBatch = {
     val objectRef = Ray.put(data)
     // add the objectRef to the objectRefHolder to avoid reference GC
     queue.add(objectRef)
@@ -69,13 +71,15 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
   /**
    * Save the DataFrame to Ray object store with Apache Arrow format.
    */
-  def save(): List[RecordBatch] = {
+  def save(useBatch: Boolean): List[RecordBatch] = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
-    val batchSize = conf.getConf(SQLConf.ARROW_EXECUTION_MAX_RECORDS_PER_BATCH)
+    var batchSize = conf.getConf(SQLConf.ARROW_EXECUTION_MAX_RECORDS_PER_BATCH)
+    if (!useBatch) {
+      batchSize = 0
+    }
     val schema = df.schema
 
-    //
     val objectIds = df.queryExecution.toRdd.mapPartitions{ iter =>
       val queue = ObjectRefHolder.getQueue(uuid)
 

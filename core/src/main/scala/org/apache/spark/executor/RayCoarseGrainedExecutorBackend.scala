@@ -87,7 +87,7 @@ class RayCoarseGrainedExecutorBackend(
       classPathEntries: String): Unit = {
     createWorkingDir(appId)
     setUserDir()
-    redirectLog()
+    // redirectLog()
 
     val userClassPath = classPathEntries.split(java.io.File.pathSeparator)
       .filter(_.nonEmpty).map(new File(_).toURI.toURL)

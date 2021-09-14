@@ -22,7 +22,13 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pyspark.sql as sql
+from pyspark.sql.dataframe import DataFrame
+from pyspark.sql.types import StructType
+from pyspark.sql.pandas.types import from_arrow_type
 import ray
+from ray.data import from_arrow
+from ray.data import Dataset
+from ray.types import ObjectRef
 import ray.util.data as ml_dataset
 import ray.util.iter as parallel_it
 from ray.util.data import MLDataset
@@ -176,12 +182,12 @@ class RayRecordBatch(RecordBatch):
         self.resolved = True
 
 
-def _save_spark_df_to_object_store(df: sql.DataFrame):
+def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True):
     # call java function from python
     jvm = df.sql_ctx.sparkSession.sparkContext._jvm
     jdf = df._jdf
     object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
-    records = object_store_writer.save()
+    records = object_store_writer.save(use_batch)
 
     worker = ray.worker.global_worker
 
@@ -193,7 +199,7 @@ def _save_spark_df_to_object_store(df: sql.DataFrame):
         num_records = record.numRecords()
         # Register the ownership of the ObjectRef
         worker.core_worker.deserialize_and_register_object_ref(
-            object_ref.binary(), ray.ObjectRef.nil(), owner_address)
+            object_ref.binary(), ray.ObjectRef.nil(), owner_address, "")
 
         blocks.append(object_ref)
         block_sizes.append(num_records)
@@ -449,3 +455,71 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
                                  node_hints: List[str] = None) -> MLDataset:
     return RayMLDataset.from_spark(
         df, num_shards, shuffle, shuffle_seed, fs_directory, compression, node_hints)
+
+def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
+                                   parallelism: Optional[int] = None):
+    num_part = df.rdd.getNumPartitions()
+    if parallelism is not None:
+        if parallelism < num_part:
+            df = df.coalesce(parallelism)
+        elif parallelism > num_part:
+            df = df.repartition(parallelism)
+    blocks, _ = _save_spark_df_to_object_store(df, False)
+    return from_arrow(blocks)
+
+def _convert_blocks_to_dataframe(blocks):
+    # connect to ray
+    if not ray.is_initialized():
+        ray.client().connect()
+    for block in blocks:
+        dfs = []
+        for b in block["ref"]:
+            ref = ray.cloudpickle.loads(b)
+            data = ray.get(ref)
+            dfs.append(data.to_pandas())
+        yield pd.concat(dfs)
+
+def _convert_by_udf(spark: sql.SparkSession,
+                    blocks: List[ObjectRef],
+                    locations: List[bytes],
+                    schema: StructType) -> DataFrame:
+    ref_list = [ray.cloudpickle.dumps(block) for block in blocks]
+    jvm = spark.sparkContext._jvm
+    object_store_reader = jvm.org.apache.spark.sql.raydp.ObjectStoreReader
+    # create the rdd then dataframe to utilize locality
+    jdf = object_store_reader.createRayObjectRefDF(spark._jsparkSession, ref_list, locations)
+    blocks_df = DataFrame(jdf, spark._wrapped)
+    return blocks_df.mapInPandas(_convert_blocks_to_dataframe, schema)
+
+def _convert_by_rdd(spark: sql.SparkSession,
+                    blocks: Dataset,
+                    locations: List[bytes],
+                    schema: StructType) -> DataFrame:
+    object_ids = [block.binary() for block in blocks]
+    schema_str = schema.json()
+    jvm = spark.sparkContext._jvm
+    # create rdd in java
+    rdd = jvm.org.apache.spark.rdd.RayDatasetRDD(spark._jsc, object_ids, locations)
+    # convert the rdd to dataframe
+    object_store_reader = jvm.org.apache.spark.sql.raydp.ObjectStoreReader
+    jdf = object_store_reader.RayDatasetToDataFrame(spark._jsparkSession, rdd, schema_str)
+    return DataFrame(jdf, spark._wrapped)
+
+def ray_dataset_to_spark_dataframe(spark: sql.SparkSession,
+                                   arrow_schema: "pa.lib.Schema",
+                                   blocks: List[ObjectRef],
+                                   locations: List[bytes]) -> DataFrame:
+    if not isinstance(arrow_schema, pa.lib.Schema):
+        raise RuntimeError("Schema is {}, required pyarrow.lib.Schema" \
+            .format(type(arrow_schema)))
+    schema = StructType()
+    for field in arrow_schema:
+        schema.add(field.name, from_arrow_type(field.type), nullable=field.nullable)
+    #TODO how to branch on type of block?
+    sample = ray.get(blocks[0])
+    if isinstance(sample, bytes):
+        return _convert_by_rdd(spark, blocks, locations, schema)
+    elif isinstance(sample, pa.Table):
+        return _convert_by_udf(spark, blocks, locations, schema)
+    else:
+        raise RuntimeError("ray.to_spark only supports arrow type blocks")

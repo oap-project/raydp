@@ -19,9 +19,9 @@ name: RayDP CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ master ]
+    branches: [ main, master ]
 
 jobs:
   build-and-test:
@@ -29,6 +29,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
+        pyspark-version: [3.0.0, 3.1.2]
         python-version: [3.6, 3.7, 3.8]
 
     runs-on: ${{ matrix.os }}
@@ -51,7 +52,6 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y mpich
-
       - name: Cache pip - Ubuntu
         if: matrix.os == 'ubuntu-latest'
         uses: actions/cache@v2
@@ -68,13 +68,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install wheel
+          SUBVERSION=$(python -c 'import sys; print(sys.version_info[1])')
           if [ "$(uname -s)" == "Linux" ]
           then
             pip install torch==1.8.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
           else
             pip install torch
           fi
-          pip install pytest koalas tensorflow tabulate ray[tune]==1.4.0 xgboost_ray grpcio-tools
+          pip install pytest ray[tune] koalas tensorflow tabulate xgboost_ray grpcio-tools
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
           pip install horovod[pytorch,ray]
@@ -87,6 +88,7 @@ jobs:
         env:
           GITHUB_CI: 1
         run: |
+          pip install pyspark==${{ matrix.pyspark-version }}
           ./build.sh
           pip install dist/raydp-*.whl
       - name: Lint
