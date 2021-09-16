@@ -61,7 +61,7 @@ def test_spark_driver_and_executor_hostname(spark_on_ray_small):
     driver_bind_address = conf.get("spark.driver.bindAddress")
     assert node_ip_address == driver_bind_address
 
-def test_ray_dataset_from_and_to_spark(spark_on_ray_small):
+def test_ray_dataset_roundtrip(spark_on_ray_small):
     spark = spark_on_ray_small
     spark_df = spark.createDataFrame([(1, "a"), (2, "b"), (3, "c")], ["one", "two"])
     rows = [(r.one, r.two) for r in spark_df.take(3)]
@@ -72,7 +72,7 @@ def test_ray_dataset_from_and_to_spark(spark_on_ray_small):
     rows_2 = [(r.one, r.two) for r in df.take(3)]
     assert values == rows_2
 
-def test_raydp_to_spark(spark_on_ray_small):
+def test_ray_dataset_to_spark(spark_on_ray_small):
     spark = spark_on_ray_small
     n = 5
     ds = ray.data.range_arrow(n)

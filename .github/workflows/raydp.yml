@@ -120,7 +120,12 @@ jobs:
           pylint --rcfile=python/pylintrc python/raydp
       - name: Test with pytest
         run: |
+        if [ "$(uname -s)" == "Linux" ]
+        then
           pytest python/raydp/tests/
+        else
+          pytest python/raydp/tests/ -k "not ray_dataset"
+        fi
       - name: Test Examples
         run: |
           ray start --head
