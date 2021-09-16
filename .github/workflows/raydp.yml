@@ -98,7 +98,7 @@ jobs:
           esac
             pip install torch
           fi
-          pip install pytest koalas tensorflow tabulate xgboost_ray grpcio-tools
+          pip install pytest koalas tensorflow tabulate xgboost xgboost_ray grpcio-tools
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
           pip install horovod[pytorch,ray]
