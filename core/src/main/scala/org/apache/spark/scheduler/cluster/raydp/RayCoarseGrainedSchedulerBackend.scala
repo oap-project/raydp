@@ -32,7 +32,7 @@ import org.apache.spark.deploy.raydp._
 import org.apache.spark.deploy.security.HadoopDelegationTokenManager
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.launcher.{LauncherBackend, SparkAppHandle}
-import org.apache.spark.resource.{ResourceRequirement, ResourceUtils}
+import org.apache.spark.resource.{ResourceProfile, ResourceRequirement, ResourceUtils}
 import org.apache.spark.rpc.{RpcEndpointAddress, RpcEndpointRef, RpcEnv, ThreadSafeRpcEndpoint}
 import org.apache.spark.scheduler.TaskSchedulerImpl
 import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
@@ -216,9 +216,12 @@ class RayCoarseGrainedSchedulerBackend(
    *
    * @return whether the request is acknowledged.
    */
-  override protected def doRequestTotalExecutors(requestedTotal: Int): Future[Boolean] = {
+  override protected def doRequestTotalExecutors(
+      resourceProfileToTotalExecs: Map[ResourceProfile, Int]): Future[Boolean] = {
     if (appMasterRef.get != null && appId.get != null) {
-      appMasterRef.get.ask[Boolean](RequestExecutors(appId.get, requestedTotal))
+      val defaultProf = sc.resourceProfileManager.defaultResourceProfile
+      val numExecs = resourceProfileToTotalExecs.getOrElse(defaultProf, 0)
+      appMasterRef.get.ask[Boolean](RequestExecutors(appId.get, numExecs))
     } else {
       logWarning("Attempted to request executors before driver fully initialized.")
       Future.successful(false)
