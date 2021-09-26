@@ -66,6 +66,7 @@ class RayAppMaster(host: String,
       clientMode = false)
     // register endpoint
     endpoint = rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, new RayAppMasterEndpoint(rpcEnv))
+    RayAppMasterUtils.createObjectOwner()
   }
 
   /**

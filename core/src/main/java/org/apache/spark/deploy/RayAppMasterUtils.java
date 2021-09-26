@@ -20,6 +20,7 @@ package org.apache.spark.deploy.raydp;
 import java.util.List;
 
 import io.ray.api.ActorHandle;
+import io.ray.api.ObjectRef;
 import io.ray.api.Ray;
 
 public class RayAppMasterUtils {
@@ -37,5 +38,18 @@ public class RayAppMasterUtils {
       ActorHandle<RayAppMaster> handle) {
     handle.task(RayAppMaster::stop).remote().get();
     handle.kill();
+  }
+
+  public static String RAYDP_OWNER_NAME = "RAYDP_OBJECT_OWNER";
+
+  public static void createObjectOwner() {
+    Ray.actor(RayDPObjectOwner::new)
+        .setGlobalName(RAYDP_OWNER_NAME)
+        .remote();
+  }
+
+  public static void addObjectRef(ActorHandle<RayDPObjectOwner> owner,
+      ObjectRef<ObjectRef<byte[]>> ref) {
+    owner.task(RayDPObjectOwner::addObjectRef, ref).remote();
   }
 }

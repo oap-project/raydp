@@ -26,12 +26,14 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-import io.ray.api.{ObjectRef, Ray}
+import io.ray.api.{ActorHandle, ObjectRef, Ray}
 import io.ray.runtime.RayRuntimeInternal
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 
 import org.apache.spark.raydp.RayDPUtils
+import org.apache.spark.deploy.raydp.RayAppMasterUtils
+import org.apache.spark.deploy.raydp.RayDPObjectOwner
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.execution.arrow.ArrowWriter
 import org.apache.spark.sql.execution.python.BatchIterator
@@ -57,10 +59,10 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
   def writeToRay(
       data: Array[Byte],
       numRecords: Int,
-      queue: ObjectRefHolder.Queue): RecordBatch = {
-    val objectRef = Ray.put(data)
-    // add the objectRef to the objectRefHolder to avoid reference GC
-    queue.add(objectRef)
+      owner: ActorHandle[RayDPObjectOwner]): RecordBatch = {
+    val objectRef = Ray.put(data, owner)
+    val ref = Ray.put(objectRef)
+    RayAppMasterUtils.addObjectRef(owner, ref)
     val objectRefImpl = RayDPUtils.convert(objectRef)
     val objectId = objectRefImpl.getId
     val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
@@ -81,8 +83,8 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
     val schema = df.schema
 
     val objectIds = df.queryExecution.toRdd.mapPartitions{ iter =>
-      val queue = ObjectRefHolder.getQueue(uuid)
-
+      val owner: ActorHandle[RayDPObjectOwner] = 
+          Ray.getGlobalActor(RayAppMasterUtils.RAYDP_OWNER_NAME).get
       // DO NOT use iter.grouped(). See BatchIterator.
       val batchIter = if (batchSize > 0) {
         new BatchIterator(iter, batchSize)
@@ -126,7 +128,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
           // get the wrote ByteArray and save to Ray ObjectStore
           val byteArray = byteOut.toByteArray
-          results += writeToRay(byteArray, numRecords, queue)
+          results += writeToRay(byteArray, numRecords, owner)
           // end writes footer to the output stream and doesn't clean any resources.
           // It could throw exception if the output stream is closed, so it should be
           // in the try block.
@@ -154,65 +156,8 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
     }.collect()
     objectIds.toSeq.asJava
   }
-
-  /**
-   * For test.
-   */
-  def getRandomRef(): List[Array[Byte]] = {
-
-    df.queryExecution.toRdd.mapPartitions { _ =>
-      Iterator(ObjectRefHolder.getRandom(uuid))
-    }.collect().toSeq.asJava
-  }
-
-  def clean(): Unit = {
-    ObjectStoreWriter.dfToId.remove(df)
-    ObjectRefHolder.removeQueue(uuid)
-  }
-
 }
 
 object ObjectStoreWriter {
   val dfToId = new mutable.HashMap[DataFrame, UUID]()
-}
-
-object ObjectRefHolder {
-  type Queue = ConcurrentLinkedQueue[ObjectRef[Array[Byte]]]
-  private val dfToQueue = new ConcurrentHashMap[UUID, Queue]()
-
-  def getQueue(df: UUID): Queue = {
-    dfToQueue.computeIfAbsent(df, new JFunction[UUID, Queue] {
-      override def apply(v1: UUID): Queue = {
-        new Queue()
-      }
-    })
-  }
-
-  @inline
-  def checkQueueExists(df: UUID): Queue = {
-    val queue = dfToQueue.get(df)
-    if (queue == null) {
-      throw new RuntimeException("The DataFrame does not exist")
-    }
-    queue
-  }
-
-  def getQueueSize(df: UUID): Int = {
-    val queue = checkQueueExists(df)
-    queue.size()
-  }
-
-  def getRandom(df: UUID): Array[Byte] = {
-    val queue = checkQueueExists(df)
-    val ref = RayDPUtils.convert(queue.peek())
-    ref.get()
-  }
-
-  def removeQueue(df: UUID): Unit = {
-    dfToQueue.remove(df)
-  }
-
-  def clean(): Unit = {
-    dfToQueue.clear()
-  }
 }
