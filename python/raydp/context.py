@@ -74,10 +74,13 @@ class _SparkContext(ContextDecorator):
             self._configs)
         return self._spark_session
 
-    def stop(self):
+    def stop_spark(self):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
+
+    def stop_all(self):
+        self.stop_spark()
         if self._spark_cluster is not None:
             self._spark_cluster.stop()
             self._spark_cluster = None
@@ -86,7 +89,7 @@ class _SparkContext(ContextDecorator):
         self.get_or_create_session()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
+        self.stop_all()
 
 
 _spark_context_lock = RLock()
@@ -124,15 +127,23 @@ def init_spark(app_name: str,
                 _global_spark_context = None
                 raise
         else:
-            raise Exception("The spark environment has inited.")
+            raise Exception("The spark environment may have been inited." \
+                            "Or if stop_spark was called, call stop_all to" \
+                            "stop the previous RayDP session completely, then" \
+                            "call init_spark if needed.")
 
 
 def stop_spark():
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is not None:
-            _global_spark_context.stop()
+            _global_spark_context.stop_spark()
+
+def stop_all():
+    with _spark_context_lock:
+        global _global_spark_context
+        if _global_spark_context is not None:
+            _global_spark_context.stop_all()
             _global_spark_context = None
 
-
-atexit.register(stop_spark)
+atexit.register(stop_all)
