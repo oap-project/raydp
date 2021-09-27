@@ -22,7 +22,7 @@ import scala.collection.mutable.Set
 
 class RayDPObjectOwner {
   private val refHolder = Set.empty[ObjectRef[Array[Byte]]]
-  
+
   def addObjectRef(ref: ObjectRef[Array[Byte]]): Unit = {
     refHolder.add(ref)
   }

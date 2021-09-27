@@ -31,9 +31,8 @@ import io.ray.runtime.RayRuntimeInternal
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 
+import org.apache.spark.deploy.raydp.{RayAppMasterUtils, RayDPObjectOwner}
 import org.apache.spark.raydp.RayDPUtils
-import org.apache.spark.deploy.raydp.RayAppMasterUtils
-import org.apache.spark.deploy.raydp.RayDPObjectOwner
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.execution.arrow.ArrowWriter
 import org.apache.spark.sql.execution.python.BatchIterator
@@ -83,7 +82,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
     val schema = df.schema
 
     val objectIds = df.queryExecution.toRdd.mapPartitions{ iter =>
-      val owner: ActorHandle[RayDPObjectOwner] = 
+      val owner: ActorHandle[RayDPObjectOwner] =
           Ray.getGlobalActor(RayAppMasterUtils.RAYDP_OWNER_NAME).get
       // DO NOT use iter.grouped(). See BatchIterator.
       val batchIter = if (batchSize > 0) {
