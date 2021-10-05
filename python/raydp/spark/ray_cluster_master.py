@@ -29,7 +29,6 @@ import glob
 
 import pyspark
 import ray
-import ray.services
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
 from raydp.services import ClusterMaster
@@ -55,7 +54,7 @@ class RayClusterMaster(ClusterMaster):
         self._gateway = self._launch_gateway(extra_classpath, popen_kwargs)
         self._app_master_java_bridge = self._gateway.entry_point.getAppMasterBridge()
         self._set_properties()
-        self._host = ray._private.services.get_node_ip_address()
+        self._host = ray.util.get_node_ip_address()
         self._create_app_master(extra_classpath)
         self._started_up = True
 
