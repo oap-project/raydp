@@ -15,8 +15,8 @@
 # limitations under the License.
 #
 
-from raydp.context import init_spark, stop_spark
+from raydp.context import init_spark, stop_spark, stop_spark_session
 
 __version__ = "0.4.0.dev0"
 
-__all__ = ["init_spark", "stop_spark"]
+__all__ = ["init_spark", "stop_spark", "stop_spark_session"]

@@ -74,13 +74,13 @@ class _SparkContext(ContextDecorator):
             self._configs)
         return self._spark_session
 
-    def stop_spark(self):
+    def stop_spark_session(self):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
 
-    def stop_all(self):
-        self.stop_spark()
+    def stop_spark(self):
+        self.stop_spark_session()
         if self._spark_cluster is not None:
             self._spark_cluster.stop()
             self._spark_cluster = None
@@ -133,17 +133,17 @@ def init_spark(app_name: str,
                             "call init_spark if needed.")
 
 
+def stop_spark_session():
+    with _spark_context_lock:
+        global _global_spark_context
+        if _global_spark_context is not None:
+            _global_spark_context.stop_spark_session()
+
 def stop_spark():
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is not None:
             _global_spark_context.stop_spark()
-
-def stop_all():
-    with _spark_context_lock:
-        global _global_spark_context
-        if _global_spark_context is not None:
-            _global_spark_context.stop_all()
             _global_spark_context = None
 
-atexit.register(stop_all)
+atexit.register(stop_spark)
