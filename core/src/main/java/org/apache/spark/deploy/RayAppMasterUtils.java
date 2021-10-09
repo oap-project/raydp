@@ -42,8 +42,8 @@ public class RayAppMasterUtils {
 
   public static String RAYDP_OWNER_NAME = "RAYDP_OBJECT_OWNER";
 
-  public static void createObjectOwner() {
-    Ray.actor(RayDPObjectOwner::new)
+  public static ActorHandle<RayDPObjectOwner> createObjectOwner() {
+    return Ray.actor(RayDPObjectOwner::new)
         .setGlobalName(RAYDP_OWNER_NAME)
         .remote();
   }

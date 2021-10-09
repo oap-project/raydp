@@ -38,6 +38,7 @@ import org.apache.spark.util.Utils
 class RayAppMaster(host: String,
                    port: Int,
                    actor_extra_classpath: String) extends Serializable with Logging {
+  private var owner_handle: ActorHandle[RayDPObjectOwner] = _
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
   private val conf: SparkConf = new SparkConf()
@@ -66,7 +67,7 @@ class RayAppMaster(host: String,
       clientMode = false)
     // register endpoint
     endpoint = rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, new RayAppMasterEndpoint(rpcEnv))
-    RayAppMasterUtils.createObjectOwner()
+    owner_handle = RayAppMasterUtils.createObjectOwner()
   }
 
   /**
