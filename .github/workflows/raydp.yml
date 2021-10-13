@@ -96,7 +96,7 @@ jobs:
           pylint --rcfile=python/pylintrc python/raydp
       - name: Test with pytest
         run: |
-          pytest python/raydp/tests/
+          pytest python/raydp/tests/ -k "not tf"
       - name: Test Examples
         run: |
           ray start --head
