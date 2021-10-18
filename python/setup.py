@@ -95,7 +95,7 @@ try:
         "pandas >= 1.1.4",
         "psutil",
         "pyarrow >= 0.10",
-        "ray >= 1.6.0",
+        "ray >= 1.7.0",
         "pyspark >= 3.1.2",
         "netifaces"
     ]
