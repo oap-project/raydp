@@ -1,6 +1,6 @@
 # RayDP
 
-RayDP is a distributed data processing library that provides simple APIs for running Spark/MPI on [Ray](https://github.com/ray-project/ray) and integrating Spark with distributed deep learning and machine learning frameworks. RayDP makes it simple to build distributed end-to-end data analytics and AI pipeline. Instead of using lots of glue code or an orchestration framework to stitch multiple distributed programs, RayDP allows you to write Spark, PyTorch, Tensorflow, XGBoost code in a single python program with increased productivity and performance. You can build an end-to-end pipeline on a single Ray cluster by using Spark for data preprocessing, RaySGD or Horovod for distributed deep learning, RayTune for hyperparameter tuning and RayServe for model serving.
+RayDP is a distributed data processing library that provides simple APIs for running Spark on [Ray](https://github.com/ray-project/ray) and integrating Spark with distributed deep learning and machine learning frameworks. RayDP makes it simple to build distributed end-to-end data analytics and AI pipeline. Instead of using lots of glue code or an orchestration framework to stitch multiple distributed programs, RayDP allows you to write Spark, PyTorch, Tensorflow, XGBoost code in a single python program with increased productivity and performance. You can build an end-to-end pipeline on a single Ray cluster by using Spark for data preprocessing, RaySGD or Horovod for distributed deep learning, RayTune for hyperparameter tuning and RayServe for model serving.
 
 ## Installation
 
@@ -57,16 +57,32 @@ RayDP provides APIs for converting Spark DataFrame to Ray Dataset or Ray MLDatas
 
 
 ***Spark DataFrame <=> Ray Dataset***
+```python
+spark = raydp.init_spark(...)
 
+# Spark Dataframe to Ray Dataset
+spark_df = spark.read.csv(...)
+ray_ds = ray.data.from_spark(spark_df)
+
+# Ray Dataset to Spark Dataframe
+ds = ray.data.read_csv(...)
+df = ds.to_spark(spark)
+```
 
 
 ***MLDataset API***
 
-RayDP provides an API for creating a Ray MLDataset from a Spark dataframe. MLDataset represents a distributed dataset stored in Ray's in-memory object store. It supports transformation on each shard and can be converted to a PyTorch or Tensorflow dataset for distributed training. If you prefer to using Horovod on Ray or RaySGD for distributed training, you can use MLDataset to seamlessly integrate Spark with them.
+RayDP provides an API for creating a Ray MLDataset from a Spark dataframe. MLDataset can be converted to a PyTorch or Tensorflow dataset for distributed training with Horovod on Ray or RaySGD. MLDataset is also supported by XGBoost on Ray as a data source.
+
+```python
+from raydp.spark import RayMLDataset
+
+ds = RayMLDataset.from_spark(spark_df, num_shards=8)
+```
 
 ***Estimator API***
 
-RayDP also provides high level scikit-learn style Estimator APIs for distributed training. The Estimator APIs allow you to train a deep neural network directly on a Spark DataFrame, leveraging Ray’s ability to scale out across the cluster. The Estimator APIs are wrappers of RaySGD and hide the complexity of converting a Spark DataFrame to a PyTorch/Tensorflow dataset and distributing the training.
+The Estimator APIs allow you to train a deep neural network directly on a Spark DataFrame, leveraging Ray’s ability to scale out across the cluster. The Estimator APIs are wrappers of RaySGD and hide the complexity of converting a Spark DataFrame to a PyTorch/Tensorflow dataset and distributing the training. RayDP provides `raydp.torch.TorchEstimator` for PyTorch and `raydp.tf.TFEstimator` for Tensorflow. The following is an example of using TorchEstimator.
 
 ```python
 import ray
@@ -87,7 +103,6 @@ train_df = df.withColumn(…)
 model = torch.nn.Sequential(torch.nn.Linear(2, 1)) 
 optimizer = torch.optim.Adam(model.parameters())
 
-# You can use the RayDP Estimator API or libraries like RaySGD for distributed training.
 estimator = TorchEstimator(model=model, optimizer=optimizer, ...) 
 estimator.fit_on_spark(train_df)
 
