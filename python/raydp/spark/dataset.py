@@ -510,8 +510,8 @@ def ray_dataset_to_spark_dataframe(spark: sql.SparkSession,
                                    blocks: List[ObjectRef],
                                    locations: List[bytes]) -> DataFrame:
     if not isinstance(arrow_schema, pa.lib.Schema):
-        raise RuntimeError("Schema is {}, required pyarrow.lib.Schema" \
-            .format(type(arrow_schema)))
+        raise RuntimeError(f"Schema is {type(arrow_schema)}, required pyarrow.lib.Schema. \n" \
+                           f"to_spark does not support converting non-arrow ray datasets.")
     schema = StructType()
     for field in arrow_schema:
         schema.add(field.name, from_arrow_type(field.type), nullable=field.nullable)
