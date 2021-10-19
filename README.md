@@ -53,31 +53,40 @@ raydp.stop_spark()
 
 ## Machine Learning and Deep Learning With a Spark DataFrame
 
-RayDP provides APIs for converting Spark DataFrame to Ray Dataset or Ray MLDataset which can be used to connect to XGBoost, RaySGD or Horovod easily. RayDP also provides high level scikit-learn style Estimator APIs for distributed training with PyTorch or Tensorflow.
+RayDP provides APIs for converting a Spark DataFrame to a Ray Dataset or Ray MLDataset which can be consumed by XGBoost, RaySGD or Horovod on Ray. RayDP also provides high level scikit-learn style Estimator APIs for distributed training with PyTorch or Tensorflow.
 
 
 ***Spark DataFrame <=> Ray Dataset***
 ```python
-spark = raydp.init_spark(...)
+import ray
+import raydp
+
+ray.init()
+spark = raydp.init_spark(app_name="RayDP example",
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory="4GB")
 
 # Spark Dataframe to Ray Dataset
-spark_df = spark.read.csv(...)
-ray_ds = ray.data.from_spark(spark_df)
+df1 = spark.range(0, 1000)
+ds1 = ray.data.from_spark(df1)
 
 # Ray Dataset to Spark Dataframe
-ds = ray.data.read_csv(...)
-df = ds.to_spark(spark)
+ds2 = ray.data.from_items([{"id": i} for i in range(1000)])
+df2 = ds2.to_spark(spark)
 ```
-
 
 ***MLDataset API***
 
 RayDP provides an API for creating a Ray MLDataset from a Spark dataframe. MLDataset can be converted to a PyTorch or Tensorflow dataset for distributed training with Horovod on Ray or RaySGD. MLDataset is also supported by XGBoost on Ray as a data source.
 
 ```python
+import ray
+import raydp
 from raydp.spark import RayMLDataset
 
-ds = RayMLDataset.from_spark(spark_df, num_shards=8)
+df = spark.range(0, 1000)
+ds = RayMLDataset.from_spark(df, num_shards=10)
 ```
 
 ***Estimator API***
