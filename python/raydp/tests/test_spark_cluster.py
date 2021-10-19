@@ -81,5 +81,17 @@ def test_ray_dataset_to_spark(spark_on_ray_small):
     rows = [r.value for r in df.take(5)]
     assert values == rows
 
+def test_stop_spark_session(ray_cluster):
+    spark = raydp.init_spark(app_name="test_stop_spark_session",
+                            num_executors=1,
+                            executor_cores=1,
+                            executor_memory="500MB")
+    df = spark.range(0, 5)
+    ds = ray.data.from_spark(df)
+    raydp.stop_spark_session()
+    values = [r["id"] for r in ds.take(5)]
+    assert values == [0, 1, 2, 3, 4]
+    raydp.stop_spark()
+
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))
