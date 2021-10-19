@@ -51,6 +51,8 @@ word_count.show()
 raydp.stop_spark()
 ```
 
+Spark features such as dynamic resource allocation, spark-submit script, etc are also supported. Please refer to [Spark on Ray](./doc/spark_on_ray.md) for more details.
+
 ## Machine Learning and Deep Learning With a Spark DataFrame
 
 RayDP provides APIs for converting a Spark DataFrame to a Ray Dataset or Ray MLDataset which can be consumed by XGBoost, RaySGD or Horovod on Ray. RayDP also provides high level scikit-learn style Estimator APIs for distributed training with PyTorch or Tensorflow.
@@ -75,8 +77,9 @@ ds1 = ray.data.from_spark(df1)
 ds2 = ray.data.from_items([{"id": i} for i in range(1000)])
 df2 = ds2.to_spark(spark)
 ```
+Please refer to [Spark+XGBoost on Ray](./examples/xgboost_ray_nyctaxi.py) for a full example.
 
-***MLDataset API***
+***Spark DataFrame => Ray MLDataset***
 
 RayDP provides an API for creating a Ray MLDataset from a Spark dataframe. MLDataset can be converted to a PyTorch or Tensorflow dataset for distributed training with Horovod on Ray or RaySGD. MLDataset is also supported by XGBoost on Ray as a data source.
 
@@ -85,9 +88,16 @@ import ray
 import raydp
 from raydp.spark import RayMLDataset
 
+ray.init()
+spark = raydp.init_spark(app_name="RayDP example",
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory="4GB")
+
 df = spark.range(0, 1000)
 ds = RayMLDataset.from_spark(df, num_shards=10)
 ```
+Please refer to [Spark+Horovod on Ray](./examples/horovod_nyctaxi.py) for a full example.
 
 ***Estimator API***
 
@@ -117,10 +127,11 @@ estimator.fit_on_spark(train_df)
 
 raydp.stop_spark()
 ```
+Please refer to [NYC Taxi PyTorch Estimator](./examples/pytorch_nyctaxi.py) and [NYC Taxi Tensorflow Estimator](./examples/tensorflow_nyctaxi.py) for full examples.
 
 ## MPI on Ray
 
-RayDP also provides a simple API to running MPI job on top of Ray. Currently, we support three types of MPI: `intel_mpi`, `openmpi` and `MPICH`. You can refer [doc/mpi.md](./doc/mpi.md) for more details.
+RayDP also provides an API for running MPI job on Ray. Currently, we support three types of MPI: `intel_mpi`, `openmpi` and `MPICH`. You can refer [doc/mpi.md](./doc/mpi.md) for more details.
 
 ## More Examples
 Not sure how to use RayDP? Check the `examples` folder. We have added many examples showing how RayDP works together with PyTorch, TensorFlow, XGBoost, Horovod, and so on. If you still cannot find what you want, feel free to post an issue to ask us!
