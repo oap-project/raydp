@@ -32,6 +32,7 @@ import ray
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
 from raydp.services import ClusterMaster
+from .dataset import RayDPConversionHelper, RAYDP_OBJ_HOLDER_NAME
 
 RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
 RAY_CP = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
@@ -47,6 +48,8 @@ class RayClusterMaster(ClusterMaster):
         self._configs = configs
 
     def start_up(self, popen_kwargs=None):
+        self.handle = RayDPConversionHelper.options(name=RAYDP_OBJ_HOLDER_NAME,
+                                                    lifetime="detached").remote()
         if self._started_up:
             logger.warning("The RayClusterMaster has started already. Do not call it twice")
             return
@@ -173,7 +176,7 @@ class RayClusterMaster(ClusterMaster):
     def stop(self):
         if not self._started_up:
             return
-
+        ray.kill(self.handle)
         if self._app_master_java_bridge is not None:
             self._app_master_java_bridge.stop()
             self._app_master_java_bridge = None

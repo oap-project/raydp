@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import logging
+import time
 from typing import Callable, Dict, List, NoReturn, Optional, Iterable, Union
 
 import numpy as np
@@ -467,29 +468,52 @@ def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
     blocks, _ = _save_spark_df_to_object_store(df, False)
     return from_arrow(blocks)
 
-def _convert_blocks_to_dataframe(blocks):
-    # connect to ray
-    if not ray.is_initialized():
-        ray.client().connect()
-    for block in blocks:
-        dfs = []
-        for b in block["ref"]:
-            ref = ray.cloudpickle.loads(b)
-            data = ray.get(ref)
-            dfs.append(data.to_pandas())
-        yield pd.concat(dfs)
+@ray.remote
+class RayDPConversionHelper():
+    def __init__(self):
+        self.objects = None
+
+    def add_objects(self, timestamp, objects):
+        self.objects[timestamp] = objects
+
+    def get_object(self, timestamp, idx):
+        return self.objects[timestamp][idx]
+
+    def remove_objects(self, timestamp):
+        del self.objects[timestamp]
+
+RAYDP_OBJ_HOLDER_NAME = "raydp_obj_holder"
 
 def _convert_by_udf(spark: sql.SparkSession,
                     blocks: List[ObjectRef],
                     locations: List[bytes],
                     schema: StructType) -> DataFrame:
-    ref_list = [ray.cloudpickle.dumps(block) for block in blocks]
+    holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
+    now = time.time()
+    ray.get(holder.add_objects.remote(now, blocks))
     jvm = spark.sparkContext._jvm
     object_store_reader = jvm.org.apache.spark.sql.raydp.ObjectStoreReader
     # create the rdd then dataframe to utilize locality
-    jdf = object_store_reader.createRayObjectRefDF(spark._jsparkSession, ref_list, locations)
+    jdf = object_store_reader.createRayObjectRefDF(spark._jsparkSession, locations)
+    current_namespace = ray.get_runtime_context().namespace
+    ray_address = ray.worker.global_worker.node.redis_address
     blocks_df = DataFrame(jdf, spark._wrapped)
-    return blocks_df.mapInPandas(_convert_blocks_to_dataframe, schema)
+    blocks_df.show()
+    def _convert_blocks_to_dataframe(blocks):
+        # connect to ray
+        if not ray.is_initialized():
+            # ray.client().namespace(current_namespace).connect()
+            ray.init(address=ray_address, namespace=current_namespace)
+            obj_holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
+        for block in blocks:
+            dfs = []
+            for idx in block["idx"]:
+                ref = ray.get(obj_holder.get_object.remote(now, idx))
+                data = ray.get(ref)
+                dfs.append(data.to_pandas())
+            yield pd.concat(dfs)
+    df = blocks_df.mapInPandas(_convert_blocks_to_dataframe, schema)
+    return df, holder
 
 def _convert_by_rdd(spark: sql.SparkSession,
                     blocks: Dataset,

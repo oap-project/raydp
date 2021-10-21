@@ -34,20 +34,17 @@ private[spark] class RayObjectRefRDDPartition(idx: Int) extends Partition {
 private[spark]
 class RayObjectRefRDD(
     sc: SparkContext,
-    objectIds: List[Array[Byte]],
     locations: List[Array[Byte]])
   extends RDD[Row](sc, Nil) {
 
-  val refs = objectIds.asScala
-
   override def getPartitions: Array[Partition] = {
-    (0 until refs.length).map { i =>
+    (0 until locations.size()).map { i =>
       new RayObjectRefRDDPartition(i).asInstanceOf[Partition]
     }.toArray
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
-    (Row(refs(split.index)) :: Nil).iterator
+    (Row(split.index) :: Nil).iterator
   }
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
