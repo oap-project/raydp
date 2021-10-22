@@ -508,7 +508,7 @@ def _convert_by_udf(spark: sql.SparkSession,
                 dfs.append(data.to_pandas())
             yield pd.concat(dfs)
     df = blocks_df.mapInPandas(_convert_blocks_to_dataframe, schema)
-    return df, holder
+    return df
 
 def _convert_by_rdd(spark: sql.SparkSession,
                     blocks: Dataset,
