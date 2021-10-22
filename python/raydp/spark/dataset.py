@@ -479,9 +479,6 @@ class RayDPConversionHelper():
     def get_object(self, timestamp, idx):
         return self.objects[timestamp][idx]
 
-    def remove_objects(self, timestamp):
-        del self.objects[timestamp]
-
 RAYDP_OBJ_HOLDER_NAME = "raydp_obj_holder"
 
 def _convert_by_udf(spark: sql.SparkSession,
@@ -501,7 +498,6 @@ def _convert_by_udf(spark: sql.SparkSession,
     def _convert_blocks_to_dataframe(blocks):
         # connect to ray
         if not ray.is_initialized():
-            # ray.client().namespace(current_namespace).connect()
             ray.init(address=ray_address, namespace=current_namespace)
             obj_holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
         for block in blocks:
