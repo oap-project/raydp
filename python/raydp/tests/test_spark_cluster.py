@@ -82,8 +82,8 @@ def test_ray_dataset_to_spark(spark_on_ray_small):
     assert values == rows
     ds2 = ray.data.from_items([{"id": i} for i in range(n)])
     ids = [r["id"] for r in ds2.take(n)]
-    ds2 = ds2.to_spark(spark)
-    rows2 = [r.id for r in df.take(n)]
+    df2 = ds2.to_spark(spark)
+    rows2 = [r.id for r in df2.take(n)]
     assert ids == rows2
 
 if __name__ == "__main__":
