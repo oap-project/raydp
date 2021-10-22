@@ -471,7 +471,7 @@ def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
 @ray.remote
 class RayDPConversionHelper():
     def __init__(self):
-        self.objects = None
+        self.objects = {}
 
     def add_objects(self, timestamp, objects):
         self.objects[timestamp] = objects
@@ -498,7 +498,6 @@ def _convert_by_udf(spark: sql.SparkSession,
     current_namespace = ray.get_runtime_context().namespace
     ray_address = ray.worker.global_worker.node.redis_address
     blocks_df = DataFrame(jdf, spark._wrapped)
-    blocks_df.show()
     def _convert_blocks_to_dataframe(blocks):
         # connect to ray
         if not ray.is_initialized():
