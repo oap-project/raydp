@@ -501,7 +501,8 @@ def _convert_by_udf(spark: sql.SparkSession,
         if not ray.is_initialized():
             ray.init(address=ray_address,
                      _redis_password=ray_password,
-                     namespace=current_namespace)
+                     namespace=current_namespace,
+                     logging_level=logging.WARN)
         obj_holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
         for block in blocks:
             dfs = []
