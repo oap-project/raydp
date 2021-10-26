@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import logging
-import time
+import uuid
 from typing import Callable, Dict, List, NoReturn, Optional, Iterable, Union
 
 import numpy as np
@@ -486,8 +486,8 @@ def _convert_by_udf(spark: sql.SparkSession,
                     locations: List[bytes],
                     schema: StructType) -> DataFrame:
     holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
-    now = time.time()
-    ray.get(holder.add_objects.remote(now, blocks))
+    df_id = uuid.uuid4()
+    ray.get(holder.add_objects.remote(df_id, blocks))
     jvm = spark.sparkContext._jvm
     object_store_reader = jvm.org.apache.spark.sql.raydp.ObjectStoreReader
     # create the rdd then dataframe to utilize locality
@@ -507,7 +507,7 @@ def _convert_by_udf(spark: sql.SparkSession,
         for block in blocks:
             dfs = []
             for idx in block["idx"]:
-                ref = ray.get(obj_holder.get_object.remote(now, idx))
+                ref = ray.get(obj_holder.get_object.remote(df_id, idx))
                 data = ray.get(ref)
                 dfs.append(data.to_pandas())
             yield pd.concat(dfs)
