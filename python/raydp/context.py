@@ -24,6 +24,7 @@ import ray
 from pyspark.sql import SparkSession
 
 from raydp.spark import SparkCluster
+from raydp.spark.dataset import RayDPConversionHelper, RAYDP_OBJ_HOLDER_NAME
 from raydp.utils import parse_memory_size
 
 
@@ -65,6 +66,7 @@ class _SparkContext(ContextDecorator):
     def get_or_create_session(self):
         if self._spark_session is not None:
             return self._spark_session
+        self.handle = RayDPConversionHelper.options(name=RAYDP_OBJ_HOLDER_NAME).remote()
         spark_cluster = self._get_or_create_spark_cluster()
         self._spark_session = spark_cluster.get_spark_session(
             self._app_name,
@@ -78,6 +80,8 @@ class _SparkContext(ContextDecorator):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
+        if self.handle is not None:
+            ray.kill(self.handle)
         if self._spark_cluster is not None:
             self._spark_cluster.stop()
             self._spark_cluster = None

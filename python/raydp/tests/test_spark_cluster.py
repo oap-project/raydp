@@ -76,10 +76,15 @@ def test_ray_dataset_to_spark(spark_on_ray_small):
     spark = spark_on_ray_small
     n = 5
     ds = ray.data.range_arrow(n)
-    values = [r["value"] for r in ds.take(5)]
+    values = [r["value"] for r in ds.take(n)]
     df = ds.to_spark(spark)
-    rows = [r.value for r in df.take(5)]
+    rows = [r.value for r in df.take(n)]
     assert values == rows
+    ds2 = ray.data.from_items([{"id": i} for i in range(n)])
+    ids = [r["id"] for r in ds2.take(n)]
+    df2 = ds2.to_spark(spark)
+    rows2 = [r.id for r in df2.take(n)]
+    assert ids == rows2
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))
