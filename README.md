@@ -36,10 +36,10 @@ import raydp
 ray.init(address='auto')
 
 # create a Spark cluster with specified resource requirements
-spark = raydp.init_spark(app_name = 'RayDP Example',
-                         num_executors = 2,
-                         executor_cores = 2,
-                         executor_memory = '4G')
+spark = raydp.init_spark(app_name='RayDP Example',
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory='4G')
 
 # normal data processesing with Spark
 df = spark.createDataFrame([('look',), ('spark',), ('tutorial',), ('spark',), ('look', ), ('python', )], ['word'])
@@ -65,9 +65,9 @@ import raydp
 
 ray.init()
 spark = raydp.init_spark(app_name="RayDP Example",
-                         num_executors = 2,
-                         executor_cores = 2,
-                         executor_memory = "4GB")
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory="4GB")
 
 # Spark Dataframe to Ray Dataset
 df1 = spark.range(0, 1000)
@@ -89,10 +89,10 @@ import raydp
 from raydp.spark import RayMLDataset
 
 ray.init()
-spark = raydp.init_spark(app_name = "RayDP Example",
-                         num_executors = 2,
-                         executor_cores = 2,
-                         executor_memory = "4GB")
+spark = raydp.init_spark(app_name="RayDP Example",
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory="4GB")
 
 df = spark.range(0, 1000)
 ds = RayMLDataset.from_spark(df, num_shards=10)
@@ -109,7 +109,7 @@ import raydp
 from raydp.torch import TorchEstimator
 
 ray.init(address="auto")
-spark = raydp.init_spark(app_name="RayDP example",
+spark = raydp.init_spark(app_name="RayDP Example",
                          num_executors=2,
                          executor_cores=2,
                          executor_memory="4GB")
