@@ -87,7 +87,7 @@ jobs:
         env:
           GITHUB_CI: 1
         run: |
-          pip install pyspark==3.1.2
+          pip install pyspark==3.2.0
           ./build.sh
           pip install dist/raydp-*.whl
       - name: Lint
