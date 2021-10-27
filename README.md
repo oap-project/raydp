@@ -64,10 +64,10 @@ import ray
 import raydp
 
 ray.init()
-spark = raydp.init_spark(app_name="RayDP example",
-                         num_executors=2,
-                         executor_cores=2,
-                         executor_memory="4GB")
+spark = raydp.init_spark(app_name="RayDP Example",
+                         num_executors = 2,
+                         executor_cores = 2,
+                         executor_memory = "4GB")
 
 # Spark Dataframe to Ray Dataset
 df1 = spark.range(0, 1000)
@@ -89,10 +89,10 @@ import raydp
 from raydp.spark import RayMLDataset
 
 ray.init()
-spark = raydp.init_spark(app_name="RayDP example",
-                         num_executors=2,
-                         executor_cores=2,
-                         executor_memory="4GB")
+spark = raydp.init_spark(app_name = "RayDP Example",
+                         num_executors = 2,
+                         executor_cores = 2,
+                         executor_memory = "4GB")
 
 df = spark.range(0, 1000)
 ds = RayMLDataset.from_spark(df, num_shards=10)
@@ -131,7 +131,7 @@ Please refer to [NYC Taxi PyTorch Estimator](./examples/pytorch_nyctaxi.py) and 
 
 ## MPI on Ray
 
-RayDP also provides an API for running MPI job on Ray. Currently, we support three types of MPI: `intel_mpi`, `openmpi` and `MPICH`. You can refer [doc/mpi.md](./doc/mpi.md) for more details.
+RayDP also provides an API for running MPI job on Ray. We support three types of MPI: `intel_mpi`, `openmpi` and `MPICH`. You can refer to [doc/mpi.md](./doc/mpi.md) for more details.
 
 ## More Examples
 Not sure how to use RayDP? Check the `examples` folder. We have added many examples showing how RayDP works together with PyTorch, TensorFlow, XGBoost, Horovod, and so on. If you still cannot find what you want, feel free to post an issue to ask us!
