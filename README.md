@@ -1,17 +1,17 @@
 # RayDP
 
-RayDP is a distributed data processing library that provides simple APIs for running Spark/MPI on [Ray](https://github.com/ray-project/ray) and integrating Spark with distributed deep learning and machine learning frameworks. RayDP makes it simple to build distributed end-to-end data analytics and AI pipeline. Instead of using lots of glue code or an orchestration framework to stitch multiple distributed programs, RayDP allows you to write Spark, PyTorch, Tensorflow, XGBoost code in a single python program with increased productivity and performance. You can build an end-to-end pipeline on a single Ray cluster by using Spark for data preprocessing, RaySGD or Horovod for distributed deep learning, RayTune for hyperparameter tuning and RayServe for model serving.
+RayDP is a distributed data processing library that provides simple APIs for running Spark on [Ray](https://github.com/ray-project/ray) and integrating Spark with distributed deep learning and machine learning frameworks. RayDP makes it simple to build distributed end-to-end data analytics and AI pipeline. Instead of using lots of glue code or an orchestration framework to stitch multiple distributed programs, RayDP allows you to write Spark, PyTorch, Tensorflow, XGBoost code in a single python program with increased productivity and performance. You can build an end-to-end pipeline on a single Ray cluster by using Spark for data preprocessing, RaySGD or Horovod for distributed deep learning, RayTune for hyperparameter tuning and RayServe for model serving.
 
 ## Installation
 
 
-You can install latest RayDP using pip. RayDP requires Ray (>=1.3.0) and PySpark (>=3.0.0). Please also make sure java is installed and JAVA_HOME is set properly.
+You can install latest RayDP using pip. RayDP requires Ray and PySpark. Please also make sure java is installed and JAVA_HOME is set properly.
 
 ```shell
 pip install raydp
 ```
 
-Or you can install our nightly build:
+Or you can install RayDP nightly build:
 
 ```shell
 pip install raydp-nightly
@@ -26,11 +26,7 @@ pip install dist/raydp*.whl
 
 ## Spark on Ray
 
-RayDP provides an API for starting a Spark job on Ray in your python program without a need to setup a Spark cluster manually. RayDP supports Ray as a Spark resource manger and runs Spark executors in Ray actors. RayDP utilizes Ray's in-memory object store to efficiently exchange data between Spark and other Ray libraries. You can use Spark to read the input data, process the data using SQL, Spark DataFrame, or Pandas (via [Koalas](https://github.com/databricks/koalas)) API, extract and transform features using Spark MLLib, and feed the output to deep learning and machine learning frameworks.
-
-### Classic Spark Word Count Example
-
-To start a Spark job on Ray, you can use the `raydp.init_spark` API. After we use RayDP to initialize a Spark cluster, we can use Spark as usual. 
+RayDP provides an API for starting a Spark job on Ray without a need to setup a Spark cluster separately. RayDP supports Ray as a Spark resource manager and runs Spark executors in Ray actors. To create a Spark session, call the `raydp.init_spark` API. For example:
 
 ```python
 import ray
@@ -40,10 +36,10 @@ import raydp
 ray.init(address='auto')
 
 # create a Spark cluster with specified resource requirements
-spark = raydp.init_spark('word_count',
+spark = raydp.init_spark(app_name='RayDP Example',
                          num_executors=2,
                          executor_cores=2,
-                         executor_memory='1G')
+                         executor_memory='4GB')
 
 # normal data processesing with Spark
 df = spark.createDataFrame([('look',), ('spark',), ('tutorial',), ('spark',), ('look', ), ('python', )], ['word'])
@@ -55,37 +51,57 @@ word_count.show()
 raydp.stop_spark()
 ```
 
-### Dynamic Resource Allocation
+Spark features such as dynamic resource allocation, spark-submit script, etc are also supported. Please refer to [Spark on Ray](./doc/spark_on_ray.md) for more details.
 
-RayDP now supports External Shuffle Serivce. To enable it, you can either set `spark.shuffle.service.enabled` to `true` in `spark-defaults.conf`, or you can provide a config to `raydp.init_spark`, as shown below:
+## Machine Learning and Deep Learning With a Spark DataFrame
+
+RayDP provides APIs for converting a Spark DataFrame to a Ray Dataset or Ray MLDataset which can be consumed by XGBoost, RaySGD or Horovod on Ray. RayDP also provides high level scikit-learn style Estimator APIs for distributed training with PyTorch or Tensorflow.
+
+
+***Spark DataFrame <=> Ray Dataset***
+```python
+import ray
+import raydp
+
+ray.init()
+spark = raydp.init_spark(app_name="RayDP Example",
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory="4GB")
+
+# Spark Dataframe to Ray Dataset
+df1 = spark.range(0, 1000)
+ds1 = ray.data.from_spark(df1)
+
+# Ray Dataset to Spark Dataframe
+ds2 = ray.data.from_items([{"id": i} for i in range(1000)])
+df2 = ds2.to_spark(spark)
+```
+Please refer to [Spark+XGBoost on Ray](./examples/xgboost_ray_nyctaxi.py) for a full example.
+
+***Spark DataFrame => Ray MLDataset***
+
+RayDP provides an API for creating a Ray MLDataset from a Spark dataframe. MLDataset can be converted to a PyTorch or Tensorflow dataset for distributed training with Horovod on Ray or RaySGD. MLDataset is also supported by XGBoost on Ray as a data source.
 
 ```python
-raydp.init_spark(..., configs={"spark.shuffle.service.enabled": "true"})
+import ray
+import raydp
+from raydp.spark import RayMLDataset
+
+ray.init()
+spark = raydp.init_spark(app_name="RayDP Example",
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory="4GB")
+
+df = spark.range(0, 1000)
+ds = RayMLDataset.from_spark(df, num_shards=10)
 ```
-
-The user-provided config will overwrite those specified in `spark-defaults.conf`. By default Spark will load `spark-defaults.conf` from `$SPARK_HOME/conf`, you can also modify this location by setting `SPARK_CONF_DIR`.
-
-Similarly, you can also enable Dynamic Executor Allocation this way. However, because Ray does not support object ownership tranferring now(1.3.0), you must use Dynamic Executor Allocation with data persistence. You can write the data frame in spark to HDFS as a parquet as shown below:
-
-```python
-ds = RayMLDataset.from_spark(..., fs_directory="hdfs://host:port/your/directory")
-```
-
-### Spark Submit
-
-RayDP provides a substitute for spark-submit in Apache Spark. You can run your java or scala application on RayDP cluster by using `bin/raydp-submit`. You can add it to `PATH` for convenience. When using `raydp-submit`, you should specify number of executors, number of cores and memory each executor by Spark properties, such as `--conf spark.executor.cores=1`, `--conf spark.executor.instances=1` and `--conf spark.executor.memory=500m`. `raydp-submit` only supports Ray cluster. Spark standalone, Apache Mesos, Apache Yarn are not supported, please use traditional `spark-submit` in that case. For the same reason, you do not need to specify `--master` in the command. Besides, RayDP does not support cluster as deploy-mode.
-
-### Integrating Spark with Deep Learning and Machine Learning Frameworks
-
-Combined with other ray components, such as RaySGD and RayServe, we can easily build an end-to-end deep learning pipeline.
-
-***MLDataset API***
-
-RayDP provides an API for creating a Ray MLDataset from a Spark dataframe. MLDataset represents a distributed dataset stored in Ray's in-memory object store. It supports transformation on each shard and can be converted to a PyTorch or Tensorflow dataset for distributed training. If you prefer to using Horovod on Ray or RaySGD for distributed training, you can use MLDataset to seamlessly integrate Spark with them.
+Please refer to [Spark+Horovod on Ray](./examples/horovod_nyctaxi.py) for a full example.
 
 ***Estimator API***
 
-RayDP also provides high level scikit-learn style Estimator APIs for distributed training. The Estimator APIs allow you to train a deep neural network directly on a Spark DataFrame, leveraging Ray’s ability to scale out across the cluster. The Estimator APIs are wrappers of RaySGD and hide the complexity of converting a Spark DataFrame to a PyTorch/Tensorflow dataset and distributing the training.
+The Estimator APIs allow you to train a deep neural network directly on a Spark DataFrame, leveraging Ray’s ability to scale out across the cluster. The Estimator APIs are wrappers of RaySGD and hide the complexity of converting a Spark DataFrame to a PyTorch/Tensorflow dataset and distributing the training. RayDP provides `raydp.torch.TorchEstimator` for PyTorch and `raydp.tf.TFEstimator` for Tensorflow. The following is an example of using TorchEstimator.
 
 ```python
 import ray
@@ -93,7 +109,7 @@ import raydp
 from raydp.torch import TorchEstimator
 
 ray.init(address="auto")
-spark = raydp.init_spark(app_name="RayDP example",
+spark = raydp.init_spark(app_name="RayDP Example",
                          num_executors=2,
                          executor_cores=2,
                          executor_memory="4GB")
@@ -106,16 +122,16 @@ train_df = df.withColumn(…)
 model = torch.nn.Sequential(torch.nn.Linear(2, 1)) 
 optimizer = torch.optim.Adam(model.parameters())
 
-# You can use the RayDP Estimator API or libraries like RaySGD for distributed training.
 estimator = TorchEstimator(model=model, optimizer=optimizer, ...) 
 estimator.fit_on_spark(train_df)
 
 raydp.stop_spark()
 ```
+Please refer to [NYC Taxi PyTorch Estimator](./examples/pytorch_nyctaxi.py) and [NYC Taxi Tensorflow Estimator](./examples/tensorflow_nyctaxi.py) for full examples.
 
 ## MPI on Ray
 
-RayDP also provides a simple API to running MPI job on top of Ray. Currently, we support three types of MPI: `intel_mpi`, `openmpi` and `MPICH`. You can refer [doc/mpi.md](./doc/mpi.md) for more details.
+RayDP also provides an API for running MPI job on Ray. We support three types of MPI: `intel_mpi`, `openmpi` and `MPICH`. You can refer to [doc/mpi.md](./doc/mpi.md) for more details.
 
 ## More Examples
 Not sure how to use RayDP? Check the `examples` folder. We have added many examples showing how RayDP works together with PyTorch, TensorFlow, XGBoost, Horovod, and so on. If you still cannot find what you want, feel free to post an issue to ask us!
