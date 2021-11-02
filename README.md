@@ -53,6 +53,32 @@ raydp.stop_spark()
 
 Spark features such as dynamic resource allocation, spark-submit script, etc are also supported. Please refer to [Spark on Ray](./doc/spark_on_ray.md) for more details.
 
+## Pandas on Spark
+
+PySpark 3.2.0 provides Pandas API on Spark(originally Koalas). Users familiar with Pandas can use it to scale current pandas workloads on RayDP.
+
+```python
+import ray
+import raydp
+import pyspark.pandas as ps
+
+# connect to ray cluster
+ray.init(address='auto')
+
+# create a Spark cluster with specified resource requirements
+spark = raydp.init_spark(app_name='RayDP Example',
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory='4GB')
+
+# Use pandas on spark to create a dataframe and aggregate
+psdf = ps.range(100)
+print(psdf.count())
+
+# stop the spark cluster
+raydp.stop_spark()
+```
+
 ## Machine Learning and Deep Learning With a Spark DataFrame
 
 RayDP provides APIs for converting a Spark DataFrame to a Ray Dataset or Ray MLDataset which can be consumed by XGBoost, RaySGD or Horovod on Ray. RayDP also provides high level scikit-learn style Estimator APIs for distributed training with PyTorch or Tensorflow.
