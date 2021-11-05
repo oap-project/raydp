@@ -64,7 +64,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
     val objectRefImpl = RayDPUtils.convert(objectRef)
     val objectId = objectRefImpl.getId
     val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
-    val addressInfo = runtime.getObjectStore.promoteAndGetOwnershipInfo(objectId)
+    val addressInfo = runtime.getObjectStore.getOwnershipInfo(objectId)
     RecordBatch(addressInfo, objectId.getBytes, numRecords)
   }
 
