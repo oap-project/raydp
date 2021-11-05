@@ -27,8 +27,7 @@ from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import StructType
 from pyspark.sql.pandas.types import from_arrow_type
 import ray
-from ray.data import from_arrow
-from ray.data import Dataset
+from ray.data import Dataset, from_arrow_refs
 from ray.types import ObjectRef
 import ray.util.data as ml_dataset
 import ray.util.iter as parallel_it
@@ -466,7 +465,7 @@ def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
         elif parallelism > num_part:
             df = df.repartition(parallelism)
     blocks, _ = _save_spark_df_to_object_store(df, False)
-    return from_arrow(blocks)
+    return from_arrow_refs(blocks)
 
 @ray.remote
 class RayDPConversionHelper():
