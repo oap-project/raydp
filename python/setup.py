@@ -29,7 +29,7 @@ package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
 if package_name == 'raydp_nightly':
     VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
 else:
-    VERSION = "0.4.0"
+    VERSION = "0.4.1"
 
 ROOT_DIR = os.path.dirname(__file__)
 
