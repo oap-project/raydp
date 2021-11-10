@@ -74,7 +74,7 @@ def test_ray_dataset_roundtrip(spark_on_ray_small):
 
 def test_ray_dataset_to_spark(spark_on_ray_small):
     spark = spark_on_ray_small
-    n = 5
+    n = 1000
     ds = ray.data.range_arrow(n)
     values = [r["value"] for r in ds.take(n)]
     df = ds.to_spark(spark)

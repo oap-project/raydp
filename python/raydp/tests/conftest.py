@@ -49,8 +49,8 @@ def ray_cluster(request):
 @pytest.fixture(scope="function")
 def spark_on_ray_small(request):
     ray.shutdown()
-    ray.init(num_cpus=8, _redis_password="123", include_dashboard=False)
-    spark = raydp.init_spark("test", 2, 2, "2G")
+    ray.init(num_cpus=4, _redis_password="123", include_dashboard=False)
+    spark = raydp.init_spark("test", 1, 1, "500 M")
 
     def stop_all():
         raydp.stop_spark()

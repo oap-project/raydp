@@ -95,9 +95,11 @@ try:
         "pandas >= 1.1.4",
         "psutil",
         "pyarrow >= 0.10",
-        "ray >= 1.8.0",
+        "ray[default] >= 1.8.0",
         "pyspark >= 3.2.0",
-        "netifaces"
+        "netifaces",
+        # pin the version to workaround bug in its 3.8.0
+        "aiohttp == 3.7.4"
     ]
 
     _packages = find_packages()
