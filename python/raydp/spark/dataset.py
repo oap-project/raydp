@@ -207,6 +207,11 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True, _u
         blocks.append(object_ref)
         block_sizes.append(num_records)
 
+    if _use_owner is True:
+        holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
+        df_id = uuid.uuid4()
+        ray.get(holder.add_objects.remote(df_id, blocks))
+
     return blocks, block_sizes
 
 
