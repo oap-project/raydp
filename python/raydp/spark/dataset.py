@@ -182,13 +182,16 @@ class RayRecordBatch(RecordBatch):
         self.resolved = True
 
 
-def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True):
+def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True, _use_owner: bool = False):
     # call java function from python
     jvm = df.sql_ctx.sparkSession.sparkContext._jvm
     jdf = df._jdf
     object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
-    records = object_store_writer.save(use_batch)
 
+    if _use_owner is True:
+        records = object_store_writer.save(use_batch, RAYDP_OBJ_HOLDER_NAME)
+    else:
+        records = object_store_writer.save(use_batch, '')
     worker = ray.worker.global_worker
 
     blocks: List[ray.ObjectRef] = []
@@ -457,26 +460,35 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
         df, num_shards, shuffle, shuffle_seed, fs_directory, compression, node_hints)
 
 def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
-                                   parallelism: Optional[int] = None):
+                                   parallelism: Optional[int] = None, 
+                                   _use_owner: bool = False):
     num_part = df.rdd.getNumPartitions()
     if parallelism is not None:
         if parallelism < num_part:
             df = df.coalesce(parallelism)
         elif parallelism > num_part:
             df = df.repartition(parallelism)
-    blocks, _ = _save_spark_df_to_object_store(df, False)
+    blocks, _ = _save_spark_df_to_object_store(df, False, _use_owner)
     return from_arrow_refs(blocks)
 
 @ray.remote
 class RayDPConversionHelper():
     def __init__(self):
         self.objects = {}
+        self.this_actor_id = None
 
     def add_objects(self, timestamp, objects):
         self.objects[timestamp] = objects
 
     def get_object(self, timestamp, idx):
         return self.objects[timestamp][idx]
+
+    def terminate(self):
+        ray.actor.exit_actor()
+
+    def get_actor_id(self):
+        self.this_actor_id = ray.get_runtime_context().actor_id
+        return self.this_actor_id
 
 RAYDP_OBJ_HOLDER_NAME = "raydp_obj_holder"
 

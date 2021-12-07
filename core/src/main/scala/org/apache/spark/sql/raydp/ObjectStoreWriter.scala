@@ -17,8 +17,12 @@
 
 package org.apache.spark.sql.raydp
 
+
+import java.io.FileWriter
+import java.io.IOException
+
 import java.io.ByteArrayOutputStream
-import java.util.{List, UUID}
+import java.util.{List, Optional, UUID}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 import java.util.function.{Function => JFunction}
 
@@ -26,7 +30,9 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-import io.ray.api.{ObjectRef, Ray}
+import io.ray.api.{ObjectRef, Ray, PyActorHandle}
+// import io.ray.api.id.{ActorId, JobId, TaskId}
+
 import io.ray.runtime.RayRuntimeInternal
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
@@ -54,24 +60,58 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
   val uuid: UUID = ObjectStoreWriter.dfToId.getOrElseUpdate(df, UUID.randomUUID())
 
+  def prints(log:String) : Unit = {
+    try {
+      var fw:FileWriter = new FileWriter("/home/bryan/Projects/raydp_PR/raydp/text_log.txt", true)
+      fw.write(log + "\n")
+      fw.close()
+      } catch {
+      case ex: IOException => {
+        ex.printStackTrace()
+      }
+      }
+  }
+
   def writeToRay(
       data: Array[Byte],
       numRecords: Int,
-      queue: ObjectRefHolder.Queue): RecordBatch = {
-    val objectRef = Ray.put(data)
-    // add the objectRef to the objectRefHolder to avoid reference GC
-    queue.add(objectRef)
-    val objectRefImpl = RayDPUtils.convert(objectRef)
-    val objectId = objectRefImpl.getId
-    val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
-    val addressInfo = runtime.getObjectStore.getOwnershipInfo(objectId)
-    RecordBatch(addressInfo, objectId.getBytes, numRecords)
+      queue: ObjectRefHolder.Queue,
+      ownerName: String): RecordBatch = {
+
+    // val ns = Ray.getRuntimeContext().getNamespace()
+    prints("inside Scala")
+    
+
+    if (ownerName == "") {
+      val objectRef = Ray.put(data)
+
+      // add the objectRef to the objectRefHolder to avoid reference GC
+      queue.add(objectRef)
+      val objectRefImpl = RayDPUtils.convert(objectRef)
+      val objectId = objectRefImpl.getId
+      val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
+      val addressInfo = runtime.getObjectStore.getOwnershipInfo(objectId)
+      RecordBatch(addressInfo, objectId.getBytes, numRecords)
+    } else {
+      val ns = Ray.getRuntimeContext().getNamespace()
+      prints(s"ownerName = $ownerName, ownerNameSpace = $ns")
+      var dataOwner:PyActorHandle = Ray.getActor(ownerName, ns).get()
+      val objectRef = Ray.put(data, dataOwner) // val objectRef = Ray.put(data)
+
+      // add the objectRef to the objectRefHolder to avoid reference GC
+      queue.add(objectRef)
+      val objectRefImpl = RayDPUtils.convert(objectRef)
+      val objectId = objectRefImpl.getId
+      val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
+      val addressInfo = runtime.getObjectStore.getOwnershipInfo(objectId)
+      RecordBatch(addressInfo, objectId.getBytes, numRecords)
+    }
   }
 
   /**
    * Save the DataFrame to Ray object store with Apache Arrow format.
    */
-  def save(useBatch: Boolean): List[RecordBatch] = {
+  def save(useBatch: Boolean, ownerName: String): List[RecordBatch] = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
     var batchSize = conf.getConf(SQLConf.ARROW_EXECUTION_MAX_RECORDS_PER_BATCH)
@@ -126,7 +166,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
           // get the wrote ByteArray and save to Ray ObjectStore
           val byteArray = byteOut.toByteArray
-          results += writeToRay(byteArray, numRecords, queue)
+          results += writeToRay(byteArray, numRecords, queue, ownerName)
           // end writes footer to the output stream and doesn't clean any resources.
           // It could throw exception if the output stream is closed, so it should be
           // in the try block.

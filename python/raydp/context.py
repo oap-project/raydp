@@ -76,12 +76,14 @@ class _SparkContext(ContextDecorator):
             self._configs)
         return self._spark_session
 
-    def stop(self):
+    def stop(self, is_partial=False):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
-        if self.handle is not None:
-            ray.kill(self.handle)
+        if self.handle is not None and is_partial is False:
+            self.handle.terminate.remote()
+            self.handle = None
+            # ray.kill(self.handle)
         if self._spark_cluster is not None:
             self._spark_cluster.stop()
             self._spark_cluster = None
@@ -131,12 +133,13 @@ def init_spark(app_name: str,
             raise Exception("The spark environment has inited.")
 
 
-def stop_spark():
+def stop_spark(is_partial=False):
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is not None:
-            _global_spark_context.stop()
-            _global_spark_context = None
+            _global_spark_context.stop(is_partial)
+            if is_partial is False:
+                _global_spark_context = None
 
 
 atexit.register(stop_spark)
