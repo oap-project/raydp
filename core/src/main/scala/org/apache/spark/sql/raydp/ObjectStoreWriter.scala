@@ -18,9 +18,6 @@
 package org.apache.spark.sql.raydp
 
 
-import java.io.FileWriter
-import java.io.IOException
-
 import java.io.ByteArrayOutputStream
 import java.util.{List, Optional, UUID}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
@@ -31,8 +28,6 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 import io.ray.api.{ObjectRef, Ray, PyActorHandle}
-// import io.ray.api.id.{ActorId, JobId, TaskId}
-
 import io.ray.runtime.RayRuntimeInternal
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
@@ -60,27 +55,11 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
   val uuid: UUID = ObjectStoreWriter.dfToId.getOrElseUpdate(df, UUID.randomUUID())
 
-  def prints(log:String) : Unit = {
-    try {
-      var fw:FileWriter = new FileWriter("/home/bryan/Projects/raydp_PR/raydp/text_log.txt", true)
-      fw.write(log + "\n")
-      fw.close()
-      } catch {
-      case ex: IOException => {
-        ex.printStackTrace()
-      }
-      }
-  }
-
   def writeToRay(
       data: Array[Byte],
       numRecords: Int,
       queue: ObjectRefHolder.Queue,
       ownerName: String): RecordBatch = {
-
-    // val ns = Ray.getRuntimeContext().getNamespace()
-    prints("inside Scala")
-    
 
     if (ownerName == "") {
       val objectRef = Ray.put(data)
@@ -94,7 +73,6 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       RecordBatch(addressInfo, objectId.getBytes, numRecords)
     } else {
       val ns = Ray.getRuntimeContext().getNamespace()
-      prints(s"ownerName = $ownerName, ownerNameSpace = $ns")
       var dataOwner:PyActorHandle = Ray.getActor(ownerName, ns).get()
       val objectRef = Ray.put(data, dataOwner) // val objectRef = Ray.put(data)
 
