@@ -40,14 +40,13 @@ def test_fail_without_data_ownership_transfer():
   resource_stats = ray.available_resources()
   cpu_cnt = resource_stats['CPU']
 
-  # convert data from spark dataframe to ray dataset,
-  # and transfer data ownership to dedicated Object Holder (Singleton)
-  df = spark_dataframe_to_ray_dataset(df_train, parallelism=4, _use_owner=True)
+  # convert data from spark dataframe to ray dataset without data ownership transfer
+  df = spark_dataframe_to_ray_dataset(df_train, parallelism=4)
 
   # display data
   df.show(5)
 
-  # release resource by shutting down spark entirely
+  # release resource by shutting down spark
   raydp.stop_spark()
   ray.internal.internal_api.global_gc() # ensure GC kicked in
   time.sleep(3)
