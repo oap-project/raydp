@@ -10,7 +10,10 @@ import raydp
 @pytest.mark.xfail(reason="data ownership transfer feature is not enabled")
 def test_fail_without_data_ownership_transfer():
   """
-  参数设置
+  Test shutting down Spark worker after data been put 
+  into Ray object store without data ownership transfer.
+  This test should be throw error of data inaccessible after
+  its owner (e.g. Spark JVM process) has terminated, which is expected.
   """
 
   from raydp.spark.dataset import spark_dataframe_to_ray_dataset
@@ -59,7 +62,9 @@ def test_fail_without_data_ownership_transfer():
 
 def test_data_ownership_transfer():
   """
-  参数设置
+  Test shutting down Spark worker after data been put 
+  into Ray object store with data ownership transfer.
+  This test should be able to execute till the end without crash as expected.
   """
 
   from raydp.spark.dataset import spark_dataframe_to_ray_dataset
@@ -115,6 +120,10 @@ def test_data_ownership_transfer():
 
 
 def test_api_compatibility():
+  """
+  Test the changes been made are not to break public APIs.
+  """
+
   num_executor = 4
 
   ray.shutdown()
