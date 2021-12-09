@@ -27,7 +27,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-import io.ray.api.{ObjectRef, Ray, PyActorHandle}
+import io.ray.api.{ObjectRef, PyActorHandle, Ray}
 import io.ray.runtime.RayRuntimeInternal
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
@@ -73,7 +73,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       RecordBatch(addressInfo, objectId.getBytes, numRecords)
     } else {
       val ns = Ray.getRuntimeContext().getNamespace()
-      var dataOwner:PyActorHandle = Ray.getActor(ownerName, ns).get()
+      var dataOwner: PyActorHandle = Ray.getActor(ownerName, ns).get()
       val objectRef = Ray.put(data, dataOwner) // val objectRef = Ray.put(data)
 
       // add the objectRef to the objectRefHolder to avoid reference GC
