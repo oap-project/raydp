@@ -61,29 +61,21 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       queue: ObjectRefHolder.Queue,
       ownerName: String): RecordBatch = {
 
+    var objectRef: ObjectRef[Array[Byte]] = null
     if (ownerName == "") {
-      val objectRef = Ray.put(data)
-
-      // add the objectRef to the objectRefHolder to avoid reference GC
-      queue.add(objectRef)
-      val objectRefImpl = RayDPUtils.convert(objectRef)
-      val objectId = objectRefImpl.getId
-      val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
-      val addressInfo = runtime.getObjectStore.getOwnershipInfo(objectId)
-      RecordBatch(addressInfo, objectId.getBytes, numRecords)
+      objectRef = Ray.put(data)
     } else {
-      val ns = Ray.getRuntimeContext().getNamespace()
-      var dataOwner: PyActorHandle = Ray.getActor(ownerName, ns).get()
-      val objectRef = Ray.put(data, dataOwner) // val objectRef = Ray.put(data)
-
-      // add the objectRef to the objectRefHolder to avoid reference GC
-      queue.add(objectRef)
-      val objectRefImpl = RayDPUtils.convert(objectRef)
-      val objectId = objectRefImpl.getId
-      val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
-      val addressInfo = runtime.getObjectStore.getOwnershipInfo(objectId)
-      RecordBatch(addressInfo, objectId.getBytes, numRecords)
+      var dataOwner: PyActorHandle = Ray.getActor(ownerName).get()
+      objectRef = Ray.put(data, dataOwner) 
     }
+
+    // add the objectRef to the objectRefHolder to avoid reference GC
+    queue.add(objectRef)
+    val objectRefImpl = RayDPUtils.convert(objectRef)
+    val objectId = objectRefImpl.getId
+    val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
+    val addressInfo = runtime.getObjectStore.getOwnershipInfo(objectId)
+    RecordBatch(addressInfo, objectId.getBytes, numRecords)
   }
 
   /**
