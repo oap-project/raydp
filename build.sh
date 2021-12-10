@@ -41,9 +41,9 @@ CORE_DIR="${CURRENT_DIR}/core"
 pushd ${CORE_DIR}
 if [[ -z $GITHUB_CI ]];
 then
-  mvn clean package -DskipTests
+  mvn clean package -q -DskipTests
 else
-  mvn verify
+  mvn verify -q
 fi
 popd # core dir
 
