@@ -66,7 +66,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       objectRef = Ray.put(data)
     } else {
       var dataOwner: PyActorHandle = Ray.getActor(ownerName).get()
-      objectRef = Ray.put(data, dataOwner) 
+      objectRef = Ray.put(data, dataOwner)
     }
 
     // add the objectRef to the objectRefHolder to avoid reference GC
