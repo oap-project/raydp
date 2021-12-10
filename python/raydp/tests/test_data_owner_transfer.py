@@ -7,6 +7,22 @@ import pytest
 import ray
 import raydp
 
+
+def gen_test_data():
+  from pyspark.sql.session import SparkSession
+  s = SparkSession.getActiveSession()
+ 
+  data = [("ming", 20, 15552211521),
+          ("hong", 19, 13287994007),
+          ("dave", 21, 15552211523),
+          ("john", 40, 15322211523),
+          ("wong", 50, 15122211523)]
+
+  rdd = s.sparkContext.parallelize(data)
+  out = s.createDataFrame(rdd, ["Name", "Age", "Phone"])
+  return out
+  
+
 @pytest.mark.xfail(reason="data ownership transfer feature is not enabled")
 def test_fail_without_data_ownership_transfer():
   """
@@ -31,10 +47,7 @@ def test_fail_without_data_ownership_transfer():
     executor_memory = "800M"
     )
 
-  test_file_path = os.path.abspath(__file__)
-  test_file_path = os.path.join(os.path.dirname(test_file_path),'data.txt')
-
-  df_train = spark.read.csv(test_file_path, sep=',', header=True, inferSchema=True)
+  df_train = gen_test_data()
   # df_train = df_train.sample(False, 0.001, 42)
 
   resource_stats = ray.available_resources()
@@ -56,7 +69,7 @@ def test_fail_without_data_ownership_transfer():
   assert resource_stats['CPU'] == cpu_cnt + num_executor
 
   # confirm that data get lost (error thrown)
-  df.show(5)
+  df = df.to_dask()
 
 
 def test_data_ownership_transfer():
@@ -82,10 +95,7 @@ def test_data_ownership_transfer():
     executor_memory = "800M"
     )
 
-  test_file_path = os.path.abspath(__file__)
-  test_file_path = os.path.join(os.path.dirname(test_file_path),'data.txt')
-
-  df_train = spark.read.csv(test_file_path, sep=',', header=True, inferSchema=True)
+  df_train = gen_test_data()
 
   resource_stats = ray.available_resources()
   cpu_cnt = resource_stats['CPU']
@@ -136,10 +146,7 @@ def test_api_compatibility():
     executor_memory = "800M"
     )
 
-  test_file_path = os.path.abspath(__file__)
-  test_file_path = os.path.join(os.path.dirname(test_file_path),'data.txt')
-
-  df_train = spark.read.csv(test_file_path, sep=',', header=True, inferSchema=True)
+  df_train = gen_test_data()
 
   resource_stats = ray.available_resources()
   cpu_cnt = resource_stats['CPU']
