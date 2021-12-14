@@ -182,7 +182,8 @@ class RayRecordBatch(RecordBatch):
         self.resolved = True
 
 
-def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True, _use_owner: bool = False):
+def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
+                                   _use_owner: bool = False):
     # call java function from python
     jvm = df.sql_ctx.sparkSession.sparkContext._jvm
     jdf = df._jdf
@@ -191,7 +192,7 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True, _u
     if _use_owner is True:
         records = object_store_writer.save(use_batch, RAYDP_OBJ_HOLDER_NAME)
     else:
-        records = object_store_writer.save(use_batch, '')
+        records = object_store_writer.save(use_batch, "")
     worker = ray.worker.global_worker
 
     blocks: List[ray.ObjectRef] = []
@@ -465,7 +466,7 @@ def create_ml_dataset_from_spark(df: sql.DataFrame,
         df, num_shards, shuffle, shuffle_seed, fs_directory, compression, node_hints)
 
 def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
-                                   parallelism: Optional[int] = None, 
+                                   parallelism: Optional[int] = None,
                                    _use_owner: bool = False):
     num_part = df.rdd.getNumPartitions()
     if parallelism is not None:
