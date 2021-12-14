@@ -38,7 +38,7 @@ def test_fail_without_data_ownership_transfer():
 
   from raydp.spark.dataset import spark_dataframe_to_ray_dataset
   
-  num_executor = 4
+  num_executor = 1
 
   ray.shutdown()
   raydp.stop_spark()
@@ -48,7 +48,7 @@ def test_fail_without_data_ownership_transfer():
     app_name = "example",
     num_executors = num_executor,
     executor_cores = 1,
-    executor_memory = "800M"
+    executor_memory = "500M"
     )
 
   df_train = gen_test_data()
@@ -86,7 +86,7 @@ def test_data_ownership_transfer():
   from raydp.spark.dataset import spark_dataframe_to_ray_dataset
   import numpy as np
   
-  num_executor = 4
+  num_executor = 1
 
   ray.shutdown()
   raydp.stop_spark()
@@ -96,7 +96,7 @@ def test_data_ownership_transfer():
     app_name = "example",
     num_executors = num_executor,
     executor_cores = 1,
-    executor_memory = "800M"
+    executor_memory = "500M"
     )
 
   df_train = gen_test_data()
@@ -134,7 +134,7 @@ def test_api_compatibility():
   Test the changes been made are not to break public APIs.
   """
 
-  num_executor = 4
+  num_executor = 1
 
   ray.shutdown()
   raydp.stop_spark()
@@ -144,7 +144,7 @@ def test_api_compatibility():
     app_name = "example",
     num_executors = num_executor,
     executor_cores = 1,
-    executor_memory = "800M"
+    executor_memory = "500M"
     )
 
   df_train = gen_test_data()
