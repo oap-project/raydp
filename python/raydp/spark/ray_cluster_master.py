@@ -152,6 +152,7 @@ class RayClusterMaster(ClusterMaster):
         options["ray.raylet.config.num_workers_per_process_java"] = "1"
         options["ray.object-store.socket-name"] = node.plasma_store_socket_name
         options["ray.logging.level"] = "INFO"
+        options["ray.job.namespace"] = ray.get_runtime_context().namespace
 
         # jnius_config.set_option has some bug, we set this options in java side
         jvm_properties = json.dumps(options)
