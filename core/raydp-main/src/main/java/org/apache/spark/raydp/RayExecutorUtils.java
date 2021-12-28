@@ -21,11 +21,12 @@ import io.ray.api.ActorHandle;
 import io.ray.api.ObjectRef;
 import io.ray.api.Ray;
 import io.ray.api.call.ActorCreator;
+import io.ray.api.placementgroup.PlacementGroup;
+import io.ray.runtime.object.ObjectRefImpl;
+
 import java.util.Map;
 import java.util.List;
 
-import io.ray.api.placementgroup.PlacementGroup;
-import io.ray.runtime.object.ObjectRefImpl;
 import org.apache.spark.executor.RayDPExecutor;
 
 public class RayExecutorUtils {

@@ -17,7 +17,6 @@
 
 package org.apache.spark.sql.raydp
 
-
 import java.io.ByteArrayOutputStream
 import java.util.{List, UUID}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
@@ -61,17 +60,16 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
   val uuid: UUID = ObjectStoreWriter.dfToId.getOrElseUpdate(df, UUID.randomUUID())
 
   def writeToRay(
-      data: Array[Byte],
+      root: VectorSchemaRoot,
       numRecords: Int,
       queue: ObjectRefHolder.Queue,
       ownerName: String): RecordBatch = {
-
-    var objectRef: ObjectRef[Array[Byte]] = null
+    var objectRef: ObjectRef[VectorSchemaRoot] = null
     if (ownerName == "") {
-      objectRef = Ray.put(data)
+      objectRef = Ray.put(root)
     } else {
       var dataOwner: PyActorHandle = Ray.getActor(ownerName).get()
-      objectRef = Ray.put(data, dataOwner)
+      objectRef = Ray.put(root, dataOwner)
     }
 
     // add the objectRef to the objectRefHolder to avoid reference GC
@@ -111,7 +109,6 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       val root = VectorSchemaRoot.create(arrowSchema, allocator)
       val results = new ArrayBuffer[RecordBatch]()
 
-      val byteOut = new ByteArrayOutputStream()
       val arrowWriter = ArrowWriter.create(root)
       var numRecords: Int = 0
 
@@ -119,12 +116,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
         while (batchIter.hasNext) {
           // reset the state
           numRecords = 0
-          byteOut.reset()
           arrowWriter.reset()
-
-          // write out the schema meta data
-          val writer = new ArrowStreamWriter(root, null, byteOut)
-          writer.start()
 
           // get the next record batch
           val nextBatch = batchIter.next()
@@ -136,19 +128,11 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
           // set the write record count
           arrowWriter.finish()
-          // write out the record batch to the underlying out
-          writer.writeBatch()
 
-          // get the wrote ByteArray and save to Ray ObjectStore
-          val byteArray = byteOut.toByteArray
-          results += writeToRay(byteArray, numRecords, queue, ownerName)
-          // end writes footer to the output stream and doesn't clean any resources.
-          // It could throw exception if the output stream is closed, so it should be
-          // in the try block.
-          writer.end()
+          // write and schema root directly and save to Ray ObjectStore
+          results += writeToRay(root, numRecords, queue, ownerName)
         }
         arrowWriter.reset()
-        byteOut.close()
       } {
         // If we close root and allocator in TaskCompletionListener, there could be a race
         // condition where the writer thread keeps writing to the VectorSchemaRoot while
@@ -173,7 +157,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
   /**
    * For test.
    */
-  def getRandomRef(): List[Array[Byte]] = {
+  def getRandomRef(): List[VectorSchemaRoot] = {
 
     df.queryExecution.toRdd.mapPartitions { _ =>
       Iterator(ObjectRefHolder.getRandom(uuid))
@@ -233,7 +217,7 @@ object ObjectStoreWriter {
     var executorIds = df.sqlContext.sparkContext.getExecutorIds.toArray
     val numExecutors = executorIds.length
     val appMasterHandle = Ray.getActor(RayAppMaster.ACTOR_NAME)
-                             .get.asInstanceOf[ActorHandle[RayAppMaster]]
+                            .get.asInstanceOf[ActorHandle[RayAppMaster]]
     val restartedExecutors = RayAppMasterUtils.getRestartedExecutors(appMasterHandle)
     // Check if there is any restarted executors
     if (!restartedExecutors.isEmpty) {
@@ -251,8 +235,8 @@ object ObjectStoreWriter {
     val refs = new Array[ObjectRef[Array[Byte]]](numPartitions)
     val handles = executorIds.map {id =>
       Ray.getActor("raydp-executor-" + id)
-         .get
-         .asInstanceOf[ActorHandle[RayDPExecutor]]
+        .get
+        .asInstanceOf[ActorHandle[RayDPExecutor]]
     }
     val handlesMap = (executorIds zip handles).toMap
     val locations = RayExecutorUtils.getBlockLocations(
@@ -261,18 +245,15 @@ object ObjectStoreWriter {
       // TODO use getPreferredLocs, but we don't have a host ip to actor table now
       refs(i) = RayExecutorUtils.getRDDPartition(
           handlesMap(locations(i)), rdd.id, i, schema, driverAgentUrl)
-      queue.add(refs(i))
-    }
-    for (i <- 0 until numPartitions) {
+      queue.add(RayDPUtils.readBinary(refs(i).get(), classOf[VectorSchemaRoot]))
       results(i) = RayDPUtils.convert(refs(i)).getId.getBytes
     }
     results
   }
-
 }
 
 object ObjectRefHolder {
-  type Queue = ConcurrentLinkedQueue[ObjectRef[Array[Byte]]]
+  type Queue = ConcurrentLinkedQueue[ObjectRef[VectorSchemaRoot]]
   private val dfToQueue = new ConcurrentHashMap[UUID, Queue]()
 
   def getQueue(df: UUID): Queue = {
@@ -297,7 +278,7 @@ object ObjectRefHolder {
     queue.size()
   }
 
-  def getRandom(df: UUID): Array[Byte] = {
+  def getRandom(df: UUID): VectorSchemaRoot = {
     val queue = checkQueueExists(df)
     val ref = RayDPUtils.convert(queue.peek())
     ref.get()
