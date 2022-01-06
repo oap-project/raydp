@@ -80,7 +80,12 @@ class RayClusterMaster(ClusterMaster):
             stdout/stderr).
         """
 
+        env = dict(os.environ)
+
         command = ["java"]
+        java_opts = env["JAVA_OPTS"]
+        if java_opts is not None:
+            command.append(java_opts)
         command.append("-cp")
         command.append(class_path)
         command.append("org.apache.spark.deploy.raydp.AppMasterEntryPoint")
@@ -93,7 +98,6 @@ class RayClusterMaster(ClusterMaster):
             os.close(fd)
             os.unlink(conn_info_file)
 
-            env = dict(os.environ)
             env["_RAYDP_APPMASTER_CONN_INFO_PATH"] = conn_info_file
 
             # Launch the Java gateway.

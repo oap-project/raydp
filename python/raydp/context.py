@@ -18,10 +18,12 @@
 import atexit
 from contextlib import ContextDecorator
 from threading import RLock
-from typing import Dict, Union, Optional
+from typing import Dict, List, Union, Optional
 
 import ray
 from pyspark.sql import SparkSession
+
+from ray.util.placement_group import PlacementGroup
 
 from raydp.spark import SparkCluster
 from raydp.spark.dataset import RayDPConversionHelper, RAYDP_OBJ_HOLDER_NAME
@@ -35,13 +37,28 @@ class _SparkContext(ContextDecorator):
     :param num_executors the number of executor requested
     :param executor_cores the CPU cores for each executor
     :param executor_memory the memory size (eg: 10KB, 10MB..) for each executor
+    :param placement_group_strategy: RayDP will create a placement group according to the
+                                     strategy and the configured resources for executors.
+                                     If this parameter is specified, the next two
+                                     parameters placement_group and
+                                     placement_group_bundle_indexes will be ignored.
+    :param placement_group: placement_group to schedule executors on
+    :param placement_group_bundle_indexes: which bundles to use. If it's not specified,
+                                           all bundles will be used.
     :param configs the extra Spark configs need to set
     """
+
+    _PLACEMENT_GROUP_CONF = "spark.ray.placement_group"
+    _BUNDLE_INDEXES_CONF = "spark.ray.bundle_indexes"
+
     def __init__(self,
                  app_name: str,
                  num_executors: int,
                  executor_cores: int,
                  executor_memory: Union[str, int],
+                 placement_group_strategy: Optional[str],
+                 placement_group: Optional[PlacementGroup],
+                 placement_group_bundle_indexes: Optional[List[int]],
                  configs: Dict[str, str] = None):
         self._app_name = app_name
         self._num_executors = num_executors
@@ -52,6 +69,11 @@ class _SparkContext(ContextDecorator):
             executor_memory = parse_memory_size(executor_memory)
 
         self._executor_memory = executor_memory
+
+        self._placement_group_strategy = placement_group_strategy
+        self._placement_group = placement_group
+        self._placement_group_bundle_indexes = placement_group_bundle_indexes
+
         self._configs = {} if configs is None else configs
 
         self._spark_cluster: Optional[SparkCluster] = None
@@ -63,10 +85,28 @@ class _SparkContext(ContextDecorator):
         self._spark_cluster = SparkCluster(self._configs)
         return self._spark_cluster
 
+    def _prepare_placement_group(self):
+        if self._placement_group_strategy is not None:
+            bundles = []
+            for _ in range(self._num_executors):
+                bundles.append({"CPU": self._executor_cores})
+            pg = ray.util.placement_group(bundles, strategy=self._placement_group_strategy)
+            ray.get(pg.ready())
+            self._placement_group = pg
+            self._placement_group_bundle_indexes = None
+
+        if self._placement_group is not None:
+            self._configs[self._PLACEMENT_GROUP_CONF] = self._placement_group.id.hex()
+            bundle_indexes = list(range(self._placement_group.bundle_count)) \
+                if self._placement_group_bundle_indexes is None \
+                else self._placement_group_bundle_indexes
+            self._configs[self._BUNDLE_INDEXES_CONF] = ",".join(map(str, bundle_indexes))
+
     def get_or_create_session(self):
         if self._spark_session is not None:
             return self._spark_session
         self.handle = RayDPConversionHelper.options(name=RAYDP_OBJ_HOLDER_NAME).remote()
+        self._prepare_placement_group()
         spark_cluster = self._get_or_create_spark_cluster()
         self._spark_session = spark_cluster.get_spark_session(
             self._app_name,
@@ -86,6 +126,11 @@ class _SparkContext(ContextDecorator):
         if self._spark_cluster is not None:
             self._spark_cluster.stop()
             self._spark_cluster = None
+        if self._placement_group_strategy is not None:
+            if self._placement_group is not None:
+                ray.util.remove_placement_group(self._placement_group)
+                self._placement_group = None
+            self._placement_group_strategy = None
 
     def __enter__(self):
         self.get_or_create_session()
@@ -102,6 +147,9 @@ def init_spark(app_name: str,
                num_executors: int,
                executor_cores: int,
                executor_memory: Union[str, int],
+               placement_group_strategy: Optional[str] = None,
+               placement_group: Optional[PlacementGroup] = None,
+               placement_group_bundle_indexes: Optional[List[int]] = None,
                configs: Optional[Dict[str, str]] = None):
     """
     Init a Spark cluster with given requirements.
@@ -110,6 +158,14 @@ def init_spark(app_name: str,
     :param executor_cores: the number of CPU cores for each executor
     :param executor_memory: the memory size for each executor, both support bytes or human
                             readable string.
+    :param placement_group_strategy: RayDP will create a placement group according to the
+                                     strategy and the configured resources for executors.
+                                     If this parameter is specified, the next two
+                                     parameters placement_group and
+                                     placement_group_bundle_indexes will be ignored.
+    :param placement_group: placement_group to schedule executors on
+    :param placement_group_bundle_indexes: which bundles to use. If it's not specified,
+                                           all bundles will be used.
     :param configs: the extra Spark config need to set
     :return: return the SparkSession
     """
@@ -123,7 +179,11 @@ def init_spark(app_name: str,
         if _global_spark_context is None:
             try:
                 _global_spark_context = _SparkContext(
-                    app_name, num_executors, executor_cores, executor_memory, configs)
+                    app_name, num_executors, executor_cores, executor_memory,
+                    placement_group_strategy,
+                    placement_group,
+                    placement_group_bundle_indexes,
+                    configs)
                 return _global_spark_context.get_or_create_session()
             except:
                 _global_spark_context = None
