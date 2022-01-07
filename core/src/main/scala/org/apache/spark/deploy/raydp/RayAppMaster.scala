@@ -17,24 +17,25 @@
 
 package org.apache.spark.deploy.raydp
 
-import io.ray.api.id.PlacementGroupId
-
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale, Optional}
+import javax.xml.bind.DatatypeConverter
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
+
 import io.ray.api.{ActorHandle, PlacementGroups, Ray}
+import io.ray.api.id.PlacementGroupId
 import io.ray.api.placementgroup.PlacementGroup
 import io.ray.runtime.config.RayConfig
+
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.RayExecutorUtils
 import org.apache.spark.rpc._
 import org.apache.spark.util.ShutdownHookManager
 import org.apache.spark.util.Utils
-
-import javax.xml.bind.DatatypeConverter
 
 class RayAppMaster(host: String,
                    port: Int,
@@ -108,10 +109,12 @@ class RayAppMaster(host: String,
     private var nextAppNumber = 0
     private val shuffleServiceOptions = RayExternalShuffleService.getShuffleConf(conf)
 
-    private val placementGroup: PlacementGroup = conf.getOption("spark.ray.placement_group").map { hex =>
-      val id = PlacementGroupId.fromBytes(DatatypeConverter.parseHexBinary(hex))
-      PlacementGroups.getPlacementGroup(id)
-    }.orNull
+    private val placementGroup: PlacementGroup = conf
+      .getOption("spark.ray.placement_group")
+      .map { hex =>
+        val id = PlacementGroupId.fromBytes(DatatypeConverter.parseHexBinary(hex))
+        PlacementGroups.getPlacementGroup(id)
+      }.orNull
     private val bundleIndexes: List[Int] = conf.getOption("spark.ray.bundle_indexes")
       .map(_.split(",").map(_.toInt).toList)
       .getOrElse(List.empty)
