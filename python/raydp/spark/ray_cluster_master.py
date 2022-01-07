@@ -83,9 +83,10 @@ class RayClusterMaster(ClusterMaster):
         env = dict(os.environ)
 
         command = ["java"]
-        java_opts = env["JAVA_OPTS"]
-        if java_opts is not None:
-            command.append(java_opts)
+
+        # append JAVA_OPTS. This can be used for debugging.
+        if "JAVA_OPTS" in env:
+            command.append(env["JAVA_OPTS"])
         command.append("-cp")
         command.append(class_path)
         command.append("org.apache.spark.deploy.raydp.AppMasterEntryPoint")
