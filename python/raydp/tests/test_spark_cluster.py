@@ -93,7 +93,8 @@ def test_ray_dataset_to_spark(spark_on_ray_small):
 
 
 def test_placement_group(ray_cluster):
-    raydp.init_spark("test_single_bundle", 1, 1, "500 M", "SPREAD")
+    raydp.init_spark("test_strategy", 1, 1, "500 M",
+                     placement_group_strategy="SPREAD")
     raydp.stop_spark()
 
     time.sleep(3)
