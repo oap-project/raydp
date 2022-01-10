@@ -89,7 +89,8 @@ class _SparkContext(ContextDecorator):
         if self._placement_group_strategy is not None:
             bundles = []
             for _ in range(self._num_executors):
-                bundles.append({"CPU": self._executor_cores})
+                bundles.append({"CPU": self._executor_cores,
+                                "memory": self._executor_memory})
             pg = ray.util.placement_group(bundles, strategy=self._placement_group_strategy)
             ray.get(pg.ready())
             self._placement_group = pg
