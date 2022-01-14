@@ -283,7 +283,9 @@ class RayAppMaster(host: String,
         val previous = currentBundleIndex
         currentBundleIndex = (currentBundleIndex + 1) % bundleIndexes.size
         previous
-      } else -1
+      } else {
+        -1
+      }
     }
   }
 }

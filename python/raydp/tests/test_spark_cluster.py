@@ -94,24 +94,37 @@ def test_ray_dataset_to_spark(spark_on_ray_small):
 
 
 def test_placement_group(ray_cluster):
-    spark = raydp.init_spark("test_strategy", 1, 1, "500 M",
-                             placement_group_strategy="SPREAD")
-    result = spark.range(0, 10, numPartitions=1).count()
-    assert result == 10
-    raydp.stop_spark()
+    for pg_strategy in ["PACK", "STRICT_PACK", "SPREAD", "STRICT_SPREAD"]:
+        spark = raydp.init_spark("test_strategy", 1, 1, "500 M",
+                                 placement_group_strategy=pg_strategy)
+        result = spark.range(0, 10, numPartitions=10).count()
+        assert result == 10
+        raydp.stop_spark()
 
-    time.sleep(3)
+        time.sleep(3)
 
-    pg = ray.util.placement_group([{"CPU": 1, "memory": utils.parse_memory_size("500 M")}],
-                                  strategy="STRICT_PACK")
-    ray.get(pg.ready())
-    spark = raydp.init_spark("test_bundle", 1, 1, "500 M",
-                             placement_group=pg,
-                             placement_group_bundle_indexes=[0])
-    result = spark.range(0, 10, numPartitions=1).count()
-    assert result == 10
-    raydp.stop_spark()
-    ray.util.remove_placement_group(pg)
+        # w/ existing placement group w/ bundle indexes
+        pg = ray.util.placement_group([{"CPU": 1, "memory": utils.parse_memory_size("500 M")}],
+                                      strategy=pg_strategy)
+        ray.get(pg.ready())
+        spark = raydp.init_spark("test_bundle", 1, 1, "500 M",
+                                 placement_group=pg,
+                                 placement_group_bundle_indexes=[0])
+        result = spark.range(0, 10, numPartitions=10).count()
+        assert result == 10
+        raydp.stop_spark()
+
+        time.sleep(3)
+
+        # w/ existing placement group w/o bundle indexes
+        spark = raydp.init_spark("test_bundle", 1, 1, "500 M",
+                                 placement_group=pg)
+        result = spark.range(0, 10, numPartitions=10).count()
+        assert result == 10
+        raydp.stop_spark()
+        ray.util.remove_placement_group(pg)
+
+        time.sleep(3)
 
     num_non_removed_pgs = len([
         p for pid, p in placement_group_table().items()
