@@ -60,6 +60,10 @@ class RayClusterMaster(ClusterMaster):
 
     def _prepare_jvm_classpath(self):
         cp_list = []
+
+        if "raydp.executor.extraClassPath" in self._configs:
+            cp_list.append(self._configs["raydp.executor.extraClassPath"])
+
         # find RayDP core path
         cp_list.append(RAYDP_CP)
         # find ray jar path
