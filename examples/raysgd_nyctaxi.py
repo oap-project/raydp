@@ -12,6 +12,11 @@ from raydp.torch import TorchEstimator
 from raydp.utils import random_split
 from raydp.spark import RayMLDataset
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
+import ray.data
+from ray import train
+from ray.train import Trainer, TrainingCallback
+import datetime
+from typing import List, Dict
 
 # Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
 # For more config info in ray, please refer the ray doc. https://docs.ray.io/en/latest/package-ref.html
@@ -38,12 +43,16 @@ data = nyc_taxi_preprocess(data)
 # Split data into train_dataset and test_dataset
 train_df, test_df = random_split(data, [0.9, 0.1], 0)
 features = [field.name for field in list(train_df.schema) if field.name != "fare_amount"]
-# Convert spark dataframe into ML Dataset
-train_dataset = RayMLDataset.from_spark(train_df, num_executors, 32)
-test_dataset = RayMLDataset.from_spark(test_df, num_executors, 32)
+
+# Convert spark dataframe into ray Dataset
+train_dataset = ray.data.from_spark(train_df, parallelism = num_executors)
+test_dataset = ray.data.from_spark(test_df, parallelism = num_executors)
 # Then convert to torch datasets
-train_dataset = train_dataset.to_torch(feature_columns=features, label_column="fare_amount")
-test_dataset = test_dataset.to_torch(feature_columns=features, label_column="fare_amount")
+feature_dtype = [torch.float] * len(features)
+train_dataset = train_dataset.to_torch(feature_columns=features, label_column="fare_amount",
+                                               label_column_dtype=torch.float, feature_column_dtypes=feature_dtype, batch_size=64)
+test_dataset = test_dataset.to_torch(feature_columns=features, label_column="fare_amount",
+                                             label_column_dtype=torch.float, feature_column_dtypes=feature_dtype, batch_size=64)
 # Define a neural network model
 class NYC_Model(nn.Module):
     def __init__(self, cols):
@@ -61,7 +70,7 @@ class NYC_Model(nn.Module):
         self.bn4 = nn.BatchNorm1d(16)
 
     def forward(self, *x):
-        x = torch.cat(x, dim=1)
+        x = x[0]
         x = F.relu(self.fc1(x))
         x = self.bn1(x)
         x = F.relu(self.fc2(x))
@@ -84,42 +93,66 @@ class CustomOperator(TrainingOperator):
             models=[nyc_model], optimizers=[optimizer], criterion=criterion)
         self.model = self.model[0]
         self.optimizer = self.optimizer[0]
-        # Get the corresponging shard
-        train_shard = train_dataset.get_shard(self.world_rank)
-        train_loader = DataLoader(train_shard, batch_size=64)
-        test_shard = test_dataset.get_shard(self.world_rank)
-        val_loader = DataLoader(test_shard, batch_size=64)
-        self.register_data(train_loader=train_loader, validation_loader=val_loader)
+        self.register_data(train_loader=train_dataset, validation_loader=test_dataset)
 
-# You can either train the model like this
+class PrintingCallback(TrainingCallback):
+    def handle_result(self, results: List[Dict], **info):
+        print(results)
 
-trainer = TorchTrainer(training_operator_cls=CustomOperator,
-                       num_workers=num_executors,
-                       add_dist_sampler=False,
-                       num_cpus_per_worker=1,
-                       config={"lr":0.01})
-for i in range(10):
-    stats = trainer.train()
-    print(stats)
-    val_stats = trainer.validate()
-    print(val_stats)
+def train_func(config):
+    device = torch.device(f"cuda:{train.local_rank()}" if
+                          torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        torch.cuda.set_device(device)
+
+    # Set the args to whatever values you want.
+	# If using DistributedSampler, modify it here.
+    training_operator = CustomOperator(
+        config=config,
+        world_rank=train.world_rank(),
+        local_rank=train.local_rank(),
+        is_distributed=False,
+        use_gpu=False,
+        device=device)
+
+    training_operator.setup(config)
+
+    for idx in range(config["num_epochs"]):
+        train_loader = training_operator._get_train_loader()
+        train_stats = training_operator.train_epoch(
+            iter(train_loader), epoch_idx=idx)
+
+        validation_loader = training_operator._get_validation_loader()
+        val_stats = training_operator.validate(
+            val_iterator=iter(validation_loader))
+		# Access any values you need
+        train.report(epoch=idx)
+        train.report(train_info=train_stats)
+        train.report(val_info=val_stats)
+        train.report(val_loss=val_stats['val_loss'])
+
+    if train.world_rank() == 0:
+        return training_operator._get_original_models()
+    else:
+        return None
+
+
+trainer = Trainer(backend="torch", num_workers=num_executors, use_gpu=False)
+trainer.start()
+results = trainer.run(
+    train_func, config={"num_epochs": 10, "lr": 0.1},
+    callbacks=[PrintingCallback()]
+)
+final_model = results[0]
 trainer.shutdown()
 
 # Or you can perform a hyperparameter search using Ray Tune
 
-# TorchTrainable = TorchTrainer.as_trainable(
-#                     training_operator_cls=CustomOperator,
-#                     num_workers=num_executors,
-#                     add_dist_sampler=False,
-#                     use_gpu=False,
-#                     num_cpus_per_worker=1
-#                  )
-# analysis = tune.run(
-#                 TorchTrainable,
-#                 config={"lr": tune.grid_search([0.01, 0.1])},
-#                 stop={"training_iteration": 2}
-# )
-# print(analysis.results_df)
-
+# trainable = trainer.to_tune_trainable(train_func)
+# analysis = tune.run(trainable, config={
+#     "num_epochs": 3,
+#     "lr": tune.grid_search([0.005, 0.01, 0.05, 0.1])
+# })
+# print(analysis.get_best_config(metric="val_loss", mode="min"))
 raydp.stop_spark()
 ray.shutdown()
