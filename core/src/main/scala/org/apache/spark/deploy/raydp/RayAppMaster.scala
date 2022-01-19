@@ -19,13 +19,15 @@ package org.apache.spark.deploy.raydp
 
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.{Date, Locale}
+import java.util.{Date, Locale, Optional}
+import javax.xml.bind.DatatypeConverter
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 
-import io.ray.api.ActorHandle
-import io.ray.api.Ray
+import io.ray.api.{ActorHandle, PlacementGroups, Ray}
+import io.ray.api.id.PlacementGroupId
+import io.ray.api.placementgroup.PlacementGroup
 import io.ray.runtime.config.RayConfig
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
@@ -106,6 +108,17 @@ class RayAppMaster(host: String,
 
     private var nextAppNumber = 0
     private val shuffleServiceOptions = RayExternalShuffleService.getShuffleConf(conf)
+
+    private val placementGroup: PlacementGroup = conf
+      .getOption("spark.ray.placement_group")
+      .map { hex =>
+        val id = PlacementGroupId.fromBytes(DatatypeConverter.parseHexBinary(hex))
+        PlacementGroups.getPlacementGroup(id)
+      }.orNull
+    private val bundleIndexes: List[Int] = conf.getOption("spark.ray.bundle_indexes")
+      .map(_.split(",").map(_.toInt).toList)
+      .getOrElse(List.empty)
+    private var currentBundleIndex: Int = 0
 
     override def receive: PartialFunction[Any, Unit] = {
       case RegisterApplication(appDescription: ApplicationDescription, driver: RpcEndpointRef) =>
@@ -223,6 +236,8 @@ class RayAppMaster(host: String,
         executorId, getAppMasterEndpointUrl(), cores,
         memory,
         appInfo.desc.resourceReqsPerExecutor.map(pair => (pair._1, Double.box(pair._2))).asJava,
+        placementGroup,
+        getNextBundleIndex,
         seqAsJavaList(appInfo.desc.command.javaOpts))
       appInfo.addPendingRegisterExecutor(executorId, handler, cores, memory)
     }
@@ -261,6 +276,16 @@ class RayAppMaster(host: String,
       val appId = appInfo.id
       val classPathEntries = appInfo.desc.command.classPathEntries.mkString(";")
       RayExecutorUtils.setUpExecutor(handlerOpt.get, appId, driverUrl, cores, classPathEntries)
+    }
+
+    private def getNextBundleIndex: Int = {
+      if (placementGroup != null && bundleIndexes.nonEmpty) {
+        val previous = currentBundleIndex
+        currentBundleIndex = (currentBundleIndex + 1) % bundleIndexes.size
+        previous
+      } else {
+        -1
+      }
     }
   }
 }

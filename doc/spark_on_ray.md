@@ -28,3 +28,16 @@ raydp.init_spark(..., configs={"raydp.executor.extraClassPath": "/your/extra/jar
 ### Spark Submit
 
 RayDP provides a substitute for spark-submit in Apache Spark. You can run your java or scala application on RayDP cluster by using `bin/raydp-submit`. You can add it to `PATH` for convenience. When using `raydp-submit`, you should specify number of executors, number of cores and memory each executor by Spark properties, such as `--conf spark.executor.cores=1`, `--conf spark.executor.instances=1` and `--conf spark.executor.memory=500m`. `raydp-submit` only supports Ray cluster. Spark standalone, Apache Mesos, Apache Yarn are not supported, please use traditional `spark-submit` in that case. For the same reason, you do not need to specify `--master` in the command. Besides, RayDP does not support cluster as deploy-mode.
+
+### Placement Group
+RayDP can leverage Ray's placement group feature and schedule executors onto spcecified placement group. It provides better control over the allocation of Spark executors on a Ray cluster, for example spreading the spark executors onto seperate nodes or starting all executors on a single node. You can specify a created placement group when init spark, as shown below:
+
+```python
+raydp.init_spark(..., placement_group=pg)
+```
+
+Or you can just specify the placement group strategy. RayDP will create a coreesponding placement group and manage its lifecycle, which means the placement group will be created together with SparkSession and removed when calling `raydp.stop_spark()`. Strategy can be "PACK", "SPREAD", "STRICT_PACK" or "STRICT_SPREAD". Please refer to [Placement Groups document](https://docs.ray.io/en/latest/placement-group.html#pgroup-strategy) for details.
+
+```python
+raydp.init_spark(..., placement_group_strategy="SPREAD")
+```
