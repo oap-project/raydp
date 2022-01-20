@@ -1,3 +1,4 @@
+from pyexpat import model
 import ray
 from ray.util.sgd.torch import TrainingOperator
 from ray.util.sgd import TorchTrainer
@@ -14,7 +15,8 @@ from raydp.spark import RayMLDataset
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 import ray.data
 from ray import train
-from ray.train import Trainer, TrainingCallback
+from ray.train import Trainer, TrainingCallback, get_dataset_shard
+from torch.nn.parallel import DistributedDataParallel
 import datetime
 from typing import List, Dict
 
@@ -47,12 +49,8 @@ features = [field.name for field in list(train_df.schema) if field.name != "fare
 # Convert spark dataframe into ray Dataset
 train_dataset = ray.data.from_spark(train_df, parallelism = num_executors)
 test_dataset = ray.data.from_spark(test_df, parallelism = num_executors)
-# Then convert to torch datasets
 feature_dtype = [torch.float] * len(features)
-train_dataset = train_dataset.to_torch(feature_columns=features, label_column="fare_amount",
-                                               label_column_dtype=torch.float, feature_column_dtypes=feature_dtype, batch_size=64)
-test_dataset = test_dataset.to_torch(feature_columns=features, label_column="fare_amount",
-                                             label_column_dtype=torch.float, feature_column_dtypes=feature_dtype, batch_size=64)
+
 # Define a neural network model
 class NYC_Model(nn.Module):
     def __init__(self, cols):
@@ -69,8 +67,9 @@ class NYC_Model(nn.Module):
         self.bn3 = nn.BatchNorm1d(64)
         self.bn4 = nn.BatchNorm1d(16)
 
-    def forward(self, *x):
-        x = x[0]
+    def forward(self, x):
+        print(type(x))
+        print(x.size())
         x = F.relu(self.fc1(x))
         x = self.bn1(x)
         x = F.relu(self.fc2(x))
@@ -80,79 +79,105 @@ class NYC_Model(nn.Module):
         x = F.relu(self.fc4(x))
         x = self.bn4(x)
         x = self.fc5(x)
-        
-        return x
 
-class CustomOperator(TrainingOperator):
-    def setup(self, config):
-        nyc_model = NYC_Model(len(features))
-        criterion = nn.SmoothL1Loss()
-        optimizer = torch.optim.Adam(nyc_model.parameters(), lr=config['lr'])
-        # A quick work-around for https://github.com/ray-project/ray/issues/14352
-        self.model, self.optimizer, self.criterion = self.register(
-            models=[nyc_model], optimizers=[optimizer], criterion=criterion)
-        self.model = self.model[0]
-        self.optimizer = self.optimizer[0]
-        self.register_data(train_loader=train_dataset, validation_loader=test_dataset)
+        return x
 
 class PrintingCallback(TrainingCallback):
     def handle_result(self, results: List[Dict], **info):
         print(results)
 
+def train_epoch(dataset, model, criterion, optimizer, device):
+    model.train()
+    train_loss, correct, data_size = 0, 0, 0
+    for batch_idx, (inputs, targets) in enumerate(dataset):
+        inputs, targets = inputs.to(device), targets.to(device)
+        # Compute prediction error
+        outputs = model(inputs)
+        loss = criterion(outputs, targets)
+        train_loss += loss.item()
+        correct += (outputs.argmax(1) == targets).type(torch.float).sum().item()
+        data_size += inputs.size(0)
+        # Backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    train_loss /= (batch_idx + 1)
+    train_acc = correct/data_size
+    return train_acc, train_loss
+
+def test_epoch(dataset, model, criterion, device):
+    model.eval()
+    # num_batches = len(dataset)
+    test_loss, correct, data_size = 0, 0, 0
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(dataset):
+            inputs, targets = inputs.to(device), targets.to(device)
+            # Compute prediction error
+            outputs = model(inputs)
+            test_loss += criterion(outputs, targets).item()
+            correct += (outputs.argmax(1) == targets).type(torch.float).sum().item()
+            data_size += inputs.size(0)
+    test_loss /= (batch_idx + 1)
+    test_acc = correct/data_size
+    return test_acc, test_loss
+
 def train_func(config):
-    device = torch.device(f"cuda:{train.local_rank()}" if
-                          torch.cuda.is_available() else "cpu")
-    if torch.cuda.is_available():
-        torch.cuda.set_device(device)
+    num_epochs = config["num_epochs"]
+    lr = config["lr"]
+    batch_size = config["batch_size"]
+    parallel_opt = config["parallel_opt"]
+    device = torch.device(f"cuda:{train.local_rank()}"
+                          if torch.cuda.is_available() else "cpu")
+    
+    # Then convert to torch datasets                
+    train_data_shard = get_dataset_shard("train")
+    train_dataset = train_data_shard.to_torch(feature_columns=features, label_column="fare_amount",
+                                               label_column_dtype=torch.float, feature_column_dtypes=feature_dtype, batch_size=batch_size)
+    test_data_shard = get_dataset_shard("test")
+    test_dataset = test_data_shard.to_torch(feature_columns=features, label_column="fare_amount",
+                                             label_column_dtype=torch.float, feature_column_dtypes=feature_dtype, batch_size=batch_size)
+    model = NYC_Model(len(features))
+    model = model.to(device)
+    if parallel_opt:
+        model = DistributedDataParallel(
+            model,
+            device_ids=[train.local_rank()] if torch.cuda.is_available() else None)
 
-    # Set the args to whatever values you want.
-	# If using DistributedSampler, modify it here.
-    training_operator = CustomOperator(
-        config=config,
-        world_rank=train.world_rank(),
-        local_rank=train.local_rank(),
-        is_distributed=False,
-        use_gpu=False,
-        device=device)
-
-    training_operator.setup(config)
-
-    for idx in range(config["num_epochs"]):
-        train_loader = training_operator._get_train_loader()
-        train_stats = training_operator.train_epoch(
-            iter(train_loader), epoch_idx=idx)
-
-        validation_loader = training_operator._get_validation_loader()
-        val_stats = training_operator.validate(
-            val_iterator=iter(validation_loader))
-		# Access any values you need
-        train.report(epoch=idx)
-        train.report(train_info=train_stats)
-        train.report(val_info=val_stats)
-        train.report(val_loss=val_stats['val_loss'])
-
-    if train.world_rank() == 0:
-        return training_operator._get_original_models()
-    else:
-        return None
-
+    criterion = nn.SmoothL1Loss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_results = []
+    for epoch in range(num_epochs):
+        train_acc, train_loss = train_epoch(train_dataset, model, criterion, optimizer, device)
+        test_acc, test_loss = test_epoch(test_dataset, model, criterion, device)
+        train.report(epoch = epoch, train_acc = train_acc, train_loss = train_loss)
+        train.report(epoch = epoch, test_acc=test_acc, test_loss=test_loss)
+        loss_results.append(test_loss)
 
 trainer = Trainer(backend="torch", num_workers=num_executors, use_gpu=False)
 trainer.start()
 results = trainer.run(
-    train_func, config={"num_epochs": 10, "lr": 0.1},
-    callbacks=[PrintingCallback()]
+    train_func, config={"num_epochs": 10, "lr": 0.1, "batch_size": 64, "parallel_opt": False},
+    callbacks=[PrintingCallback()],
+    dataset={
+        "train": train_dataset,
+        "test": test_dataset
+    }
 )
-final_model = results[0]
 trainer.shutdown()
 
 # Or you can perform a hyperparameter search using Ray Tune
 
-# trainable = trainer.to_tune_trainable(train_func)
+# trainable = trainer.to_tune_trainable(train_func, dataset={
+#         "train": train_dataset,
+#         "test": test_dataset
+#     })
 # analysis = tune.run(trainable, config={
 #     "num_epochs": 3,
+#     "batch_size": 64,
+#     "parallel_opt": False,
 #     "lr": tune.grid_search([0.005, 0.01, 0.05, 0.1])
 # })
-# print(analysis.get_best_config(metric="val_loss", mode="min"))
+# print(analysis.get_best_config(metric="test_loss", mode="min"))
 raydp.stop_spark()
 ray.shutdown()
