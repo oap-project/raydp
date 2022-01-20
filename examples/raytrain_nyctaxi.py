@@ -68,8 +68,6 @@ class NYC_Model(nn.Module):
         self.bn4 = nn.BatchNorm1d(16)
 
     def forward(self, x):
-        print(type(x))
-        print(x.size())
         x = F.relu(self.fc1(x))
         x = self.bn1(x)
         x = F.relu(self.fc2(x))
@@ -126,7 +124,6 @@ def train_func(config):
     num_epochs = config["num_epochs"]
     lr = config["lr"]
     batch_size = config["batch_size"]
-    parallel_opt = config["parallel_opt"]
     device = torch.device(f"cuda:{train.local_rank()}"
                           if torch.cuda.is_available() else "cpu")
     
@@ -139,11 +136,8 @@ def train_func(config):
                                              label_column_dtype=torch.float, feature_column_dtypes=feature_dtype, batch_size=batch_size)
     model = NYC_Model(len(features))
     model = model.to(device)
-    if parallel_opt:
-        model = DistributedDataParallel(
-            model,
-            device_ids=[train.local_rank()] if torch.cuda.is_available() else None)
-
+    model = train.torch.prepare_model(model)
+    
     criterion = nn.SmoothL1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_results = []
@@ -157,7 +151,7 @@ def train_func(config):
 trainer = Trainer(backend="torch", num_workers=num_executors, use_gpu=False)
 trainer.start()
 results = trainer.run(
-    train_func, config={"num_epochs": 10, "lr": 0.1, "batch_size": 64, "parallel_opt": False},
+    train_func, config={"num_epochs": 10, "lr": 0.1, "batch_size": 64},
     callbacks=[PrintingCallback()],
     dataset={
         "train": train_dataset,
@@ -175,7 +169,6 @@ trainer.shutdown()
 # analysis = tune.run(trainable, config={
 #     "num_epochs": 3,
 #     "batch_size": 64,
-#     "parallel_opt": False,
 #     "lr": tune.grid_search([0.005, 0.01, 0.05, 0.1])
 # })
 # print(analysis.get_best_config(metric="test_loss", mode="min"))
