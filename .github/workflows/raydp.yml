@@ -107,5 +107,5 @@ jobs:
           python examples/tensorflow_nyctaxi.py
           python examples/horovod_nyctaxi.py
           python examples/xgboost_ray_nyctaxi.py
-          python examples/raysgd_nyctaxi.py
+          python examples/raytrain_nyctaxi.py
           python examples/data_process.py
