@@ -23,11 +23,11 @@ from typing import List, Dict
 # Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
 # For more config info in ray, please refer the ray doc. https://docs.ray.io/en/latest/package-ref.html
 # ray.init(address="auto")
-ray.init()
+ray.init(num_cpus=4)
 
 # After initialize ray cluster, you can use the raydp api to get a spark session
 app_name = "NYC Taxi Fare Prediction with RayDP"
-num_executors = 1
+num_executors = 2
 cores_per_executor = 1
 memory_per_executor = "500M"
 spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
@@ -47,6 +47,7 @@ train_df, test_df = random_split(data, [0.9, 0.1], 0)
 features = [field.name for field in list(train_df.schema) if field.name != "fare_amount"]
 
 # Convert spark dataframe into ray Dataset
+# Remember to align ``parallelism`` with ``num_workers`` of ray train
 train_dataset = ray.data.from_spark(train_df, parallelism = num_executors)
 test_dataset = ray.data.from_spark(test_df, parallelism = num_executors)
 feature_dtype = [torch.float] * len(features)
@@ -93,7 +94,7 @@ def train_epoch(dataset, model, criterion, optimizer, device):
         outputs = model(inputs)
         loss = criterion(outputs, targets)
         train_loss += loss.item()
-        correct += (outputs.argmax(1) == targets).type(torch.float).sum().item()
+        correct += (outputs == targets).sum().item()
         data_size += inputs.size(0)
         # Backpropagation
         optimizer.zero_grad()
@@ -114,7 +115,7 @@ def test_epoch(dataset, model, criterion, device):
             # Compute prediction error
             outputs = model(inputs)
             test_loss += criterion(outputs, targets).item()
-            correct += (outputs.argmax(1) == targets).type(torch.float).sum().item()
+            correct += (outputs == targets).sum().item()
             data_size += inputs.size(0)
     test_loss /= (batch_idx + 1)
     test_acc = correct/data_size
