@@ -23,7 +23,7 @@ from typing import List, Dict
 # Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
 # For more config info in ray, please refer the ray doc. https://docs.ray.io/en/latest/package-ref.html
 # ray.init(address="auto")
-ray.init(num_cpus=4)
+ray.init(num_cpus=6)
 
 # After initialize ray cluster, you can use the raydp api to get a spark session
 app_name = "NYC Taxi Fare Prediction with RayDP"
