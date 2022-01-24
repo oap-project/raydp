@@ -3,25 +3,27 @@ import ray
 from ray.util.sgd.torch import TrainingOperator
 from ray.util.sgd import TorchTrainer
 from ray import tune
+import ray.data
+from ray import train
+from ray.train import Trainer, TrainingCallback, get_dataset_shard
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data.dataloader import DataLoader
+from torch.nn.parallel import DistributedDataParallel
 
 import raydp
 from raydp.torch import TorchEstimator
 from raydp.utils import random_split
 from raydp.spark import RayMLDataset
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
-import ray.data
-from ray import train
-from ray.train import Trainer, TrainingCallback, get_dataset_shard
-from torch.nn.parallel import DistributedDataParallel
-import datetime
 from typing import List, Dict
 
-# Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
-# For more config info in ray, please refer the ray doc. https://docs.ray.io/en/latest/package-ref.html
+# Firstly, You need to init or connect to a ray cluster.
+# Note that you should set include_java to True.
+# For more config info in ray, please refer the ray doc:
+# https://docs.ray.io/en/latest/package-ref.html
+
 # ray.init(address="auto")
 ray.init(num_cpus=6)
 
@@ -33,7 +35,8 @@ memory_per_executor = "500M"
 spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
 
 # Then you can code as you are using spark
-# The dataset can be downloaded from https://www.kaggle.com/c/new-york-city-taxi-fare-prediction/data
+# The dataset can be downloaded from：
+# https://www.kaggle.com/c/new-york-city-taxi-fare-prediction/data
 # Here we just use a subset of the training data
 data = spark.read.format("csv").option("header", "true") \
         .option("inferSchema", "true") \
@@ -55,14 +58,12 @@ feature_dtype = [torch.float] * len(features)
 # Define a neural network model
 class NYC_Model(nn.Module):
     def __init__(self, cols):
-        super(NYC_Model, self).__init__()
-        
+        super().__init__()
         self.fc1 = nn.Linear(cols, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 64)
         self.fc4 = nn.Linear(64, 16)
         self.fc5 = nn.Linear(16, 1)
-        
         self.bn1 = nn.BatchNorm1d(256)
         self.bn2 = nn.BatchNorm1d(128)
         self.bn3 = nn.BatchNorm1d(64)
@@ -78,7 +79,6 @@ class NYC_Model(nn.Module):
         x = F.relu(self.fc4(x))
         x = self.bn4(x)
         x = self.fc5(x)
-
         return x
 
 class PrintingCallback(TrainingCallback):
@@ -87,7 +87,7 @@ class PrintingCallback(TrainingCallback):
 
 def train_epoch(dataset, model, criterion, optimizer, device):
     model.train()
-    train_loss, correct, data_size = 0, 0, 0
+    train_loss, correct, data_size, batch_idx = 0, 0, 0, 0
     for batch_idx, (inputs, targets) in enumerate(dataset):
         inputs, targets = inputs.to(device), targets.to(device)
         # Compute prediction error
@@ -107,8 +107,7 @@ def train_epoch(dataset, model, criterion, optimizer, device):
 
 def test_epoch(dataset, model, criterion, device):
     model.eval()
-    # num_batches = len(dataset)
-    test_loss, correct, data_size = 0, 0, 0
+    test_loss, correct, data_size, batch_idx = 0, 0, 0, 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(dataset):
             inputs, targets = inputs.to(device), targets.to(device)
@@ -127,18 +126,22 @@ def train_func(config):
     batch_size = config["batch_size"]
     device = torch.device(f"cuda:{train.local_rank()}"
                           if torch.cuda.is_available() else "cpu")
-    
-    # Then convert to torch datasets                
+    # Then convert to torch datasets
     train_data_shard = get_dataset_shard("train")
-    train_dataset = train_data_shard.to_torch(feature_columns=features, label_column="fare_amount",
-                                               label_column_dtype=torch.float, feature_column_dtypes=feature_dtype, batch_size=batch_size)
+    train_dataset = train_data_shard.to_torch(feature_columns=features,
+                                              label_column="fare_amount",
+                                              label_column_dtype=torch.float,
+                                              feature_column_dtypes=feature_dtype,
+                                              batch_size=batch_size)
     test_data_shard = get_dataset_shard("test")
-    test_dataset = test_data_shard.to_torch(feature_columns=features, label_column="fare_amount",
-                                             label_column_dtype=torch.float, feature_column_dtypes=feature_dtype, batch_size=batch_size)
+    test_dataset = test_data_shard.to_torch(feature_columns=features,
+                                            label_column="fare_amount",
+                                            label_column_dtype=torch.float,
+                                            feature_column_dtypes=feature_dtype,
+                                            batch_size=batch_size)
     model = NYC_Model(len(features))
     model = model.to(device)
     model = train.torch.prepare_model(model)
-    
     criterion = nn.SmoothL1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_results = []

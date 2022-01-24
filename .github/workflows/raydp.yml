@@ -94,6 +94,7 @@ jobs:
         run: |
           pip install pylint==2.8.3
           pylint --rcfile=python/pylintrc python/raydp
+          pylint --rcfile=python/pylintrc examples/raytrain_nyctaxi.py
       - name: Test with pytest
         run: |
           pytest python/raydp/tests/
