@@ -1,7 +1,4 @@
-from pyexpat import model
 import ray
-from ray.util.sgd.torch import TrainingOperator
-from ray.util.sgd import TorchTrainer
 from ray import tune
 import ray.data
 from ray import train
@@ -9,13 +6,9 @@ from ray.train import Trainer, TrainingCallback, get_dataset_shard
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data.dataloader import DataLoader
-from torch.nn.parallel import DistributedDataParallel
 
 import raydp
-from raydp.torch import TorchEstimator
 from raydp.utils import random_split
-from raydp.spark import RayMLDataset
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 from typing import List, Dict
 

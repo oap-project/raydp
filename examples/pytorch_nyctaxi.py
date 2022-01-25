@@ -9,8 +9,10 @@ from raydp.utils import random_split
 
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 
-# Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
-# For more config info in ray, please refer the ray doc. https://docs.ray.io/en/latest/package-ref.html
+# Firstly, You need to init or connect to a ray cluster.
+# Note that you should set include_java to True.
+# For more config info in ray, please refer the ray doc:
+# https://docs.ray.io/en/latest/package-ref.html
 # ray.init(address="auto")
 ray.init()
 
@@ -22,7 +24,8 @@ memory_per_executor = "500M"
 spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
 
 # Then you can code as you are using spark
-# The dataset can be downloaded from https://www.kaggle.com/c/new-york-city-taxi-fare-prediction/data
+# The dataset can be downloaded from:
+# https://www.kaggle.com/c/new-york-city-taxi-fare-prediction/data
 # Here we just use a subset of the training data
 data = spark.read.format("csv").option("header", "true") \
         .option("inferSchema", "true") \
@@ -37,14 +40,12 @@ features = [field.name for field in list(train_df.schema) if field.name != "fare
 # Define a neural network model
 class NYC_Model(nn.Module):
     def __init__(self, cols):
-        super(NYC_Model, self).__init__()
-        
+        super().__init__()
         self.fc1 = nn.Linear(cols, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 64)
         self.fc4 = nn.Linear(64, 16)
         self.fc5 = nn.Linear(16, 1)
-        
         self.bn1 = nn.BatchNorm1d(256)
         self.bn2 = nn.BatchNorm1d(128)
         self.bn3 = nn.BatchNorm1d(64)
@@ -61,7 +62,6 @@ class NYC_Model(nn.Module):
         x = F.relu(self.fc4(x))
         x = self.bn4(x)
         x = self.fc5(x)
-        
         return x
 
 nyc_model = NYC_Model(len(features))
