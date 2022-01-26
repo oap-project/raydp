@@ -78,11 +78,10 @@ class PrintingCallback(TrainingCallback):
     def handle_result(self, results: List[Dict], **info):
         print(results)
 
-def train_epoch(dataset, model, criterion, optimizer, device):
+def train_epoch(dataset, model, criterion, optimizer):
     model.train()
     train_loss, correct, data_size, batch_idx = 0, 0, 0, 0
     for batch_idx, (inputs, targets) in enumerate(dataset):
-        inputs, targets = inputs.to(device), targets.to(device)
         # Compute prediction error
         outputs = model(inputs)
         loss = criterion(outputs, targets)
@@ -98,12 +97,11 @@ def train_epoch(dataset, model, criterion, optimizer, device):
     train_acc = correct/data_size
     return train_acc, train_loss
 
-def test_epoch(dataset, model, criterion, device):
+def test_epoch(dataset, model, criterion):
     model.eval()
     test_loss, correct, data_size, batch_idx = 0, 0, 0, 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(dataset):
-            inputs, targets = inputs.to(device), targets.to(device)
             # Compute prediction error
             outputs = model(inputs)
             test_loss += criterion(outputs, targets).item()
@@ -117,8 +115,6 @@ def train_func(config):
     num_epochs = config["num_epochs"]
     lr = config["lr"]
     batch_size = config["batch_size"]
-    device = torch.device(f"cuda:{train.local_rank()}"
-                          if torch.cuda.is_available() else "cpu")
     # Then convert to torch datasets
     train_data_shard = get_dataset_shard("train")
     train_dataset = train_data_shard.to_torch(feature_columns=features,
@@ -133,19 +129,18 @@ def train_func(config):
                                             feature_column_dtypes=feature_dtype,
                                             batch_size=batch_size)
     model = NYC_Model(len(features))
-    model = model.to(device)
     model = train.torch.prepare_model(model)
     criterion = nn.SmoothL1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_results = []
     for epoch in range(num_epochs):
-        train_acc, train_loss = train_epoch(train_dataset, model, criterion, optimizer, device)
-        test_acc, test_loss = test_epoch(test_dataset, model, criterion, device)
+        train_acc, train_loss = train_epoch(train_dataset, model, criterion, optimizer)
+        test_acc, test_loss = test_epoch(test_dataset, model, criterion)
         train.report(epoch = epoch, train_acc = train_acc, train_loss = train_loss)
         train.report(epoch = epoch, test_acc=test_acc, test_loss=test_loss)
         loss_results.append(test_loss)
 
-trainer = Trainer(backend="torch", num_workers=num_executors, use_gpu=False)
+trainer = Trainer(backend="torch", num_workers=num_executors)
 trainer.start()
 results = trainer.run(
     train_func, config={"num_epochs": 10, "lr": 0.1, "batch_size": 64},
