@@ -22,7 +22,7 @@ As raydp starts the java executors, the classpath will contain the absolute path
 To solve such problems, users can specify extra classpath when` init _spark` by configuring `raydp.executor.extraClassPath`. Make sure your jar files are distributed to the same path(s) on all nodes of the ray cluster.
 
 ```python
-raydp.init_spark(..., configs={"raydp.executor.extraClassPath": "/your/extra/jar/path"})
+raydp.init_spark(..., configs={"raydp.executor.extraClassPath": "/your/extra/jar/path:/another/path"})
 ```
 
 ### Spark Submit
