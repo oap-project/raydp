@@ -50,7 +50,8 @@ jobs:
       - name: Install extra dependencies for Ubuntu
         if: matrix.os == 'ubuntu-latest'
         run: |
-          sudo apt-get install -y mpich
+          sudo apt update
+          sudo apt install -y mpich
       - name: Cache pip - Ubuntu
         if: matrix.os == 'ubuntu-latest'
         uses: actions/cache@v2
