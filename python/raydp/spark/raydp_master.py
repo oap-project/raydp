@@ -53,6 +53,7 @@ class RayDPMaster():
         self._started_up = True
 
     def _prepare_jvm_classpath(self):
+        # pylint: disable=import-outside-toplevel,multiple-imports,cyclic-import
         import raydp, pyspark
         raydp_cp = os.path.abspath(os.path.join(os.path.dirname(raydp.__file__), "jars/*"))
         ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
