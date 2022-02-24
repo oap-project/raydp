@@ -59,7 +59,8 @@ class RayDPMaster():
 
         cp_list = []
         if "raydp.executor.extraClassPath" in self._configs:
-            cp_list.append(self._configs["raydp.executor.extraClassPath"])
+            user_cp = self._configs["raydp.executor.extraClassPath"].rstrip(os.pathsep)
+            cp_list.extend(user_cp.split(os.pathsep))
         # find RayDP core path
         cp_list.append(raydp_cp)
         # find ray jar path
