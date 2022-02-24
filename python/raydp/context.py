@@ -16,6 +16,8 @@
 #
 
 import atexit
+import glob
+import os
 from contextlib import ContextDecorator
 from threading import RLock
 from typing import Dict, List, Union, Optional
@@ -25,10 +27,9 @@ from pyspark.sql import SparkSession
 
 from ray.util.placement_group import PlacementGroup
 
-from raydp.spark import SparkCluster
+from raydp.spark import RayDPMaster
 from raydp.spark.dataset import RayDPConversionHelper, RAYDP_OBJ_HOLDER_NAME
 from raydp.utils import parse_memory_size
-
 
 class _SparkContext(ContextDecorator):
     """A class used to create the Spark cluster and get the Spark session.
@@ -76,14 +77,14 @@ class _SparkContext(ContextDecorator):
 
         self._configs = {} if configs is None else configs
 
-        self._spark_cluster: Optional[SparkCluster] = None
+        self._master_handle: Optional[ray.actor.ActorHandle] = None
         self._spark_session: Optional[SparkSession] = None
 
-    def _get_or_create_spark_cluster(self) -> SparkCluster:
-        if self._spark_cluster is not None:
-            return self._spark_cluster
-        self._spark_cluster = SparkCluster(self._configs)
-        return self._spark_cluster
+    def _get_or_create_raydp_master(self) -> ray.actor.ActorHandle:
+        if self._master_handle is not None:
+            return self._master_handle
+        self._master_handle = RayDPMaster.remote(self._configs)
+        return self._master_handle
 
     def _prepare_placement_group(self):
         if self._placement_group_strategy is not None:
@@ -106,27 +107,49 @@ class _SparkContext(ContextDecorator):
     def get_or_create_session(self):
         if self._spark_session is not None:
             return self._spark_session
-        self.handle = RayDPConversionHelper.options(name=RAYDP_OBJ_HOLDER_NAME).remote()
+        self._obj_holder = RayDPConversionHelper.options(name=RAYDP_OBJ_HOLDER_NAME).remote()
         self._prepare_placement_group()
-        spark_cluster = self._get_or_create_spark_cluster()
-        self._spark_session = spark_cluster.get_spark_session(
-            self._app_name,
-            self._num_executors,
-            self._executor_cores,
-            self._executor_memory,
-            self._configs)
+        master_handle = self._get_or_create_raydp_master()
+        ref = master_handle.start_up.remote()
+        ray.get(ref)
+        url = ray.get(master_handle.get_master_url.remote())
+
+        self._configs["spark.executor.instances"] = str(self._num_executors)
+        self._configs["spark.executor.cores"] = str(self._executor_cores)
+        self._configs["spark.executor.memory"] = str(self._executor_memory)
+        driver_node_ip = ray._private.services.get_node_ip_address()
+        self._configs["spark.driver.host"] = str(driver_node_ip)
+        self._configs["spark.driver.bindAddress"] = str(driver_node_ip)
+        try:
+            extra_jars = [self._configs["spark.jars"]]
+        except KeyError:
+            extra_jars = []
+        RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../jars/*"))
+        RAY_CP = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
+        self._configs["spark.jars"] = ",".join(glob.glob(RAYDP_CP) + extra_jars)
+        driver_cp_key = "spark.driver.extraClassPath"
+        driver_cp = ":".join(glob.glob(RAYDP_CP) + glob.glob(RAY_CP))
+        if driver_cp_key in self._configs:
+            self._configs[driver_cp_key] = driver_cp + ":" + self._configs[driver_cp_key]
+        else:
+            self._configs[driver_cp_key] = driver_cp
+        spark_builder = SparkSession.builder
+        for k, v in self._configs.items():
+            spark_builder.config(k, v)
+        self._spark_session =\
+            spark_builder.appName(self._app_name).master(url).getOrCreate()
         return self._spark_session
 
     def stop(self, del_obj_holder=True):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
-        if self.handle is not None and del_obj_holder is True:
-            self.handle.terminate.remote()
-            self.handle = None
-        if self._spark_cluster is not None:
-            self._spark_cluster.stop()
-            self._spark_cluster = None
+        if self._obj_holder is not None and del_obj_holder is True:
+            self._obj_holder.terminate.remote()
+            self._obj_holder = None
+        if self._master_handle is not None:
+            self._master_handle.stop.remote()
+            self._master_handle = None
         if self._placement_group_strategy is not None:
             if self._placement_group is not None:
                 ray.util.remove_placement_group(self._placement_group)

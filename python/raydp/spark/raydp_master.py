@@ -26,19 +26,13 @@ import time
 from subprocess import Popen, PIPE
 from copy import copy
 import glob
-
-import pyspark
 import ray
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
-from raydp.services import ClusterMaster
-
-RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
-RAY_CP = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
 logger = logging.getLogger(__name__)
 
-
-class RayClusterMaster(ClusterMaster):
+@ray.remote
+class RayDPMaster():
     def __init__(self, configs):
         self._gateway = None
         self._app_master_java_bridge = None
@@ -59,15 +53,17 @@ class RayClusterMaster(ClusterMaster):
         self._started_up = True
 
     def _prepare_jvm_classpath(self):
-        cp_list = []
+        import raydp, pyspark
+        raydp_cp = os.path.abspath(os.path.join(os.path.dirname(raydp.__file__), "jars/*"))
+        ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
 
+        cp_list = []
         if "raydp.executor.extraClassPath" in self._configs:
             cp_list.append(self._configs["raydp.executor.extraClassPath"])
-
         # find RayDP core path
-        cp_list.append(RAYDP_CP)
+        cp_list.append(raydp_cp)
         # find ray jar path
-        cp_list.append(RAY_CP)
+        cp_list.append(ray_cp)
         # find pyspark jars path
         spark_home = os.path.dirname(pyspark.__file__)
         spark_jars_dir = os.path.abspath(os.path.join(spark_home, "jars/*"))
@@ -83,7 +79,6 @@ class RayClusterMaster(ClusterMaster):
             customizing how pyspark interacts with the py4j JVM (e.g., capturing
             stdout/stderr).
         """
-
         env = dict(os.environ)
 
         command = ["java"]

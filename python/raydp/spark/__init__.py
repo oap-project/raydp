@@ -19,7 +19,7 @@ from .dataset import RayMLDataset, \
                      spark_dataframe_to_ray_dataset, \
                      ray_dataset_to_spark_dataframe
 from .interfaces import SparkEstimatorInterface
-from .ray_cluster import SparkCluster
+from .raydp_master import RayDPMaster
 
 __all__ = [
   "RayMLDataset",
