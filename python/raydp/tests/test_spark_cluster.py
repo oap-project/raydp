@@ -16,12 +16,16 @@
 #
 
 import sys
+import time
 
 import pytest
 import ray
 import ray._private.services
 
+from ray.util.placement_group import placement_group_table
+
 import raydp
+import raydp.utils as utils
 
 
 def test_spark(spark_on_ray_small):
@@ -61,6 +65,7 @@ def test_spark_driver_and_executor_hostname(spark_on_ray_small):
     driver_bind_address = conf.get("spark.driver.bindAddress")
     assert node_ip_address == driver_bind_address
 
+
 def test_ray_dataset_roundtrip(spark_on_ray_small):
     spark = spark_on_ray_small
     spark_df = spark.createDataFrame([(1, "a"), (2, "b"), (3, "c")], ["one", "two"])
@@ -71,6 +76,7 @@ def test_ray_dataset_roundtrip(spark_on_ray_small):
     df = ds.to_spark(spark)
     rows_2 = [(r.one, r.two) for r in df.take(3)]
     assert values == rows_2
+
 
 def test_ray_dataset_to_spark(spark_on_ray_small):
     spark = spark_on_ray_small
@@ -85,6 +91,47 @@ def test_ray_dataset_to_spark(spark_on_ray_small):
     df2 = ds2.to_spark(spark)
     rows2 = [r.id for r in df2.take(n)]
     assert ids == rows2
+
+
+def test_placement_group(ray_cluster):
+    for pg_strategy in ["PACK", "STRICT_PACK", "SPREAD", "STRICT_SPREAD"]:
+        spark = raydp.init_spark("test_strategy", 1, 1, "500 M",
+                                 placement_group_strategy=pg_strategy)
+        result = spark.range(0, 10, numPartitions=10).count()
+        assert result == 10
+        raydp.stop_spark()
+
+        time.sleep(3)
+
+        # w/ existing placement group w/ bundle indexes
+        pg = ray.util.placement_group([{"CPU": 1, "memory": utils.parse_memory_size("500 M")}],
+                                      strategy=pg_strategy)
+        ray.get(pg.ready())
+        spark = raydp.init_spark("test_bundle", 1, 1, "500 M",
+                                 placement_group=pg,
+                                 placement_group_bundle_indexes=[0])
+        result = spark.range(0, 10, numPartitions=10).count()
+        assert result == 10
+        raydp.stop_spark()
+
+        time.sleep(3)
+
+        # w/ existing placement group w/o bundle indexes
+        spark = raydp.init_spark("test_bundle", 1, 1, "500 M",
+                                 placement_group=pg)
+        result = spark.range(0, 10, numPartitions=10).count()
+        assert result == 10
+        raydp.stop_spark()
+        ray.util.remove_placement_group(pg)
+
+        time.sleep(3)
+
+    num_non_removed_pgs = len([
+        p for pid, p in placement_group_table().items()
+        if p["state"] != "REMOVED"
+    ])
+    assert num_non_removed_pgs == 0
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))

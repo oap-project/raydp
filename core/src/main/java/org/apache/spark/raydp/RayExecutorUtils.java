@@ -22,6 +22,8 @@ import io.ray.api.Ray;
 import io.ray.api.call.ActorCreator;
 import java.util.Map;
 import java.util.List;
+
+import io.ray.api.placementgroup.PlacementGroup;
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;
 
 public class RayExecutorUtils {
@@ -40,6 +42,8 @@ public class RayExecutorUtils {
       int cores,
       int memoryInMB,
       Map<String, Double> resources,
+      PlacementGroup placementGroup,
+      int bundleIndex,
       List<String> javaOpts) {
     ActorCreator<RayCoarseGrainedExecutorBackend> creator = Ray.actor(
             RayCoarseGrainedExecutorBackend::new, executorId, appMasterURL);
@@ -48,6 +52,9 @@ public class RayExecutorUtils {
     creator.setResource("memory", toMemoryUnits(memoryInMB));
     for (Map.Entry<String, Double> entry: resources.entrySet()) {
       creator.setResource(entry.getKey(), entry.getValue());
+    }
+    if (placementGroup != null) {
+      creator.setPlacementGroup(placementGroup, bundleIndex);
     }
 
     return creator.remote();

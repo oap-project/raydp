@@ -62,8 +62,8 @@ class RayClusterMaster(ClusterMaster):
         cp_list = []
 
         if "raydp.executor.extraClassPath" in self._configs:
-            cp_list.append(self._configs["raydp.executor.extraClassPath"])
-
+            user_cp = self._configs["raydp.executor.extraClassPath"].rstrip(os.pathsep)
+            cp_list.extend(user_cp.split(os.pathsep))
         # find RayDP core path
         cp_list.append(RAYDP_CP)
         # find ray jar path
@@ -84,7 +84,13 @@ class RayClusterMaster(ClusterMaster):
             stdout/stderr).
         """
 
+        env = dict(os.environ)
+
         command = ["java"]
+
+        # append JAVA_OPTS. This can be used for debugging.
+        if "JAVA_OPTS" in env:
+            command.append(env["JAVA_OPTS"])
         command.append("-cp")
         command.append(class_path)
         command.append("org.apache.spark.deploy.raydp.AppMasterEntryPoint")
@@ -97,7 +103,6 @@ class RayClusterMaster(ClusterMaster):
             os.close(fd)
             os.unlink(conn_info_file)
 
-            env = dict(os.environ)
             env["_RAYDP_APPMASTER_CONN_INFO_PATH"] = conn_info_file
 
             # Launch the Java gateway.
