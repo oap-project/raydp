@@ -588,8 +588,9 @@ def _register(records):
 
 def to_spark_new(ds, spark):
     locations = get_locations(ds)
-
-    return ray_dataset_to_spark_dataframe(spark, ds.schema(), ds.get_internal_block_refs(), locations)
+    return ray_dataset_to_spark_dataframe(spark, ds.schema(),
+                                          ds.get_internal_block_refs(),
+                                          locations)
 
 @client_mode_wrap
 def get_locations(ds):
