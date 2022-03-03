@@ -152,8 +152,6 @@ class RayClusterMaster(ClusterMaster):
 
         options["ray.run-mode"] = "CLUSTER"
         options["ray.node-ip"] = node.node_ip_address
-        options["ray.address"] = node.redis_address
-        options["ray.redis.password"] = node.redis_password
         options["ray.logging.dir"] = node.get_logs_dir_path()
         options["ray.session-dir"] = node.get_session_dir_path()
         options["ray.raylet.node-manager-port"] = node.node_manager_port
@@ -162,6 +160,13 @@ class RayClusterMaster(ClusterMaster):
         options["ray.object-store.socket-name"] = node.plasma_store_socket_name
         options["ray.logging.level"] = "INFO"
         options["ray.job.namespace"] = ray.get_runtime_context().namespace
+        if not self.get_gcs_status():
+            assert node.redis_address is not None
+            options["ray.address"] = node.redis_address
+            options["ray.redis.password"] = node.redis_password
+        else:
+            assert node.address is not None
+            options["ray.address"] = node.address
 
         # jnius_config.set_option has some bug, we set this options in java side
         jvm_properties = json.dumps(options)
@@ -194,3 +199,9 @@ class RayClusterMaster(ClusterMaster):
             self._gateway = None
 
         self._started_up = False
+
+    def get_gcs_status(self):
+        try:
+            return ray._private.gcs_utils.use_gcs_for_bootstrap()
+        except:
+            return False
