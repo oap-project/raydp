@@ -27,7 +27,7 @@ from pyspark.sql import SparkSession
 
 from ray.util.placement_group import PlacementGroup
 
-from raydp.spark import RayDPMaster
+from raydp.spark import RayDPMaster, RAYDP_MASTER_NAME
 from raydp.spark.dataset import RayDPConversionHelper, RAYDP_OBJ_HOLDER_NAME
 from raydp.utils import parse_memory_size
 
@@ -83,7 +83,7 @@ class _SparkContext(ContextDecorator):
     def _get_or_create_raydp_master(self) -> ray.actor.ActorHandle:
         if self._master_handle is not None:
             return self._master_handle
-        self._master_handle = RayDPMaster.remote(self._configs)
+        self._master_handle = RayDPMaster.options(name=RAYDP_MASTER_NAME).remote(self._configs)
         return self._master_handle
 
     def _prepare_placement_group(self):

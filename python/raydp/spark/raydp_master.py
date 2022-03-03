@@ -31,6 +31,8 @@ from py4j.java_gateway import JavaGateway, GatewayParameters
 
 logger = logging.getLogger(__name__)
 
+RAYDP_MASTER_NAME = "RAYDP_MASTER"
+
 @ray.remote
 class RayDPMaster():
     def __init__(self, configs):
@@ -191,3 +193,4 @@ class RayDPMaster():
             self._gateway = None
 
         self._started_up = False
+        ray.actor.exit_actor()
