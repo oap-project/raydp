@@ -27,6 +27,8 @@ from raydp.mpi import create_mpi_job, MPIJobContext, WorkerContext
 
 @pytest.mark.timeout(10)
 def test_mpi_start(ray_cluster):
+    if ray.worker.global_worker is None:
+        pytest.skip("Skip MPI test if using ray client")
     job = create_mpi_job(job_name="test",
                          world_size=2,
                          num_cpus_per_process=1,
@@ -56,6 +58,8 @@ def test_mpi_start(ray_cluster):
 
 @pytest.mark.timeout(10)
 def test_mpi_get_rank_address(ray_cluster):
+    if ray.worker.global_worker is None:
+        pytest.skip("Skip MPI test if using ray client")
     with create_mpi_job(job_name="test",
                         world_size=2,
                         num_cpus_per_process=1,
@@ -93,6 +97,8 @@ def test_mpi_with_script_prepare_fn(ray_cluster):
 
 
 def test_mpi_with_pg(ray_cluster):
+    if ray.worker.global_worker is None:
+        pytest.skip("Skip MPI test if using ray client")
     pg = placement_group(bundles=[{"CPU": 2}], strategy="STRICT_SPREAD")
     with create_mpi_job(job_name="test",
                         world_size=2,
