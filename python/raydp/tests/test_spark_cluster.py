@@ -119,7 +119,7 @@ def test_placement_group(ray_cluster):
         assert result == 10
         raydp.stop_spark()
 
-        time.sleep(3)
+        time.sleep(5)
 
         # w/ existing placement group w/o bundle indexes
         spark = raydp.init_spark("test_bundle", 1, 1, "500 M",
