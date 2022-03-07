@@ -31,10 +31,10 @@ from py4j.java_gateway import JavaGateway, GatewayParameters
 
 logger = logging.getLogger(__name__)
 
-RAYDP_MASTER_NAME = "RAYDP_MASTER"
+RAYDP_SPARK_MASTER_NAME = "RAYDP_SPARK_MASTER"
 
 @ray.remote
-class RayDPMaster():
+class RayDPSparkMaster():
     def __init__(self, configs):
         self._gateway = None
         self._app_master_java_bridge = None

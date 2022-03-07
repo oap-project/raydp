@@ -19,12 +19,11 @@ from .dataset import RayMLDataset, \
                      spark_dataframe_to_ray_dataset, \
                      ray_dataset_to_spark_dataframe
 from .interfaces import SparkEstimatorInterface
-from .raydp_master import RayDPMaster, RAYDP_MASTER_NAME
+from .ray_cluster import SparkCluster
 
 __all__ = [
   "RayMLDataset",
-  "RayDPMaster",
-  "RAYDP_MASTER_NAME",
+  "SparkCluster",
   "SparkEstimatorInterface",
   "spark_dataframe_to_ray_dataset",
   "ray_dataset_to_spark_dataframe"

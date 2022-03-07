@@ -35,7 +35,6 @@ from ray.util.data import MLDataset
 from ray.util.data.interface import _SourceShard
 from ray._private.client_mode_hook import client_mode_wrap
 from raydp.spark.parallel_iterator_worker import ParallelIteratorWorkerWithLen
-from raydp.spark.raydp_master import RAYDP_MASTER_NAME
 from raydp.utils import divide_blocks
 
 logger = logging.getLogger(__name__)
