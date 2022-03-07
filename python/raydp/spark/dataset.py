@@ -181,6 +181,19 @@ class RayRecordBatch(RecordBatch):
         worker.core_worker.get_objects(object_ids, worker.current_task_id, timeout_ms)
         self.resolved = True
 
+@client_mode_wrap
+def _register_objects(records):
+    worker = ray.worker.global_worker
+    blocks: List[ray.ObjectRef] = []
+    block_sizes: List[int] = []
+    for obj_id, owner, num_record in records:
+        object_ref = ray.ObjectRef(obj_id)
+        # Register the ownership of the ObjectRef
+        worker.core_worker.deserialize_and_register_object_ref(
+            object_ref.binary(), ray.ObjectRef.nil(), owner, "")
+        blocks.append(object_ref)
+        block_sizes.append(num_record)
+    return blocks, block_sizes
 
 def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
                                    _use_owner: bool = False):
@@ -196,7 +209,7 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
 
     record_tuples = [(record.objectId(), record.ownerAddress(), record.numRecords())
                         for record in records]
-    blocks, block_sizes = _register(record_tuples)
+    blocks, block_sizes = _register_objects(record_tuples)
 
     if _use_owner is True:
         holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
@@ -204,8 +217,6 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
         ray.get(holder.add_objects.remote(df_id, blocks))
 
     return blocks, block_sizes
-
-
 
 def _create_ml_dataset(name: str,
                        record_pieces: List[RecordPiece],
@@ -480,6 +491,9 @@ class RayDPConversionHelper():
     def get_object(self, timestamp, idx):
         return self.objects[timestamp][idx]
 
+    def get_ray_address(self):
+        return ray.worker.global_worker.node.address
+
     def terminate(self):
         ray.actor.exit_actor()
 
@@ -501,14 +515,12 @@ def _convert_by_udf(spark: sql.SparkSession,
     # create the rdd then dataframe to utilize locality
     jdf = object_store_reader.createRayObjectRefDF(spark._jsparkSession, locations)
     current_namespace = ray.get_runtime_context().namespace
-    ray_address = ray.worker.global_worker.node.redis_address
-    ray_password = ray.worker.global_worker.node.redis_password
+    ray_address = ray.get(holder.get_ray_address.remote())
     blocks_df = DataFrame(jdf, spark._wrapped)
     def _convert_blocks_to_dataframe(blocks):
         # connect to ray
         if not ray.is_initialized():
             ray.init(address=ray_address,
-                     _redis_password=ray_password,
                      namespace=current_namespace,
                      logging_level=logging.WARN)
         obj_holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
@@ -536,10 +548,19 @@ def _convert_by_rdd(spark: sql.SparkSession,
     jdf = object_store_reader.RayDatasetToDataFrame(spark._jsparkSession, rdd, schema_str)
     return DataFrame(jdf, spark._wrapped)
 
+@client_mode_wrap
+def get_locations(blocks):
+    core_worker = ray.worker.global_worker.core_worker
+    return [
+        core_worker.get_owner_address(block)
+        for block in blocks
+    ]
+
 def ray_dataset_to_spark_dataframe(spark: sql.SparkSession,
                                    arrow_schema: "pa.lib.Schema",
                                    blocks: List[ObjectRef],
-                                   locations: List[bytes]) -> DataFrame:
+                                   locations = None) -> DataFrame:
+    locations = get_locations(blocks)
     if not isinstance(arrow_schema, pa.lib.Schema):
         raise RuntimeError(f"Schema is {type(arrow_schema)}, required pyarrow.lib.Schema. \n" \
                            f"to_spark does not support converting non-arrow ray datasets.")
@@ -551,89 +572,6 @@ def ray_dataset_to_spark_dataframe(spark: sql.SparkSession,
     if isinstance(sample, bytes):
         return _convert_by_rdd(spark, blocks, locations, schema)
     elif isinstance(sample, pa.Table):
-        return _convert_by_udf_new(spark, blocks, locations, schema)
+        return _convert_by_udf(spark, blocks, locations, schema)
     else:
         raise RuntimeError("ray.to_spark only supports arrow type blocks")
-
-def from_spark_new(df: sql.DataFrame, use_batch: bool = True,
-                                   _use_owner: bool = False):
-    # call java function from python
-    jvm = df.sql_ctx.sparkSession.sparkContext._jvm
-    jdf = df._jdf
-    object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
-
-    if _use_owner is True:
-        records = object_store_writer.save(use_batch, RAYDP_OBJ_HOLDER_NAME)
-    else:
-        records = object_store_writer.save(use_batch, "")
-    record_tuples = [(record.objectId(), record.ownerAddress(), record.numRecords())
-                        for record in records]
-    blocks, _ = _register(record_tuples)
-    return ray.data.from_arrow_refs(blocks)
-
-@client_mode_wrap
-def _register(records):
-    worker = ray.worker.global_worker
-    blocks: List[ray.ObjectRef] = []
-    block_sizes: List[int] = []
-    for obj_id, owner, num_record in records:
-        object_ref = ray.ObjectRef(obj_id)
-        # Register the ownership of the ObjectRef
-        worker.core_worker.deserialize_and_register_object_ref(
-            object_ref.binary(), ray.ObjectRef.nil(), owner, "")
-        blocks.append(object_ref)
-        block_sizes.append(num_record)
-    return blocks, block_sizes
-
-def to_spark_new(ds, spark):
-    locations = get_locations(ds)
-    return ray_dataset_to_spark_dataframe(spark, ds.schema(),
-                                          ds.get_internal_block_refs(),
-                                          locations)
-
-@client_mode_wrap
-def get_locations(ds):
-    core_worker = ray.worker.global_worker.core_worker
-    return [
-        core_worker.get_owner_address(block)
-        for block in ds.get_internal_block_refs()
-    ]
-
-def _convert_by_udf_new(spark: sql.SparkSession,
-                    blocks: List[ObjectRef],
-                    locations: List[bytes],
-                    schema: StructType) -> DataFrame:
-    holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
-    df_id = uuid.uuid4()
-    ray.get(holder.add_objects.remote(df_id, blocks))
-    jvm = spark.sparkContext._jvm
-    object_store_reader = jvm.org.apache.spark.sql.raydp.ObjectStoreReader
-    # create the rdd then dataframe to utilize locality
-    jdf = object_store_reader.createRayObjectRefDF(spark._jsparkSession, locations)
-    blocks_df = DataFrame(jdf, spark._wrapped)
-    current_namespace = ray.get_runtime_context().namespace
-    ray_address, ray_password = helper()
-    def _convert_blocks_to_dataframe(blocks):
-        # connect to ray
-        if not ray.is_initialized():
-            ray.init(address=ray_address,
-                     _redis_password=ray_password,
-                     namespace=current_namespace,
-                     logging_level=logging.WARN)
-        obj_holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
-        for block in blocks:
-            dfs = []
-            for idx in block["idx"]:
-                ref = ray.get(obj_holder.get_object.remote(df_id, idx))
-                data = ray.get(ref)
-                dfs.append(data.to_pandas())
-            yield pd.concat(dfs)
-    df = blocks_df.mapInPandas(_convert_blocks_to_dataframe, schema)
-    return df
-
-@client_mode_wrap
-def helper():
-    ray_address = ray.worker.global_worker.node.redis_address
-    ray_password = ray.worker.global_worker.node.redis_password
-    return (ray_address, ray_password)
-    

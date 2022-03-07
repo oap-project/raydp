@@ -71,10 +71,11 @@ def test_ray_dataset_roundtrip(spark_on_ray_small):
     spark = spark_on_ray_small
     spark_df = spark.createDataFrame([(1, "a"), (2, "b"), (3, "c")], ["one", "two"])
     rows = [(r.one, r.two) for r in spark_df.take(3)]
-    ds = raydp.spark.dataset.from_spark_new(spark_df)
+    ds = ray.data.from_spark(spark_df)
     values = [(r["one"], r["two"]) for r in ds.take(6)]
     assert values == rows
-    df = raydp.spark.dataset.to_spark_new(ds, spark)
+    df = raydp.spark.dataset. \
+        ray_dataset_to_spark_dataframe(spark, ds.schema(), ds.get_internal_block_refs())
     rows_2 = [(r.one, r.two) for r in df.take(3)]
     assert values == rows_2
 
@@ -85,12 +86,14 @@ def test_ray_dataset_to_spark(spark_on_ray_small):
     data = {"value": list(range(n))}
     ds = ray.data.from_arrow(pyarrow.Table.from_pydict(data))
     values = [r["value"] for r in ds.take(n)]
-    df = raydp.spark.dataset.to_spark_new(ds, spark)
+    df = raydp.spark.dataset. \
+        ray_dataset_to_spark_dataframe(spark, ds.schema(), ds.get_internal_block_refs())
     rows = [r.value for r in df.take(n)]
     assert values == rows
     ds2 = ray.data.from_items([{"id": i} for i in range(n)])
     ids = [r["id"] for r in ds2.take(n)]
-    df2 = raydp.spark.dataset.to_spark_new(ds2, spark)
+    df2 = raydp.spark.dataset. \
+        ray_dataset_to_spark_dataframe(spark, ds2.schema(), ds2.get_internal_block_refs())
     rows2 = [r.id for r in df2.take(n)]
     assert ids == rows2
 
