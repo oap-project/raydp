@@ -152,7 +152,7 @@ class RayClusterMaster(ClusterMaster):
 
         options["ray.run-mode"] = "CLUSTER"
         options["ray.node-ip"] = node.node_ip_address
-        options["ray.address"] = node.redis_address
+        options["ray.address"] = node.address
         options["ray.redis.password"] = node.redis_password
         options["ray.logging.dir"] = node.get_logs_dir_path()
         options["ray.session-dir"] = node.get_session_dir_path()
