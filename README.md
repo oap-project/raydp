@@ -53,6 +53,10 @@ raydp.stop_spark()
 
 Spark features such as dynamic resource allocation, spark-submit script, etc are also supported. Please refer to [Spark on Ray](./doc/spark_on_ray.md) for more details.
 
+### Ray Client
+
+RayDP works the same way when using ray client. However, spark driver would be on the local machine. This is convenient if you want to do some experiment in an interactive environment. If this is not desired, e.g. due to performance, you can define an ray actor, which calls `init_spark` and performs all the calculation in its method. This way, spark driver will be in the ray cluster, and is rather similar to spark cluster deploy mode.
+
 ## Pandas on Spark
 
 PySpark 3.2.0 provides Pandas API on Spark(originally Koalas). Users familiar with Pandas can use it to scale current pandas workloads on RayDP.
