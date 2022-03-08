@@ -37,6 +37,10 @@ class _SparkContext(ContextDecorator):
     :param num_executors the number of executor requested
     :param executor_cores the CPU cores for each executor
     :param executor_memory the memory size (eg: 10KB, 10MB..) for each executor
+    :param enable_hive: spark read hive data source：If you want to use this function,
+                    please install the corresponding spark version first, set ENV SPARK_HOME,
+                    configure spark-env.sh HADOOP_CONF_DIR in spark conf, and copy hive-site.xml
+                    and hdfs-site.xml to ${SPARK_HOME}/ conf
     :param placement_group_strategy: RayDP will create a placement group according to the
                                      strategy and the configured resources for executors.
                                      If this parameter is specified, the next two
@@ -56,6 +60,7 @@ class _SparkContext(ContextDecorator):
                  num_executors: int,
                  executor_cores: int,
                  executor_memory: Union[str, int],
+                 enable_hive: Optional[bool],
                  placement_group_strategy: Optional[str],
                  placement_group: Optional[PlacementGroup],
                  placement_group_bundle_indexes: Optional[List[int]],
@@ -63,6 +68,7 @@ class _SparkContext(ContextDecorator):
         self._app_name = app_name
         self._num_executors = num_executors
         self._executor_cores = executor_cores
+        self._enable_hive = enable_hive
 
         if isinstance(executor_memory, str):
             # If this is human readable str(like: 10KB, 10MB..), parse it
@@ -114,6 +120,7 @@ class _SparkContext(ContextDecorator):
             self._num_executors,
             self._executor_cores,
             self._executor_memory,
+            self._enable_hive,
             self._configs)
         return self._spark_session
 
@@ -148,6 +155,7 @@ def init_spark(app_name: str,
                num_executors: int,
                executor_cores: int,
                executor_memory: Union[str, int],
+               enable_hive: Optional[bool] = True,
                placement_group_strategy: Optional[str] = None,
                placement_group: Optional[PlacementGroup] = None,
                placement_group_bundle_indexes: Optional[List[int]] = None,
@@ -159,6 +167,10 @@ def init_spark(app_name: str,
     :param executor_cores: the number of CPU cores for each executor
     :param executor_memory: the memory size for each executor, both support bytes or human
                             readable string.
+    :param enable_hive: spark read hive data source：If you want to use this function,
+                please install the corresponding spark version first, set ENV SPARK_HOME,
+                configure spark-env.sh HADOOP_CONF_DIR in spark conf, and copy hive-site.xml
+                and hdfs-site.xml to ${SPARK_HOME}/ conf
     :param placement_group_strategy: RayDP will create a placement group according to the
                                      strategy and the configured resources for executors.
                                      If this parameter is specified, the next two
@@ -180,7 +192,7 @@ def init_spark(app_name: str,
         if _global_spark_context is None:
             try:
                 _global_spark_context = _SparkContext(
-                    app_name, num_executors, executor_cores, executor_memory,
+                    app_name, num_executors, executor_cores, executor_memory, enable_hive,
                     placement_group_strategy,
                     placement_group,
                     placement_group_bundle_indexes,
