@@ -19,6 +19,7 @@ import sys
 import time
 
 import pytest
+import pyarrow
 import ray
 import ray._private.services
 
@@ -73,7 +74,8 @@ def test_ray_dataset_roundtrip(spark_on_ray_small):
     ds = ray.data.from_spark(spark_df)
     values = [(r["one"], r["two"]) for r in ds.take(6)]
     assert values == rows
-    df = ds.to_spark(spark)
+    df = raydp.spark.dataset. \
+        ray_dataset_to_spark_dataframe(spark, ds.schema(), ds.get_internal_block_refs())
     rows_2 = [(r.one, r.two) for r in df.take(3)]
     assert values == rows_2
 
@@ -81,14 +83,17 @@ def test_ray_dataset_roundtrip(spark_on_ray_small):
 def test_ray_dataset_to_spark(spark_on_ray_small):
     spark = spark_on_ray_small
     n = 5
-    ds = ray.data.range_arrow(n)
+    data = {"value": list(range(n))}
+    ds = ray.data.from_arrow(pyarrow.Table.from_pydict(data))
     values = [r["value"] for r in ds.take(n)]
-    df = ds.to_spark(spark)
+    df = raydp.spark.dataset. \
+        ray_dataset_to_spark_dataframe(spark, ds.schema(), ds.get_internal_block_refs())
     rows = [r.value for r in df.take(n)]
     assert values == rows
     ds2 = ray.data.from_items([{"id": i} for i in range(n)])
     ids = [r["id"] for r in ds2.take(n)]
-    df2 = ds2.to_spark(spark)
+    df2 = raydp.spark.dataset. \
+        ray_dataset_to_spark_dataframe(spark, ds2.schema(), ds2.get_internal_block_refs())
     rows2 = [r.id for r in df2.take(n)]
     assert ids == rows2
 
@@ -114,7 +119,7 @@ def test_placement_group(ray_cluster):
         assert result == 10
         raydp.stop_spark()
 
-        time.sleep(3)
+        time.sleep(5)
 
         # w/ existing placement group w/o bundle indexes
         spark = raydp.init_spark("test_bundle", 1, 1, "500 M",

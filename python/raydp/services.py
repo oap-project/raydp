@@ -22,7 +22,6 @@ from typing import Any, Dict, NoReturn
 class Cluster(ABC):
     """
     This is the base class for all specified cluster, such as SparkCluster, FlinkCluster.
-
     :param master_resources_requirement: The resources requirement for the master service.
     """
     def __init__(self, master_resources_requirement):
@@ -43,7 +42,6 @@ class Cluster(ABC):
                    **kwargs: Dict[Any, Any]):
         """
         Add one worker to the cluster.
-
         :param resources_requirement: The resource requirements for the worker service.
         """
         try:

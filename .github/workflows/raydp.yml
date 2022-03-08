@@ -96,7 +96,9 @@ jobs:
           pylint --rcfile=python/pylintrc python/raydp
       - name: Test with pytest
         run: |
+          ray start --head --num-cpus 4
           pytest python/raydp/tests/
+          ray stop --force
       - name: Test Examples
         run: |
           ray start --head
