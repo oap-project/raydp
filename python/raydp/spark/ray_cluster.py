@@ -82,12 +82,10 @@ class SparkCluster(Cluster):
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
         if enable_hive:
-            self._spark_session = \
-                spark_builder.appName(app_name).master(self.get_cluster_url()).enableHiveSupport().getOrCreate()
-        else:
-            self._spark_session = \
-                spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
-            return self._spark_session
+            spark_builder.enableHiveSupport()
+        self._spark_session = \
+            spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
+        return self._spark_session
 
     def stop(self):
         if self._spark_session is not None:
