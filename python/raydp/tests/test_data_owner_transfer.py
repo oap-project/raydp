@@ -1,6 +1,5 @@
 
 import sys
-import os
 import time
 
 import pytest
@@ -26,8 +25,6 @@ def gen_test_data():
   out = s.createDataFrame(rdd, ["Name", "Age", "Phone"])
   return out
   
-
-@pytest.mark.xfail(reason="data ownership transfer feature is not enabled")
 def test_fail_without_data_ownership_transfer():
   """
   Test shutting down Spark worker after data been put 
@@ -73,8 +70,10 @@ def test_fail_without_data_ownership_transfer():
   assert resource_stats['CPU'] == cpu_cnt + num_executor
 
   # confirm that data get lost (error thrown)
-  ds.mean('Age')
+  with pytest.raises(ray.exceptions.RayTaskError) as e:
+    ds.mean('Age')
 
+  ray.shutdown()
 
 def test_data_ownership_transfer():
   """
