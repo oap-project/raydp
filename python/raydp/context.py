@@ -60,7 +60,7 @@ class _SparkContext(ContextDecorator):
                  num_executors: int,
                  executor_cores: int,
                  executor_memory: Union[str, int],
-                 enable_hive: Optional[bool],
+                 enable_hive: bool,
                  placement_group_strategy: Optional[str],
                  placement_group: Optional[PlacementGroup],
                  placement_group_bundle_indexes: Optional[List[int]],

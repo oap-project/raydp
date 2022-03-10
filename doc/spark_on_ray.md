@@ -43,19 +43,17 @@ raydp.init_spark(..., placement_group_strategy="SPREAD")
 ```
 
 
-### RayDP Spark read or write hive
-RayDP's spark can read or write hive, which is very useful in the enterprise, because most of the data in the enterprise is stored in hdfs, of course, I also tried ray to read hdfs, but due to various problems, this kind of The method can be used, but it is not easy to use, so I think adding this function to raydp, if you want to use this function, please configure the environment first:
-+ Install raydp： pip install raydp pyspark=3.2.0， suggest using this pyspark version, note: this version not support python3.7, because best to use python3.8 
-+ Install java to ray cluster's each node and set ENV JAVA_HOME
+### RayDP Hive Support
+RayDP can read or write Hive, which might be useful if the data is stored in HDFS.If you want to enable this feature, please configure your environment as following:
 + Install spark to ray cluster's each node and set ENV SPARK_HOME
-+ COPY your hdfs-site.xml and hive-site.xml to $SPARK_HOME/conf,if using hostname in your xml file,you must set /etc/hosts
-+ Test: Can you test if hive configuration is successful like this
++ COPY your hdfs-site.xml and hive-site.xml to $SPARK_HOME/conf. If using hostname in your xml file, make sure /etc/hosts is set properly
++ Test: You can test if Hive configuration is successful like this
 ```python
 from pyspark.sql.session import SparkSession
 spark = SparkSession.builder().enableHiveSupport()
 spark.sql("select * from db.xxx").show()  # db is database, xxx is exists table
 ```
-raydp using hive example
+RayDP using Hive example
 ```python
 ray.init("auto")
 spark = raydp.init_spark(...,enable_hive=True)

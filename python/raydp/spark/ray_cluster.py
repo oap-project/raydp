@@ -52,7 +52,7 @@ class SparkCluster(Cluster):
                           num_executors: int,
                           executor_cores: int,
                           executor_memory: int,
-                          enable_hive: Optional[bool] = True,
+                          enable_hive: bool,
                           extra_conf: Dict[str, str] = None) -> SparkSession:
         if self._spark_session is not None:
             return self._spark_session
