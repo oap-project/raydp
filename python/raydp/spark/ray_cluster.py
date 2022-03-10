@@ -17,7 +17,7 @@
 
 import glob
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import ray
 import ray._private.services
@@ -52,6 +52,7 @@ class SparkCluster(Cluster):
                           num_executors: int,
                           executor_cores: int,
                           executor_memory: int,
+                          enable_hive: bool,
                           extra_conf: Dict[str, str] = None) -> SparkSession:
         if self._spark_session is not None:
             return self._spark_session
@@ -80,7 +81,9 @@ class SparkCluster(Cluster):
         spark_builder = SparkSession.builder
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
-        self._spark_session =\
+        if enable_hive:
+            spark_builder.enableHiveSupport()
+        self._spark_session = \
             spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
         return self._spark_session
 
