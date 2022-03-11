@@ -4,6 +4,7 @@ import time
 
 import pytest
 import ray
+from ray._private.client_mode_hook import client_mode_wrap
 from ray.exceptions import RayTaskError, OwnerDiedError
 import raydp
 
@@ -25,8 +26,12 @@ def gen_test_data():
   rdd = s.sparkContext.parallelize(data)
   out = s.createDataFrame(rdd, ["Name", "Age", "Phone"])
   return out
+
+@client_mode_wrap
+def ray_gc():
+  ray.internal.internal_api.global_gc()
   
-def test_fail_without_data_ownership_transfer():
+def test_fail_without_data_ownership_transfer(ray_cluster):
   """
   Test shutting down Spark worker after data been put 
   into Ray object store without data ownership transfer.
@@ -38,10 +43,6 @@ def test_fail_without_data_ownership_transfer():
   
   num_executor = 1
 
-  ray.shutdown()
-  raydp.stop_spark()
-
-  ray.init()
   spark = raydp.init_spark(
     app_name = "example",
     num_executors = num_executor,
@@ -63,7 +64,7 @@ def test_fail_without_data_ownership_transfer():
 
   # release resource by shutting down spark
   raydp.stop_spark()
-  ray.internal.internal_api.global_gc() # ensure GC kicked in
+  ray_gc() # ensure GC kicked in
   time.sleep(3)
 
   # confirm that resources has been recycled
@@ -75,10 +76,8 @@ def test_fail_without_data_ownership_transfer():
     ds.mean('Age')
   except RayTaskError as e:
     assert isinstance(e.cause, OwnerDiedError)
-  finally:
-    ray.shutdown()
 
-def test_data_ownership_transfer():
+def test_data_ownership_transfer(ray_cluster):
   """
   Test shutting down Spark worker after data been put 
   into Ray object store with data ownership transfer.
@@ -90,10 +89,6 @@ def test_data_ownership_transfer():
   
   num_executor = 1
 
-  ray.shutdown()
-  raydp.stop_spark()
-
-  ray.init()
   spark = raydp.init_spark(
     app_name = "example",
     num_executors = num_executor,
@@ -115,7 +110,7 @@ def test_data_ownership_transfer():
 
   # release resource by shutting down spark Java process
   raydp.stop_spark(del_obj_holder=False)
-  ray.internal.internal_api.global_gc() # ensure GC kicked in
+  ray_gc() # ensure GC kicked in
   time.sleep(3)
 
   # confirm that resources has been recycled
@@ -128,20 +123,15 @@ def test_data_ownership_transfer():
    
   # final clean up
   raydp.stop_spark()
-  ray.shutdown()
 
 
-def test_api_compatibility():
+def test_api_compatibility(ray_cluster):
   """
   Test the changes been made are not to break public APIs.
   """
 
   num_executor = 1
 
-  ray.shutdown()
-  raydp.stop_spark()
-
-  ray.init()
   spark = raydp.init_spark(
     app_name = "example",
     num_executors = num_executor,
@@ -156,7 +146,7 @@ def test_api_compatibility():
 
   # check compatibility of ray 1.9.0 API: no data onwership transfer
   ds = ray.data.from_spark(df_train)
-  ray.internal.internal_api.global_gc() # ensure GC kicked in
+  ray_gc() # ensure GC kicked in
   time.sleep(3)
 
   # confirm that resources is still being occupied
@@ -165,7 +155,6 @@ def test_api_compatibility():
   
   # final clean up
   raydp.stop_spark()
-  ray.shutdown()
 
 
 if __name__ == '__main__':
