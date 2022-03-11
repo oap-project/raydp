@@ -4,6 +4,7 @@ import time
 
 import pytest
 import ray
+from ray.exceptions import RayTaskError, OwnerDiedError
 import raydp
 
 
@@ -70,10 +71,12 @@ def test_fail_without_data_ownership_transfer():
   assert resource_stats['CPU'] == cpu_cnt + num_executor
 
   # confirm that data get lost (error thrown)
-  with pytest.raises(ray.exceptions.RayTaskError) as e:
+  try:
     ds.mean('Age')
-
-  ray.shutdown()
+  except RayTaskError as e:
+    assert isinstance(e.cause, OwnerDiedError)
+  finally:
+    ray.shutdown()
 
 def test_data_ownership_transfer():
   """
