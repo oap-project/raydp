@@ -39,14 +39,14 @@ def spark_session(request):
     return spark
 
 
-@pytest.fixture(scope="function", params=["auto", "ray://localhost:10001"])
+@pytest.fixture(scope="function", params=["localhost:6379", "ray://localhost:10001"])
 def ray_cluster(request):
     ray.shutdown()
     ray.init(address=request.param)
     request.addfinalizer(lambda: ray.shutdown())
 
 
-@pytest.fixture(scope="function", params=["auto", "ray://localhost:10001"])
+@pytest.fixture(scope="function", params=["localhost:6379", "ray://localhost:10001"])
 def spark_on_ray_small(request):
     ray.shutdown()
     ray.init(address=request.param)
