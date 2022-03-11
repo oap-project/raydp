@@ -156,7 +156,6 @@ def test_api_compatibility(ray_cluster):
   # final clean up
   raydp.stop_spark()
 
-
 if __name__ == '__main__':
   sys.exit(pytest.main(["-v", __file__]))
   
