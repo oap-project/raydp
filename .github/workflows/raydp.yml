@@ -30,6 +30,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
         python-version: [3.6, 3.7, 3.8]
+        ray-version: [1.9.2, 1.10.0, 1.11.0]
 
     runs-on: ${{ matrix.os }}
 
@@ -75,7 +76,8 @@ jobs:
           else
             pip install torch
           fi
-          pip install ray pytest koalas tensorflow==2.5.1 tabulate xgboost_ray[default] grpcio-tools
+          pip install ray==${{ matrix.ray-version }}
+          pip install pytest koalas tensorflow==2.5.1 tabulate xgboost_ray[default] grpcio-tools
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
           pip install horovod[pytorch,ray]
