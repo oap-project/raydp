@@ -19,7 +19,7 @@ package org.apache.spark.sql.raydp
 
 
 import java.io.ByteArrayOutputStream
-import java.util.{List, Optional, UUID}
+import java.util.{List, Optional, UUID, ArrayList}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 import java.util.function.{Function => JFunction}
 
@@ -32,6 +32,7 @@ import io.ray.runtime.RayRuntimeInternal
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 
+import org.apache.spark.rdd.RDD
 import org.apache.spark.raydp.RayDPUtils
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.execution.arrow.ArrowWriter
@@ -45,11 +46,13 @@ import org.apache.spark.util.Utils
  * @param ownerAddress the owner address of the ray worker
  * @param objectId the ObjectId for the stored data
  * @param numRecords the number of records for the stored data
+ * @param partitionId the index of the corresponding partition
  */
 case class RecordBatch(
     ownerAddress: Array[Byte],
     objectId: Array[Byte],
-    numRecords: Int)
+    numRecords: Int,
+    partitionIndex: Int)
 
 class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
@@ -59,7 +62,8 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       data: Array[Byte],
       numRecords: Int,
       queue: ObjectRefHolder.Queue,
-      ownerName: String): RecordBatch = {
+      ownerName: String,
+      splitIndex: Int): RecordBatch = {
 
     var objectRef: ObjectRef[Array[Byte]] = null
     if (ownerName == "") {
@@ -75,13 +79,13 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
     val objectId = objectRefImpl.getId
     val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
     val addressInfo = runtime.getObjectStore.getOwnershipInfo(objectId)
-    RecordBatch(addressInfo, objectId.getBytes, numRecords)
+    RecordBatch(addressInfo, objectId.getBytes, numRecords, splitIndex)
   }
 
   /**
    * Save the DataFrame to Ray object store with Apache Arrow format.
    */
-  def save(useBatch: Boolean, ownerName: String): List[RecordBatch] = {
+  def save(useBatch: Boolean, ownerName: String, partitionIndex: Int): List[RecordBatch] = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
     var batchSize = conf.getConf(SQLConf.ARROW_EXECUTION_MAX_RECORDS_PER_BATCH)
@@ -90,76 +94,78 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
     }
     val schema = df.schema
 
-    val objectIds = df.queryExecution.toRdd.mapPartitions{ iter =>
-      val queue = ObjectRefHolder.getQueue(uuid)
-
-      // DO NOT use iter.grouped(). See BatchIterator.
-      val batchIter = if (batchSize > 0) {
-        new BatchIterator(iter, batchSize)
-      } else {
-        Iterator(iter)
-      }
-
-      val arrowSchema = ArrowUtils.toArrowSchema(schema, timeZoneId)
-      val allocator = ArrowUtils.rootAllocator.newChildAllocator(
-        s"ray object store writer", 0, Long.MaxValue)
-      val root = VectorSchemaRoot.create(arrowSchema, allocator)
+    val objectIds = df.queryExecution.toRdd.mapPartitionsWithIndex{ (splitIndex, iter) =>
       val results = new ArrayBuffer[RecordBatch]()
+      if (partitionIndex == -1 || splitIndex == partitionIndex) {
 
-      val byteOut = new ByteArrayOutputStream()
-      val arrowWriter = ArrowWriter.create(root)
-      var numRecords: Int = 0
+        val queue = ObjectRefHolder.getQueue(uuid)
 
-      Utils.tryWithSafeFinally {
-        while (batchIter.hasNext) {
-          // reset the state
-          numRecords = 0
-          byteOut.reset()
-          arrowWriter.reset()
-
-          // write out the schema meta data
-          val writer = new ArrowStreamWriter(root, null, byteOut)
-          writer.start()
-
-          // get the next record batch
-          val nextBatch = batchIter.next()
-
-          while (nextBatch.hasNext) {
-            numRecords += 1
-            arrowWriter.write(nextBatch.next())
-          }
-
-          // set the write record count
-          arrowWriter.finish()
-          // write out the record batch to the underlying out
-          writer.writeBatch()
-
-          // get the wrote ByteArray and save to Ray ObjectStore
-          val byteArray = byteOut.toByteArray
-          results += writeToRay(byteArray, numRecords, queue, ownerName)
-          // end writes footer to the output stream and doesn't clean any resources.
-          // It could throw exception if the output stream is closed, so it should be
-          // in the try block.
-          writer.end()
+        // DO NOT use iter.grouped(). See BatchIterator.
+        val batchIter = if (batchSize > 0) {
+          new BatchIterator(iter, batchSize)
+        } else {
+          Iterator(iter)
         }
-        arrowWriter.reset()
-        byteOut.close()
-      } {
-        // If we close root and allocator in TaskCompletionListener, there could be a race
-        // condition where the writer thread keeps writing to the VectorSchemaRoot while
-        // it's being closed by the TaskCompletion listener.
-        // Closing root and allocator here is cleaner because root and allocator is owned
-        // by the writer thread and is only visible to the writer thread.
-        //
-        // If the writer thread is interrupted by TaskCompletionListener, it should either
-        // (1) in the try block, in which case it will get an InterruptedException when
-        // performing io, and goes into the finally block or (2) in the finally block,
-        // in which case it will ignore the interruption and close the resources.
 
-        root.close()
-        allocator.close()
+        val arrowSchema = ArrowUtils.toArrowSchema(schema, timeZoneId)
+        val allocator = ArrowUtils.rootAllocator.newChildAllocator(
+          s"ray object store writer", 0, Long.MaxValue)
+        val root = VectorSchemaRoot.create(arrowSchema, allocator)
+
+        val byteOut = new ByteArrayOutputStream()
+        val arrowWriter = ArrowWriter.create(root)
+        var numRecords: Int = 0
+
+        Utils.tryWithSafeFinally {
+          while (batchIter.hasNext) {
+            // reset the state
+            numRecords = 0
+            byteOut.reset()
+            arrowWriter.reset()
+
+            // write out the schema meta data
+            val writer = new ArrowStreamWriter(root, null, byteOut)
+            writer.start()
+
+            // get the next record batch
+            val nextBatch = batchIter.next()
+
+            while (nextBatch.hasNext) {
+              numRecords += 1
+              arrowWriter.write(nextBatch.next())
+            }
+
+            // set the write record count
+            arrowWriter.finish()
+            // write out the record batch to the underlying out
+            writer.writeBatch()
+
+            // get the wrote ByteArray and save to Ray ObjectStore
+            val byteArray = byteOut.toByteArray
+            results += writeToRay(byteArray, numRecords, queue, ownerName, splitIndex)
+            // end writes footer to the output stream and doesn't clean any resources.
+            // It could throw exception if the output stream is closed, so it should be
+            // in the try block.
+            writer.end()
+          }
+          arrowWriter.reset()
+          byteOut.close()
+        } {
+          // If we close root and allocator in TaskCompletionListener, there could be a race
+          // condition where the writer thread keeps writing to the VectorSchemaRoot while
+          // it's being closed by the TaskCompletion listener.
+          // Closing root and allocator here is cleaner because root and allocator is owned
+          // by the writer thread and is only visible to the writer thread.
+          //
+          // If the writer thread is interrupted by TaskCompletionListener, it should either
+          // (1) in the try block, in which case it will get an InterruptedException when
+          // performing io, and goes into the finally block or (2) in the finally block,
+          // in which case it will ignore the interruption and close the resources.
+
+          root.close()
+          allocator.close()
+        }
       }
-
       results.toIterator
     }.collect()
     objectIds.toSeq.asJava

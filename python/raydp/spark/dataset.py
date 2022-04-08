@@ -185,15 +185,13 @@ class RayRecordBatch(RecordBatch):
 def _register_objects(records):
     worker = ray.worker.global_worker
     blocks: List[ray.ObjectRef] = []
-    block_sizes: List[int] = []
-    for obj_id, owner, num_record in records:
+    for obj_id, owner in records:
         object_ref = ray.ObjectRef(obj_id)
         # Register the ownership of the ObjectRef
         worker.core_worker.deserialize_and_register_object_ref(
             object_ref.binary(), ray.ObjectRef.nil(), owner, "")
         blocks.append(object_ref)
-        block_sizes.append(num_record)
-    return blocks, block_sizes
+    return blocks
 
 def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
                                    _use_owner: bool = False):
@@ -202,21 +200,35 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
     jdf = df._jdf
     object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
 
-    if _use_owner is True:
-        records = object_store_writer.save(use_batch, RAYDP_OBJ_HOLDER_NAME)
+    if _use_owner:
+        records = object_store_writer.save(use_batch, RAYDP_OBJ_HOLDER_NAME, -1)
     else:
-        records = object_store_writer.save(use_batch, "")
+        records = object_store_writer.save(use_batch, "", -1)
 
-    record_tuples = [(record.objectId(), record.ownerAddress(), record.numRecords())
+    record_tuples = [(record.objectId(), record.ownerAddress())
                         for record in records]
-    blocks, block_sizes = _register_objects(record_tuples)
+    blocks = _register_objects(record_tuples)
 
-    if _use_owner is True:
+    if _use_owner:
         holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
         df_id = uuid.uuid4()
         ray.get(holder.add_objects.remote(df_id, blocks))
 
-    return blocks, block_sizes
+    block_sizes = [record.numRecords() for record in records]
+    partition_indice = [record.partitionIndex() for record in records]
+
+    return blocks, block_sizes, partition_indice
+
+def _recover_dataframe_partition(df: sql.DataFrame, partitionId: int):
+    # call java function from python
+    jvm = df.sql_ctx.sparkSession.sparkContext._jvm
+    jdf = df._jdf
+    object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
+    records = object_store_writer.save(False, "", partitionId)
+    record_tuples = [(record.objectId(), record.ownerAddress())
+                        for record in records]
+    blocks = _register_objects(record_tuples)
+    return blocks[0]
 
 def _create_ml_dataset(name: str,
                        record_pieces: List[RecordPiece],
