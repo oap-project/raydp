@@ -492,14 +492,12 @@ def _convert_by_udf(spark: sql.SparkSession,
     # create the rdd then dataframe to utilize locality
     jdf = object_store_reader.createRayObjectRefDF(spark._jsparkSession, locations)
     current_namespace = ray.get_runtime_context().namespace
-    ray_address = ray.worker.global_worker.node.redis_address
-    ray_password = ray.worker.global_worker.node.redis_password
+    ray_address = ray.worker.global_worker.node.address
     blocks_df = DataFrame(jdf, spark._wrapped)
     def _convert_blocks_to_dataframe(blocks):
         # connect to ray
         if not ray.is_initialized():
             ray.init(address=ray_address,
-                     _redis_password=ray_password,
                      namespace=current_namespace,
                      logging_level=logging.WARN)
         obj_holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
