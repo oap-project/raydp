@@ -8,10 +8,9 @@ options = {}
 options["ray"] = {}
 options["ray"]["run-mode"] = "CLUSTER"
 options["ray"]["node-ip"] = node.node_ip_address
-options["ray"]["address"] = node.redis_address
+options["ray"]["address"] = node.address
 options["ray"]["session-dir"] = node.get_session_dir_path()
 options["ray"]["redis"] = {}
-options["ray"]["redis"]["password"] = node.redis_password
 ray.shutdown()
 conf_path = dirname(__file__) + "/ray.conf"
 with open(conf_path, "w") as f:
