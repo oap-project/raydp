@@ -3,12 +3,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import sys
+sys.path.append('/home/rainbow/Documents/pr-project/raydp/python/raydp')
 import raydp
 from raydp.torch import TorchEstimator
 from raydp.utils import random_split
 
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
-
 # Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
 # For more config info in ray, please refer the ray doc. https://docs.ray.io/en/latest/package-ref.html
 # ray.init(address="auto")
@@ -50,8 +51,7 @@ class NYC_Model(nn.Module):
         self.bn3 = nn.BatchNorm1d(64)
         self.bn4 = nn.BatchNorm1d(16)
 
-    def forward(self, *x):
-        x = torch.cat(x, dim=1)
+    def forward(self, x):
         x = F.relu(self.fc1(x))
         x = self.bn1(x)
         x = F.relu(self.fc2(x))
@@ -69,8 +69,9 @@ criterion = nn.SmoothL1Loss()
 optimizer = torch.optim.Adam(nyc_model.parameters(), lr=0.001)
 # Create a distributed estimator based on the raydp api
 estimator = TorchEstimator(num_workers=1, model=nyc_model, optimizer=optimizer, loss=criterion,
-                           feature_columns=features, label_column="fare_amount", batch_size=64,
-                           num_epochs=30)
+                           feature_columns=features, feature_types=torch.float,
+                           label_column="fare_amount", label_type=torch.float,
+                           batch_size=64, num_epochs=30)
 # Train the model
 estimator.fit_on_spark(train_df, test_df)
 # shutdown raydp and ray
