@@ -151,7 +151,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  batch_size: int = None,
                  drop_last: bool = False,
                  num_epochs: int = None,
-                 num_processes_for_data_loader: int = 0):
+                 num_processes_for_data_loader: int = 0,
+                 **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
         :param resources_per_worker: the resources defined in this Dict will be reserved for
@@ -159,9 +160,9 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param logdir (Optional[str]): Path to the file directory where logs should be persisted.
         :param model: the torch model instance or a function(dict -> Models) to create a model
         :param optimizer: the optimizer instance or a function((models, dict) -> optimizer) to
-               create the optimizer in the torch.sgd.TorchTrainer
+               create the optimizer in the ray.train.Trainer
         :param loss: the loss instance or loss class or a function(dict -> loss) to create the
-               loss in the torch.sgd.TorchTrainer
+               loss in the ray.train.Trainer
         :param lr_scheduler_creator: a function((optimizers, config) -> lr_scheduler) to create
                the lr scheduler
         :param feature_columns: the feature columns when fit on Spark DataFrame or koalas.DataFrame.
@@ -177,10 +178,10 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param drop_last: Set to True to drop the last incomplete batch
         :param num_epochs: the total number of epochs will be train
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
+        :param extra_config: the extra config will be set to ray.train.Trainer
         """
         self._num_workers = num_workers
         self._resources_per_worker = resources_per_worker
-        self._logdir = logdir
         self._model = model
         self._optimizer = optimizer
         self._loss = loss
@@ -193,6 +194,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._drop_last = drop_last
         self._num_epochs = num_epochs
         self._num_processes_for_data_loader = num_processes_for_data_loader
+        self._extra_config = extra_config
 
         if self._num_processes_for_data_loader > 0:
             raise TypeError("multiple processes for data loader has not supported")
@@ -253,23 +255,18 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             def handle_result(self, results: List[Dict], **info):
                 print(results)
 
-        self._trainer = Trainer(backend="torch", num_workers=self._num_workers, logdir=self._logdir,
+        self._trainer = Trainer(backend="torch", num_workers=self._num_workers,
                                 resources_per_worker=self._resources_per_worker,
-                                max_retries=max_retries)
+                                max_retries=max_retries, **self._extra_config)
+
+        config = {"num_workers": self._num_workers, "batch_size": self._batch_size,
+                  "model": self._model, "optimizer": self._optimizer,
+                  "loss": self._loss, "lr_scheduler_creator": self._lr_scheduler_creator,
+                  "feature_columns": self._feature_columns, "feature_types": self._feature_types,
+                  "label_column": self._label_column, "label_type": self._label_type,
+                  "batch_size": self._batch_size, "num_epochs": self._num_epochs,
+                  "drop_last": self._drop_last}
         self._trainer.start()
-        config = {}
-        config["num_workers"] = self._num_workers
-        config["model"] = self._model
-        config["optimizer"] = self._optimizer
-        config["loss"] = self._loss
-        config["lr_scheduler_creator"] = self._lr_scheduler_creator
-        config["feature_columns"] = self._feature_columns
-        config["feature_types"] = self._feature_types
-        config["label_column"] = self._label_column
-        config["label_type"] = self._label_type
-        config["batch_size"] = self._batch_size
-        config["num_epochs"] = self._num_epochs
-        config["drop_last"] = self._drop_last
         results = self._trainer.run(
             train_fun, config=config,
             callbacks=[PrintingCallback()],
