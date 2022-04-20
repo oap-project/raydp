@@ -259,9 +259,9 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                 resources_per_worker=self._resources_per_worker,
                                 max_retries=max_retries, **self._extra_config)
 
-        config = {"num_workers": self._num_workers, "batch_size": self._batch_size,
-                  "model": self._model, "optimizer": self._optimizer,
-                  "loss": self._loss, "lr_scheduler_creator": self._lr_scheduler_creator,
+        config = {"num_workers": self._num_workers, "model": self._model,
+                  "optimizer": self._optimizer, "loss": self._loss,
+                  "lr_scheduler_creator": self._lr_scheduler_creator,
                   "feature_columns": self._feature_columns, "feature_types": self._feature_types,
                   "label_column": self._label_column, "label_type": self._label_type,
                   "batch_size": self._batch_size, "num_epochs": self._num_epochs,
