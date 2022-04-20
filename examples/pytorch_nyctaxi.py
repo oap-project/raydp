@@ -3,13 +3,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import sys
-sys.path.append('/home/rainbow/Documents/pr-project/raydp/python/raydp')
 import raydp
 from raydp.torch import TorchEstimator
 from raydp.utils import random_split
 
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
+
 # Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
 # For more config info in ray, please refer the ray doc. https://docs.ray.io/en/latest/package-ref.html
 # ray.init(address="auto")
