@@ -46,8 +46,10 @@ def test_torch_estimator(spark_on_ray_small):
         num_workers = 3,
         num_epochs = 5,
         feature_columns = ["age"],
-        label_column = ["grade"],
-        batch_size=2
+        feature_types = torch.float,
+        label_column = "grade",
+        label_type = torch.float,
+        batch_size = 2
     )
     estimator.fit_on_spark(df)
 
