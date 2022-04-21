@@ -99,7 +99,8 @@ def train_fun(config):
                                                             optimizer, lr_scheduler)
         train.report(epoch=epoch, train_acc=train_acc, train_loss=train_loss)
         if config["evaluate"]:
-            evaluate_acc, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset, model, loss)
+            evaluate_acc, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
+                                                                        model, loss)
             train.report(epoch=epoch, evaluate_acc=evaluate_acc, test_loss=evaluate_loss)
             loss_results.append(evaluate_loss)
 
