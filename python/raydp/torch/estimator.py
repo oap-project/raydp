@@ -107,7 +107,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param drop_last: Set to True to drop the last incomplete batch
         :param num_epochs: the total number of epochs will be train
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
-        :param callbacks: which will be executed during training. 
+        :param callbacks: which will be executed during training.
         :param extra_config: the extra config will be set to ray.train.Trainer
         """
         self._num_workers = num_workers
@@ -194,7 +194,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                                 drop_last=config["drop_last"])
         if config["evaluate"]:
             evaluate_data_shard = get_dataset_shard("evaluate")
-            evaluate_dataset = evaluate_data_shard.to_torch(feature_columns=config["feature_columns"],
+            evaluate_dataset = evaluate_data_shard.to_torch(
+                                                    feature_columns=config["feature_columns"],
                                                     label_column=config["label_column"],
                                                     label_column_dtype=config["label_type"],
                                                     feature_column_dtypes=config["feature_types"],
