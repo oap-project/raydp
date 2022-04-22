@@ -81,6 +81,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  drop_last: bool = False,
                  num_epochs: int = None,
                  num_processes_for_data_loader: int = 0,
+                 callbacks: Optional[List[TrainingCallback]] = None,
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
@@ -106,6 +107,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param drop_last: Set to True to drop the last incomplete batch
         :param num_epochs: the total number of epochs will be train
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
+        :param callbacks: which will be executed during training. 
         :param extra_config: the extra config will be set to ray.train.Trainer
         """
         self._num_workers = num_workers
@@ -122,6 +124,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._drop_last = drop_last
         self._num_epochs = num_epochs
         self._num_processes_for_data_loader = num_processes_for_data_loader
+        self._callbacks = callbacks
         self._extra_config = extra_config
 
         if self._num_processes_for_data_loader > 0:
@@ -278,7 +281,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._trainer.start()
         results = self._trainer.run(
             TorchEstimator.train_fun, config=config,
-            callbacks=[PrintingCallback()],
+            callbacks=self._callbacks,
             dataset=dataset
         )
         return results
