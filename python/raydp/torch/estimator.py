@@ -31,79 +31,6 @@ import ray.data
 from ray.data.dataset import Dataset
 from ray.data.impl.arrow_block import ArrowRow
 
-def train_fun(config):
-    # create model
-    if isinstance(config["model"], torch.nn.Module):
-        model = config["model"]
-    elif callable(config["model"]):
-        model = config["model"](config)
-    else:
-        raise Exception(
-            "Unsupported parameter, we only support torch.nn.Model instance "
-            "or a function(dict -> model)")
-
-    # create optimizer
-    if isinstance(config["optimizer"], torch.optim.Optimizer):
-        # it is the instance of torch.optim.Optimizer subclass instance
-        # rewrite the optimizer
-        optimizer_cls = config["optimizer"].__class__
-        state = config["optimizer"].state_dict()
-        optimizer = optimizer_cls(model.parameters(), lr=0.1)  # lr must pass for SGD
-        optimizer.load_state_dict(state)
-    elif callable(config["optimizer"]):
-        optimizer = config["optimizer"](model, config)
-    else:
-        raise Exception(
-            "Unsupported parameter, we only support torch.optim.Optimizer subclass "
-            "instance or a function((models, dict) -> optimizer)")
-
-    # create loss
-    if inspect.isclass(config["loss"]) and issubclass(config["loss"], TLoss):
-        loss = config["loss"]
-    elif isinstance(config["loss"], TLoss):
-        loss = config["loss"]
-    elif callable(config["loss"]):
-        loss = config["loss"](config)
-    else:
-        raise Exception(
-            "Unsupported parameter, we only support torch.nn.modules.loss._Loss "
-            "subclass, subclass instance or a function(dict -> loss)")
-
-    # create lr scheduler
-    if config["lr_scheduler_creator"]:
-        lr_scheduler = config["lr_scheduler_creator"](optimizer, config)
-    else:
-        lr_scheduler = None
-
-    # create dataset
-    train_data_shard = get_dataset_shard("train")
-    train_dataset = train_data_shard.to_torch(feature_columns=config["feature_columns"],
-                                            feature_column_dtypes=config["feature_types"],
-                                            label_column=config["label_column"],
-                                            label_column_dtype=config["label_type"],
-                                            batch_size=config["batch_size"],
-                                            drop_last=config["drop_last"])
-    if config["evaluate"]:
-        evaluate_data_shard = get_dataset_shard("evaluate")
-        evaluate_dataset = evaluate_data_shard.to_torch(feature_columns=config["feature_columns"],
-                                                label_column=config["label_column"],
-                                                label_column_dtype=config["label_type"],
-                                                feature_column_dtypes=config["feature_types"],
-                                                batch_size=config["batch_size"],
-                                                drop_last=config["drop_last"])
-
-    model = train.torch.prepare_model(model)
-    loss_results = []
-    for epoch in range(config["num_epochs"]):
-        train_acc, train_loss = TorchEstimator.train_epoch(train_dataset, model, loss,
-                                                            optimizer, lr_scheduler)
-        train.report(epoch=epoch, train_acc=train_acc, train_loss=train_loss)
-        if config["evaluate"]:
-            evaluate_acc, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
-                                                                        model, loss)
-            train.report(epoch=epoch, evaluate_acc=evaluate_acc, test_loss=evaluate_loss)
-            loss_results.append(evaluate_loss)
-
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     """
     A scikit-learn like API to distributed training torch model. In the backend it leverage
@@ -210,6 +137,80 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         assert self._loss is not None, "Loss must be provided"
 
     @staticmethod
+    def train_fun(config):
+        # create model
+        if isinstance(config["model"], torch.nn.Module):
+            model = config["model"]
+        elif callable(config["model"]):
+            model = config["model"](config)
+        else:
+            raise Exception(
+                "Unsupported parameter, we only support torch.nn.Model instance "
+                "or a function(dict -> model)")
+
+        # create optimizer
+        if isinstance(config["optimizer"], torch.optim.Optimizer):
+            # it is the instance of torch.optim.Optimizer subclass instance
+            # rewrite the optimizer
+            optimizer_cls = config["optimizer"].__class__
+            state = config["optimizer"].state_dict()
+            optimizer = optimizer_cls(model.parameters(), lr=0.1)  # lr must pass for SGD
+            optimizer.load_state_dict(state)
+        elif callable(config["optimizer"]):
+            optimizer = config["optimizer"](model, config)
+        else:
+            raise Exception(
+                "Unsupported parameter, we only support torch.optim.Optimizer subclass "
+                "instance or a function((models, dict) -> optimizer)")
+
+        # create loss
+        if inspect.isclass(config["loss"]) and issubclass(config["loss"], TLoss):
+            loss = config["loss"]
+        elif isinstance(config["loss"], TLoss):
+            loss = config["loss"]
+        elif callable(config["loss"]):
+            loss = config["loss"](config)
+        else:
+            raise Exception(
+                "Unsupported parameter, we only support torch.nn.modules.loss._Loss "
+                "subclass, subclass instance or a function(dict -> loss)")
+
+        # create lr scheduler
+        if config["lr_scheduler_creator"]:
+            lr_scheduler = config["lr_scheduler_creator"](optimizer, config)
+        else:
+            lr_scheduler = None
+
+        # create dataset
+        train_data_shard = get_dataset_shard("train")
+        train_dataset = train_data_shard.to_torch(feature_columns=config["feature_columns"],
+                                                feature_column_dtypes=config["feature_types"],
+                                                label_column=config["label_column"],
+                                                label_column_dtype=config["label_type"],
+                                                batch_size=config["batch_size"],
+                                                drop_last=config["drop_last"])
+        if config["evaluate"]:
+            evaluate_data_shard = get_dataset_shard("evaluate")
+            evaluate_dataset = evaluate_data_shard.to_torch(feature_columns=config["feature_columns"],
+                                                    label_column=config["label_column"],
+                                                    label_column_dtype=config["label_type"],
+                                                    feature_column_dtypes=config["feature_types"],
+                                                    batch_size=config["batch_size"],
+                                                    drop_last=config["drop_last"])
+
+        model = train.torch.prepare_model(model)
+        loss_results = []
+        for epoch in range(config["num_epochs"]):
+            train_acc, train_loss = TorchEstimator.train_epoch(train_dataset, model, loss,
+                                                                optimizer, lr_scheduler)
+            train.report(epoch=epoch, train_acc=train_acc, train_loss=train_loss)
+            if config["evaluate"]:
+                evaluate_acc, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
+                                                                            model, loss)
+                train.report(epoch=epoch, evaluate_acc=evaluate_acc, test_loss=evaluate_loss)
+                loss_results.append(evaluate_loss)
+
+    @staticmethod
     def train_epoch(dataset, model, criterion, optimizer, scheduler=None):
         model.train()
         train_loss, correct, data_size, batch_idx = 0, 0, 0, 0
@@ -276,7 +277,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             dataset["evaluate"] = evaluate_ds
         self._trainer.start()
         results = self._trainer.run(
-            train_fun, config=config,
+            TorchEstimator.train_fun, config=config,
             callbacks=[PrintingCallback()],
             dataset=dataset
         )
