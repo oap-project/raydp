@@ -73,6 +73,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  optimizer: Union[torch.optim.Optimizer, Callable] = None,
                  loss: Union[TLoss, Callable] = None,
                  lr_scheduler_creator: Optional[Callable] = None,
+                 scheduler_step_freq="batch",
                  feature_columns: List[str] = None,
                  feature_types: Optional[List[torch.dtype]] = None,
                  label_column: str = None,
@@ -80,13 +81,15 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  batch_size: int = None,
                  drop_last: bool = False,
                  num_epochs: int = None,
+                 shuffle: bool = False,
                  num_processes_for_data_loader: int = 0,
                  callbacks: Optional[List[TrainingCallback]] = None,
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
         :param resources_per_worker: the resources defined in this Dict will be reserved for
-               each worker
+               each worker. The ``CPU`` and ``GPU`` keys (case-sensitive) can be defined to 
+               override the number of CPU/GPUs used by each worker.
         :param model: the torch model instance or a function(dict -> Models) to create a model
         :param optimizer: the optimizer instance or a function((models, dict) -> optimizer) to
                create the optimizer in the ray.train.Trainer
@@ -94,6 +97,11 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                loss in the ray.train.Trainer
         :param lr_scheduler_creator: a function((optimizers, config) -> lr_scheduler) to create
                the lr scheduler
+        :param scheduler_step_freq: "batch", "epoch", or None. This will
+               determine when ``scheduler.step`` is called. If "batch",
+               ``step`` will be called after every optimizer step. If "epoch",
+               ``step`` will be called after one pass of the DataLoader.
+               Note: Current code only supports "batch"
         :param feature_columns: the feature columns when fit on Spark DataFrame or koalas.DataFrame.
                The inputs of the model will be match the feature columns.
                .. code-block:: python
@@ -106,6 +114,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param batch_size: the training batch size
         :param drop_last: Set to True to drop the last incomplete batch
         :param num_epochs: the total number of epochs will be train
+        :param shuffle: whether shuffle the data
+               Note: Now the value can only be False
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
         :param callbacks: which will be executed during training.
         :param extra_config: the extra config will be set to ray.train.Trainer

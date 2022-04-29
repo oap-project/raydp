@@ -49,7 +49,7 @@ def test_torch_estimator(spark_on_ray_small):
         feature_types = torch.float,
         label_column = "grade",
         label_type = torch.float,
-        batch_size = 2
+        batch_size = 1
     )
     estimator.fit_on_spark(df)
 
