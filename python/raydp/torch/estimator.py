@@ -88,7 +88,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         """
         :param num_workers: the number of workers to do the distributed training
         :param resources_per_worker: the resources defined in this Dict will be reserved for
-               each worker. The ``CPU`` and ``GPU`` keys (case-sensitive) can be defined to 
+               each worker. The ``CPU`` and ``GPU`` keys (case-sensitive) can be defined to
                override the number of CPU/GPUs used by each worker.
         :param model: the torch model instance or a function(dict -> Models) to create a model
         :param optimizer: the optimizer instance or a function((models, dict) -> optimizer) to
