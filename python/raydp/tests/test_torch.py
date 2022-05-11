@@ -67,7 +67,9 @@ def test_torch_estimator(spark_on_ray_small):
                                loss=loss,
                                lr_scheduler_creator=lr_scheduler_creator,
                                feature_columns=["x", "y"],
+                               feature_types=torch.float,
                                label_column="z",
+                               label_type=torch.float,
                                batch_size=1000,
                                num_epochs=2,
                                use_gpu=False)
