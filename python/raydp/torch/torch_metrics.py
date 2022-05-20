@@ -7,13 +7,14 @@ class Torch_Metric():
         self._metrics_name = metrics_name
         self._preprocess_fun = {}
         self._metrics_fun = {}
-        for metric in self._metrics_name:
-            if callable(metric):
-                self._preprocess_fun[metric.__name__] = None
-                self._metrics_fun[metric.__name__] = metric()
-            else:
-                self._preprocess_fun[metric] = getattr(module, 'pre'+metric, None)
-                self._metrics_fun[metric] = getattr(torchmetrics, metric)()
+        if self._metrics_name is not None:
+            for metric in self._metrics_name:
+                if callable(metric):
+                    self._preprocess_fun[metric.__name__] = None
+                    self._metrics_fun[metric.__name__] = metric()
+                else:
+                    self._preprocess_fun[metric] = getattr(module, 'pre'+metric, None)
+                    self._metrics_fun[metric] = getattr(torchmetrics, metric)()
 
     def update(self, preds, targets):
         for metric in self._metrics_fun:
