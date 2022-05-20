@@ -164,4 +164,8 @@ Please refer to [NYC Taxi PyTorch Estimator](./examples/pytorch_nyctaxi.py) and 
 RayDP also provides an API for running MPI job on Ray. We support three types of MPI: `intel_mpi`, `openmpi` and `MPICH`. You can refer to [doc/mpi.md](./doc/mpi.md) for more details.
 
 ## More Examples
+### Examples
 Not sure how to use RayDP? Check the `examples` folder. We have added many examples showing how RayDP works together with PyTorch, TensorFlow, XGBoost, Horovod, and so on. If you still cannot find what you want, feel free to post an issue to ask us!
+### Google Colab Notebook
+You can easily run code on Google Colab with a google account. Maybe this is the easiest way to get started with raydp, you can have a try. Here are two demos: [Raytrain example](https://colab.research.google.com/github/oap-project/raydp/blob/master/tutorials/raytrain_example.ipynb), [Pytorch example](https://colab.research.google.com/github/oap-project/raydp/blob/master/tutorials/pytorch_example.ipynb).
+
