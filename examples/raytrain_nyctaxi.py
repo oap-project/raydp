@@ -38,15 +38,11 @@ data = spark.read.format("csv").option("header", "true") \
 spark.conf.set("spark.sql.session.timeZone", "UTC")
 # Transform the dataset
 data = nyc_taxi_preprocess(data)
-# Split data into train_dataset and test_dataset
-train_df, test_df = random_split(data, [0.9, 0.1], 0)
-features = [field.name for field in list(train_df.schema) if field.name != "fare_amount"]
-
 # Convert spark dataframe into ray Dataset
-# Remember to align ``parallelism`` with ``num_workers`` of ray train
-train_dataset = ray.data.from_spark(train_df, parallelism = num_executors)
-test_dataset = ray.data.from_spark(test_df, parallelism = num_executors)
-feature_dtype = [torch.float] * len(features)
+dataset = ray.data.from_spark(data, parallelism = num_executors)
+# Split data into train_dataset and test_dataset
+train_dataset, test_dataset = dataset.split_at_indices([dataset.count()*0.9])
+features = [field.name for field in list(data.schema) if field.name != "fare_amount"]
 
 # Define a neural network model
 class NYC_Model(nn.Module):
@@ -62,7 +58,8 @@ class NYC_Model(nn.Module):
         self.bn3 = nn.BatchNorm1d(64)
         self.bn4 = nn.BatchNorm1d(16)
 
-    def forward(self, x):
+    def forward(self, *x):
+        x = torch.cat(x, dim=1)
         x = F.relu(self.fc1(x))
         x = self.bn1(x)
         x = F.relu(self.fc2(x))
@@ -80,36 +77,38 @@ class PrintingCallback(TrainingCallback):
 
 def train_epoch(dataset, model, criterion, optimizer):
     model.train()
-    train_loss, correct, data_size, batch_idx = 0, 0, 0, 0
+    train_loss, squared_num, data_size, batch_idx = 0, 0, 0, 0
     for batch_idx, (inputs, targets) in enumerate(dataset):
         # Compute prediction error
-        outputs = model(inputs)
+        inputs = [inputs[:,i].unsqueeze(1) for i in range(inputs.size(1))]
+        outputs = model(*inputs)
         loss = criterion(outputs, targets)
         train_loss += loss.item()
-        correct += (outputs == targets).sum().item()
-        data_size += inputs.size(0)
+        squared_num += ((outputs - targets)**2).sum().item()
+        data_size += targets.size(0)
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
     train_loss /= (batch_idx + 1)
-    train_acc = correct/data_size
-    return train_acc, train_loss
+    train_mse = squared_num/data_size
+    return train_mse, train_loss
 
 def test_epoch(dataset, model, criterion):
     model.eval()
-    test_loss, correct, data_size, batch_idx = 0, 0, 0, 0
+    test_loss, squared_num, data_size, batch_idx = 0, 0, 0, 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(dataset):
             # Compute prediction error
-            outputs = model(inputs)
+            inputs = [inputs[:,i].unsqueeze(1) for i in range(inputs.size(1))]
+            outputs = model(*inputs)
             test_loss += criterion(outputs, targets).item()
-            correct += (outputs == targets).sum().item()
-            data_size += inputs.size(0)
+            squared_num += ((outputs - targets)**2).sum().item()
+            data_size += targets.size(0)
     test_loss /= (batch_idx + 1)
-    test_acc = correct/data_size
-    return test_acc, test_loss
+    test_mse = squared_num/data_size
+    return test_mse, test_loss
 
 def train_func(config):
     num_epochs = config["num_epochs"]
@@ -120,13 +119,13 @@ def train_func(config):
     train_dataset = train_data_shard.to_torch(feature_columns=features,
                                               label_column="fare_amount",
                                               label_column_dtype=torch.float,
-                                              feature_column_dtypes=feature_dtype,
+                                              feature_column_dtypes=torch.float,
                                               batch_size=batch_size)
     test_data_shard = get_dataset_shard("test")
     test_dataset = test_data_shard.to_torch(feature_columns=features,
                                             label_column="fare_amount",
                                             label_column_dtype=torch.float,
-                                            feature_column_dtypes=feature_dtype,
+                                            feature_column_dtypes=torch.float,
                                             batch_size=batch_size)
     model = NYC_Model(len(features))
     model = train.torch.prepare_model(model)
@@ -134,16 +133,16 @@ def train_func(config):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_results = []
     for epoch in range(num_epochs):
-        train_acc, train_loss = train_epoch(train_dataset, model, criterion, optimizer)
-        test_acc, test_loss = test_epoch(test_dataset, model, criterion)
-        train.report(epoch = epoch, train_acc = train_acc, train_loss = train_loss)
-        train.report(epoch = epoch, test_acc=test_acc, test_loss=test_loss)
+        train_mse, train_loss = train_epoch(train_dataset, model, criterion, optimizer)
+        test_mse, test_loss = test_epoch(test_dataset, model, criterion)
+        train.report(epoch = epoch, train_mse = train_mse, train_loss = train_loss)
+        train.report(epoch = epoch, test_mse = test_mse, test_loss=test_loss)
         loss_results.append(test_loss)
 
 trainer = Trainer(backend="torch", num_workers=num_executors)
 trainer.start()
 results = trainer.run(
-    train_func, config={"num_epochs": 10, "lr": 0.1, "batch_size": 64},
+    train_func, config={"num_epochs": 10, "lr": 0.001, "batch_size": 64},
     callbacks=[PrintingCallback()],
     dataset={
         "train": train_dataset,
@@ -163,6 +162,6 @@ trainer.shutdown()
 #     "batch_size": 64,
 #     "lr": tune.grid_search([0.005, 0.01, 0.05, 0.1])
 # })
-# print(analysis.get_best_config(metric="test_loss", mode="min"))
+# print(analysis.get_best_config(metric="test_mse", mode="min"))
 raydp.stop_spark()
 ray.shutdown()
