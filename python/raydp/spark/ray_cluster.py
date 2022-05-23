@@ -16,40 +16,43 @@
 #
 
 import glob
-from typing import Any, Dict
+import os
+from typing import Any, Dict, Optional
 
 import ray
 import ray._private.services
 from pyspark.sql.session import SparkSession
 
 from raydp.services import Cluster
-from .ray_cluster_master import RayClusterMaster, RAYDP_CP, RAY_CP
+from .ray_cluster_master import RAYDP_SPARK_MASTER_NAME, RayDPSparkMaster
 
 
 class SparkCluster(Cluster):
     def __init__(self, configs):
         super().__init__(None)
-        self._app_master_bridge = None
+        self._spark_master_handle = None
         self._configs = configs
         self._set_up_master(None, None)
         self._spark_session: SparkSession = None
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[Any, Any]):
         # TODO: specify the app master resource
-        self._app_master_bridge = RayClusterMaster(self._configs)
-        self._app_master_bridge.start_up()
+        self._spark_master_handle = RayDPSparkMaster.options(name=RAYDP_SPARK_MASTER_NAME) \
+                                                   .remote(self._configs)
+        self._spark_master_handle.start_up.remote()
 
     def _set_up_worker(self, resources: Dict[str, float], kwargs: Dict[str, str]):
         raise Exception("Unsupported operation")
 
     def get_cluster_url(self) -> str:
-        return self._app_master_bridge.get_master_url()
+        return ray.get(self._spark_master_handle.get_master_url.remote())
 
     def get_spark_session(self,
                           app_name: str,
                           num_executors: int,
                           executor_cores: int,
                           executor_memory: int,
+                          enable_hive: bool,
                           extra_conf: Dict[str, str] = None) -> SparkSession:
         if self._spark_session is not None:
             return self._spark_session
@@ -62,6 +65,8 @@ class SparkCluster(Cluster):
         driver_node_ip = ray._private.services.get_node_ip_address()
         extra_conf["spark.driver.host"] = str(driver_node_ip)
         extra_conf["spark.driver.bindAddress"] = str(driver_node_ip)
+        RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
+        RAY_CP = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
         try:
             extra_jars = [extra_conf["spark.jars"]]
         except KeyError:
@@ -76,7 +81,9 @@ class SparkCluster(Cluster):
         spark_builder = SparkSession.builder
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
-        self._spark_session =\
+        if enable_hive:
+            spark_builder.enableHiveSupport()
+        self._spark_session = \
             spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
         return self._spark_session
 
@@ -85,6 +92,6 @@ class SparkCluster(Cluster):
             self._spark_session.stop()
             self._spark_session = None
 
-        if self._app_master_bridge is not None:
-            self._app_master_bridge.stop()
-            self._app_master_bridge = None
+        if self._spark_master_handle is not None:
+            self._spark_master_handle.stop.remote()
+            self._spark_master_handle = None

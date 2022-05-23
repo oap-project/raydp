@@ -41,3 +41,22 @@ Or you can just specify the placement group strategy. RayDP will create a corees
 ```python
 raydp.init_spark(..., placement_group_strategy="SPREAD")
 ```
+
+
+### RayDP Hive Support
+RayDP can read or write Hive, which might be useful if the data is stored in HDFS.If you want to enable this feature, please configure your environment as following:
++ Install spark to ray cluster's each node and set ENV SPARK_HOME
++ COPY your hdfs-site.xml and hive-site.xml to $SPARK_HOME/conf. If using hostname in your xml file, make sure /etc/hosts is set properly
++ Test: You can test if Hive configuration is successful like this
+```python
+from pyspark.sql.session import SparkSession
+spark = SparkSession.builder().enableHiveSupport()
+spark.sql("select * from db.xxx").show()  # db is database, xxx is exists table
+```
+RayDP using Hive example
+```python
+ray.init("auto")
+spark = raydp.init_spark(...,enable_hive=True)
+spark.sql("select * from db.xxx").show()
+```
+

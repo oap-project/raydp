@@ -22,6 +22,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -30,6 +31,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
         python-version: [3.6, 3.7, 3.8]
+        spark-version: [3.1.3, 3.2.1]
 
     runs-on: ${{ matrix.os }}
 
@@ -87,7 +89,7 @@ jobs:
         env:
           GITHUB_CI: 1
         run: |
-          pip install pyspark==3.2.0
+          pip install pyspark==${{ matrix.spark-version }}
           ./build.sh
           pip install dist/raydp-*.whl
       - name: Lint
@@ -97,7 +99,9 @@ jobs:
           pylint --rcfile=python/pylintrc examples/*.py
       - name: Test with pytest
         run: |
+          ray start --head --num-cpus 4
           pytest python/raydp/tests/
+          ray stop --force
       - name: Test Examples
         run: |
           ray start --head
