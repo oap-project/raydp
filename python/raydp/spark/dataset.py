@@ -31,8 +31,6 @@ from ray.data import Dataset, from_arrow_refs
 from ray.types import ObjectRef
 import ray.util.iter as parallel_it
 from ray._private.client_mode_hook import client_mode_wrap
-from raydp.spark.parallel_iterator_worker import ParallelIteratorWorkerWithLen
-from raydp.utils import divide_blocks
 try:
     import ray.util.data as ml_dataset
     from ray.util.data import MLDataset
@@ -41,6 +39,8 @@ try:
 except ModuleNotFoundError:
     # Ray MLDataset is removed in Ray 2.0
     HAS_MLDATASET = False
+from raydp.spark.parallel_iterator_worker import ParallelIteratorWorkerWithLen
+from raydp.utils import divide_blocks
 
 
 logger = logging.getLogger(__name__)
