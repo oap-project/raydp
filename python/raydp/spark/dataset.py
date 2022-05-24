@@ -33,6 +33,15 @@ import ray.util.iter as parallel_it
 from ray._private.client_mode_hook import client_mode_wrap
 from raydp.spark.parallel_iterator_worker import ParallelIteratorWorkerWithLen
 from raydp.utils import divide_blocks
+try:
+    import ray.util.data as ml_dataset
+    from ray.util.data import MLDataset
+    from ray.util.data.interface import _SourceShard
+    HAS_MLDATASET = True
+except ModuleNotFoundError:
+    # Ray MLDataset is removed in Ray 2.0
+    HAS_MLDATASET = False
+
 
 logger = logging.getLogger(__name__)
 
@@ -268,11 +277,7 @@ def ray_dataset_to_spark_dataframe(spark: sql.SparkSession,
     else:
         raise RuntimeError("ray.to_spark only supports arrow type blocks")
 
-try:
-    import ray.util.data as ml_dataset
-    from ray.util.data import MLDataset
-    from ray.util.data.interface import _SourceShard
-
+if HAS_MLDATASET:
     class RecordBatch(_SourceShard):
         def __init__(self,
                     shard_id: int,
@@ -341,7 +346,8 @@ try:
                         node_hints: List[str] = None) -> MLDataset:
         if node_hints is not None:
             assert num_shards % len(node_hints) == 0,\
-                f"num_shards: {num_shards} should be a multiple of length of node_hints: {node_hints}"
+                (f"num_shards: {num_shards} should be a multiple"
+                 f" of length of node_hints: {node_hints}")
         if shuffle_seed:
             np.random.seed(shuffle_seed)
         else:
@@ -579,6 +585,3 @@ try:
                                     node_hints: List[str] = None) -> MLDataset:
         return RayMLDataset.from_spark(
             df, num_shards, shuffle, shuffle_seed, fs_directory, compression, node_hints)
-except ModuleNotFoundError:
-    # Ray MLDataset is removed in Ray 2.0
-    pass
