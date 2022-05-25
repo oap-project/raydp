@@ -4,11 +4,11 @@ module = sys.modules[__name__]
 
 class Torch_Metric():
     def __init__(self, metrics_name, metrics_config):
-        assert isinstance(metrics_name, list), "metrics_name must be a list"
         self._metrics_name = metrics_name
         self._preprocess_fun = {}
         self._metrics_fun = {}
         if self._metrics_name is not None:
+            assert isinstance(metrics_name, list), "metrics_name must be a list"
             for metric in self._metrics_name:
                 if isinstance(metric, torchmetrics.Metric):
                     self._preprocess_fun[metric.__class__.__name__] = None
