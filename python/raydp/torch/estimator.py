@@ -86,6 +86,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  num_processes_for_data_loader: int = 0,
                  callbacks: Optional[List[TrainingCallback]] = None,
                  metrics_name: Optional[List[Union[str, Callable]]] = None,
+                 metrics_config: Optional[Dict[str,Dict[str, Any]]] = None,
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
@@ -120,25 +121,24 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                Note: Now the value can only be False
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
         :param callbacks: which will be executed during training.
-        :param metrics_name: the name of metrics used to evaluate the model.
-               the name can be used refer: https://torchmetrics.readthedocs.io/en/latest/
-               Or a class name can be passed down, the class should be defined like this:
-                class Accuracy():
+        :param metrics_name: the name of metrics' classes used to evaluate model.
+               the name can be used refer: https://torchmetrics.readthedocs.io/en/latest/,
+               Or torchmetrics.Metric instances can be passed down, the class should be defined like this
+               (https://torchmetrics.readthedocs.io/en/latest/pages/implement.html):
+                class MyAccuracy(Metric):
                     def __init__(self):
-                        self.num = 0
-                        self.total = 0
+                        super().__init__()
+                        self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")
+                        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
 
-                    def update(self, predict, targets):
-                        predict = predict.argmax(dim=1)
-                        self.num += (predict==targets).sum().item()
-                        self.total += targets.size(0)
+                    def update(self, preds: torch.Tensor, target: torch.Tensor):
+                        preds = preds.argmax(dim=1)
+                        self.correct += torch.sum(preds == target)
+                        self.total += target.numel()
 
                     def compute(self):
-                        return torch.tensor(self.num)/torch.tensor(self.total)
-
-                    def reset(self):
-                        self.num = 0
-                        self.total = 0
+                        return self.correct.float() / self.total
+        :param metrics_config: the config can be set to metrics which you need to set.
         :param extra_config: the extra config will be set to ray.train.Trainer
         """
         self._num_workers = num_workers
@@ -156,7 +156,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._num_epochs = num_epochs
         self._num_processes_for_data_loader = num_processes_for_data_loader
         self._callbacks = callbacks
-        self._metrics = Torch_Metric(metrics_name)
+        self._metrics = Torch_Metric(metrics_name, metrics_config)
         self._extra_config = extra_config
 
         if self._num_processes_for_data_loader > 0:
@@ -242,17 +242,17 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         for epoch in range(config["num_epochs"]):
             train_res, train_loss = TorchEstimator.train_epoch(train_dataset, model, loss,
                                                                 optimizer, metrics, lr_scheduler)
-            train.report(epoch=epoch, train_acc=train_res, train_loss=train_loss)
+            train.report(epoch=epoch, train_res=train_res, train_loss=train_loss)
             if config["evaluate"]:
                 evaluate_res, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
                                                                             model, loss, metrics)
-                train.report(epoch=epoch, evaluate_acc=evaluate_res, test_loss=evaluate_loss)
+                train.report(epoch=epoch, evaluate_res=evaluate_res, test_loss=evaluate_loss)
                 loss_results.append(evaluate_loss)
 
     @staticmethod
     def train_epoch(dataset, model, criterion, optimizer, metrics, scheduler=None):
         model.train()
-        train_loss, correct, data_size, batch_idx = 0, 0, 0, 0
+        train_loss, data_size, batch_idx = 0, 0, 0
         for batch_idx, (inputs, targets) in enumerate(dataset):
             # Compute prediction error
             inputs = [inputs[:,i].unsqueeze(1) for i in range(inputs.size(1))]
@@ -279,7 +279,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     @staticmethod
     def evaluate_epoch(dataset, model, criterion, metrics):
         model.eval()
-        test_loss, correct, data_size, batch_idx = 0, 0, 0, 0
+        test_loss, data_size, batch_idx = 0, 0, 0
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(dataset):
                 # Compute prediction error
