@@ -123,8 +123,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param callbacks: which will be executed during training.
         :param metrics_name: the name of metrics' classes used to evaluate model.
                the name can be used refer: https://torchmetrics.readthedocs.io/en/latest/,
-               Or torchmetrics.Metric instances can be passed down, the class should be defined like this
-               (https://torchmetrics.readthedocs.io/en/latest/pages/implement.html):
+               Or torchmetrics.Metric instances can be passed down, the class should be defined
+               like this(https://torchmetrics.readthedocs.io/en/latest/pages/implement.html):
                 class MyAccuracy(Metric):
                     def __init__(self):
                         super().__init__()

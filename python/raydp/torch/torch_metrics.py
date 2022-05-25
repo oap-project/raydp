@@ -14,9 +14,10 @@ class Torch_Metric():
                     self._preprocess_fun[metric.__class__.__name__] = None
                     self._metrics_fun[metric.__class__.__name__] = metric
                 elif isinstance(metric, str) and hasattr(torchmetrics, metric):
-                    self._preprocess_fun[metric] = getattr(module, 'pre'+metric, None)
+                    self._preprocess_fun[metric] = getattr(module, "pre"+metric, None)
                     if metrics_config is not None and metrics_config[metric] is not None:
-                        self._metrics_fun[metric] = getattr(torchmetrics, metric)(**metrics_config[metric])
+                        self._metrics_fun[metric] = getattr(torchmetrics, metric)(
+                                                            **metrics_config[metric])
                     else:
                         self._metrics_fun[metric] = getattr(torchmetrics, metric)()
                 else:
