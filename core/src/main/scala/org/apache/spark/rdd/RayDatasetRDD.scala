@@ -47,7 +47,7 @@ class RayDatasetRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val ref = split.asInstanceOf[RayDatasetRDDPartition].ref
-    ObjectStoreReader.getBatchesFromStream(ref, locations.get(split.index))
+    ObjectStoreReader.getBatchesFromStream(ref)
   }
 
   override def getPreferredLocations(split: Partition): Seq[String] = {

@@ -46,9 +46,8 @@ object ObjectStoreReader {
   }
 
   def getBatchesFromStream(
-      ref: Array[Byte],
-      ownerAddress: Array[Byte]): Iterator[Array[Byte]] = {
-    val objectRef = RayDPUtils.readBinary(ref, classOf[Array[Byte]], ownerAddress)
+      ref: Array[Byte]): Iterator[Array[Byte]] = {
+    val objectRef = RayDPUtils.readBinary(ref, classOf[Array[Byte]])
     ArrowConverters.getBatchesFromStream(
         Channels.newChannel(new ByteArrayInputStream(objectRef.get)))
   }
