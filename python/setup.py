@@ -27,7 +27,7 @@ from setuptools import find_packages, setup, Command
 
 package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
 if package_name == 'raydp_nightly':
-    VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
+    VERSION = datetime.today().strftime("%Y.%m.%d.dev1")
 else:
     VERSION = "0.5.0.dev0"
 
