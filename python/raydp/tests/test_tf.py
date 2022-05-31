@@ -41,13 +41,12 @@ def test_tf_estimator(spark_on_ray_small):
     train_df, test_df = random_split(df, [0.7, 0.3])
 
     # create model
-    input_1 = keras.Input(shape=(1,))
-    input_2 = keras.Input(shape=(1,))
-
-    concatenated = keras.layers.concatenate([input_1, input_2])
-    output = keras.layers.Dense(1, activation='sigmoid')(concatenated)
-    model = keras.Model(inputs=[input_1, input_2],
-                        outputs=output)
+    model = keras.Sequential(
+        [
+            keras.layers.InputLayer(input_shape=(2,)),
+            keras.layers.Dense(1, activation='sigmoid')
+        ]
+    )
 
     optimizer = keras.optimizers.Adam(0.01)
     loss = keras.losses.MeanSquaredError()
@@ -61,8 +60,7 @@ def test_tf_estimator(spark_on_ray_small):
                             label_column="z",
                             batch_size=1000,
                             num_epochs=2,
-                            use_gpu=False,
-                            config={"fit_config": {"steps_per_epoch": 100}})
+                            use_gpu=False)
 
     estimator.fit_on_spark(train_df, test_df)
 
