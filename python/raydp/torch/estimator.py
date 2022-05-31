@@ -24,13 +24,13 @@ from torch.nn.modules.loss import _Loss as TLoss
 
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
+from raydp import stop_spark
+from raydp.spark import spark_dataframe_to_ray_dataset
 
 from ray import train
 from ray.train import Trainer, TrainingCallback, get_dataset_shard
 from ray.data.dataset import Dataset
 from ray.data.impl.arrow_block import ArrowRow
-from raydp import stop_spark
-from raydp.spark.dataset import spark_dataframe_to_ray_dataset
 
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     """
