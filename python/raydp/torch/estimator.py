@@ -30,7 +30,7 @@ from ray.train import Trainer, TrainingCallback, get_dataset_shard
 from ray.data.dataset import Dataset
 from ray.data.impl.arrow_block import ArrowRow
 from raydp import stop_spark
-from raydp.spark import spark_dataframe_to_ray_datase
+from raydp.spark import spark_dataframe_to_ray_dataset
 
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     """
