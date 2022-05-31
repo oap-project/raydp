@@ -24,7 +24,7 @@ from torch.nn.modules.loss import _Loss as TLoss
 
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
-from raydp.torch.torch_metrics import Torch_Metric
+from raydp.torch.torch_metrics import TorchMetric
 
 from ray import train
 from ray.train import Trainer, TrainingCallback, get_dataset_shard
@@ -156,7 +156,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._num_epochs = num_epochs
         self._num_processes_for_data_loader = num_processes_for_data_loader
         self._callbacks = callbacks
-        self._metrics = Torch_Metric(metrics_name, metrics_config)
+        self._metrics = TorchMetric(metrics_name, metrics_config)
         self._extra_config = extra_config
 
         if self._num_processes_for_data_loader > 0:
@@ -172,7 +172,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         assert self._loss is not None, "Loss must be provided"
 
     @staticmethod
-    def train_fun(config):
+    def train_func(config):
         # create model
         if isinstance(config["model"], torch.nn.Module):
             model = config["model"]
@@ -326,7 +326,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             dataset["evaluate"] = evaluate_ds
         self._trainer.start()
         results = self._trainer.run(
-            TorchEstimator.train_fun, config=config,
+            TorchEstimator.train_func, config=config,
             callbacks=self._callbacks,
             dataset=dataset
         )
