@@ -305,17 +305,17 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                      stop_spark_after_conversion=False):
         super().fit_on_spark(train_df, evaluate_df)
         train_df = self._check_and_convert(train_df)
-        train_ds = spark_dataframe_to_ray_dataset(train_df, parallelism=self._num_workers,_use_owner=stop_spark_after_conversion)
-
-        evaluate_ds = None    
-
+        train_ds = spark_dataframe_to_ray_dataset(train_df,
+                                                  parallelism=self._num_workers,
+                                                  _use_owner=stop_spark_after_conversion)
+        evaluate_ds = None
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
-            evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df, parallelism=self._num_workers,_use_owner=stop_spark_after_conversion)    
-        
+            evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
+                                                         parallelism=self._num_workers,
+                                                         _use_owner=stop_spark_after_conversion)
         if stop_spark_after_conversion:
             stop_spark(del_obj_holder=False)
-                
         return self.fit(
             train_ds, evaluate_ds, max_retries)
 
