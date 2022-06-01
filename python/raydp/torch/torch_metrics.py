@@ -7,15 +7,16 @@ def try_import_torchmetrics():
         torchmetrics modules.
     """
     try:
+        # pylint: disable=import-outside-toplevel
         import torchmetrics
 
         return torchmetrics
-    except ImportError:
+    except ImportError as torchmetrics_not_exist:
         raise ImportError(
             "Could not import torchmetrics! Raydp TorchEstimator requires "
             "you to install torchmetrics: "
             "`pip install torchmetrics`."
-        )
+        ) from torchmetrics_not_exist
 
 class TorchMetric():
     def __init__(self, metrics_name, metrics_config):
