@@ -11,11 +11,11 @@ from tensorflow.keras.callbacks import Callback
 # Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
 # For more config info in ray, please refer the ray doc. https://docs.ray.io/en/latest/package-ref.html
 # ray.init(address="auto")
-ray.init()
+ray.init(num_cpus=6)
 
 # After initialize ray cluster, you can use the raydp api to get a spark session
 app_name = "NYC Taxi Fare Prediction with RayDP"
-num_executors = 1
+num_executors = 2
 cores_per_executor = 1
 memory_per_executor = "500M"
 spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
@@ -60,7 +60,7 @@ class PrintingCallback(Callback):
 # Then create the tensorflow estimator provided by Raydp
 adam = keras.optimizers.Adam(learning_rate=0.001)
 loss = keras.losses.MeanSquaredError()
-estimator = TFEstimator(num_workers=1, model=model, optimizer=adam, loss=loss,
+estimator = TFEstimator(num_workers=2, model=model, optimizer=adam, loss=loss,
                         metrics=["mae"], feature_columns=features, label_column="fare_amount",
                         batch_size=256, num_epochs=2, callbacks=[PrintingCallback()])
 
