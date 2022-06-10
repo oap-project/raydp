@@ -25,10 +25,11 @@ from torch.nn.modules.loss import _Loss as TLoss
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
 from raydp.torch.torch_metrics import TorchMetric
+from raydp import stop_spark
+from raydp.spark import spark_dataframe_to_ray_dataset
 
 from ray import train
 from ray.train import Trainer, TrainingCallback, get_dataset_shard
-import ray.data
 from ray.data.dataset import Dataset
 from ray.data.impl.arrow_block import ArrowRow
 
@@ -335,15 +336,21 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     def fit_on_spark(self,
                      train_df: DF,
                      evaluate_df: OPTIONAL_DF = None,
-                     max_retries=3):
+                     max_retries=3,
+                     stop_spark_after_conversion=False):
         super().fit_on_spark(train_df, evaluate_df)
         train_df = self._check_and_convert(train_df)
-        if evaluate_df is not None:
-            evaluate_df = self._check_and_convert(evaluate_df)
-        train_ds = ray.data.from_spark(train_df, parallelism=self._num_workers)
+        train_ds = spark_dataframe_to_ray_dataset(train_df,
+                                                  parallelism=self._num_workers,
+                                                  _use_owner=stop_spark_after_conversion)
         evaluate_ds = None
         if evaluate_df is not None:
-            evaluate_ds = ray.data.from_spark(evaluate_df, parallelism=self._num_workers)
+            evaluate_df = self._check_and_convert(evaluate_df)
+            evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
+                                                         parallelism=self._num_workers,
+                                                         _use_owner=stop_spark_after_conversion)
+        if stop_spark_after_conversion:
+            stop_spark(del_obj_holder=False)
         return self.fit(
             train_ds, evaluate_ds, max_retries)
 
