@@ -122,14 +122,14 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                Note: Now the value can only be False
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
         :param callbacks: which will be executed during training.
-        :param metrics_name: the name of metrics' classes used to evaluate model. the name can be used
-               refer: https://torchmetrics.readthedocs.io/en/latest/, For example:
-               for classification tasks, it can be "Accuracy", "Precision" and "Recall"; 
+        :param metrics_name: the name of metrics' classes used to evaluate model. the name can be
+               used refer: https://torchmetrics.readthedocs.io/en/latest/, For example:
+               for classification tasks, it can be "Accuracy", "Precision" and "Recall";
                for regression tasks, it can be "MeanAbsoluteError" or "MeanSquaredError".
                You can also pass a custom torchmetrics.Metric, the class should be defined
                with reference to https://torchmetrics.readthedocs.io/en/latest/pages/implement.html.
-        :param metrics_config: the config can be set to metrics which you need to set. Its format is:
-               {"metric_name_1": {"param1": value1, "param2": value2}, "metric_name_2":{}}
+        :param metrics_config: the config can be set to metrics which you need to set. Its format
+               is: {"metric_name_1": {"param1": value1, "param2": value2}, "metric_name_2":{}}
         :param extra_config: the extra config will be set to ray.train.Trainer
         """
         self._num_workers = num_workers
