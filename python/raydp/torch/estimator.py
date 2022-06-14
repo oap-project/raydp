@@ -129,8 +129,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                You can also pass a custom torchmetrics.Metric, the class should be defined
                with reference to https://torchmetrics.readthedocs.io/en/latest/pages/implement.html
         :param metrics_config: the optional config for the metrics. Its format is:
-               {"metric_name_1": {"param1": value1, "param2": value2}, "metric_name_2":{}}, where param
-               is the parameter corresponding to a concrete metric class of TorchMetrics.
+               {"metric_name_1": {"param1": value1, "param2": value2}, "metric_name_2":{}}, where
+               param is the parameter corresponding to a concrete metric class of TorchMetrics.
         :param extra_config: the extra config will be set to ray.train.Trainer
         """
         self._num_workers = num_workers
