@@ -31,6 +31,6 @@ try:
     import ray.util.data
     from .dataset import RayMLDataset
     __all__.append("RayMLDataset")
-except ModuleNotFoundError:
+except ImportError:
     # Ray MLDataset is removed in Ray 2.0
     pass
