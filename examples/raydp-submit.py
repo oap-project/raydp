@@ -2,7 +2,6 @@ from os.path import dirname
 import sys
 import json
 import subprocess
-from tabnanny import check
 import ray
 import pyspark
 
@@ -26,4 +25,4 @@ command += ["--conf", "spark.executor.memory=500m"]
 example_path = dirname(pyspark.__file__)
 # run SparkPi as example
 command.append(example_path + "/examples/src/main/python/pi.py")
-sys.exit(subprocess.run(command).returncode)
+sys.exit(subprocess.run(command, check=True).returncode)
