@@ -78,7 +78,7 @@ estimator = TorchEstimator(num_workers=1, model=nyc_model, optimizer=optimizer, 
                            feature_columns=features, feature_types=torch.float,
                            label_column="fare_amount", label_type=torch.float,
                            batch_size=64, num_epochs=30, callbacks=[PrintingCallback()],
-                           metrics_name = ['MeanAbsoluteError', 'MeanSquaredError'])
+                           metrics_name = ["MeanAbsoluteError", "MeanSquaredError"])
 # Train the model
 estimator.fit_on_spark(train_df, test_df)
 # shutdown raydp and ray
