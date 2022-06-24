@@ -25,6 +25,8 @@ import io.ray.api.Ray;
 public class RayAppMasterUtils {
   public static ActorHandle<RayAppMaster> createAppMaster(
       String cp, List<String> jvmOptions) {
+    jvmOptions.add("-cp");
+    jvmOptions.add(cp);
     return Ray.actor(RayAppMaster::new, cp).setJvmOptions(jvmOptions).remote();
   }
 

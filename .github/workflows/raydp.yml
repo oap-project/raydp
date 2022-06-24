@@ -76,7 +76,7 @@ jobs:
           else
             pip install torch
           fi
-          pip install ray pytest koalas tensorflow==2.5.1 tabulate xgboost_ray[default] grpcio-tools
+          pip install ray==1.12 pytest koalas tensorflow==2.5.1 tabulate xgboost_ray[default] grpcio-tools
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
           pip install horovod[pytorch,ray]
