@@ -27,12 +27,15 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-import io.ray.api.{ObjectRef, PyActorHandle, Ray}
+import io.ray.api.{ActorHandle, ObjectRef, PyActorHandle, Ray}
 import io.ray.runtime.AbstractRayRuntime
+import org.apache.arrow.memory.BufferAllocator
+import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 
-import org.apache.spark.raydp.RayDPUtils
+import org.apache.spark.raydp.{RayDPUtils, RayExecutorUtils}
+import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.execution.arrow.ArrowWriter
 import org.apache.spark.sql.execution.python.BatchIterator
@@ -184,6 +187,49 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
 object ObjectStoreWriter {
   val dfToId = new mutable.HashMap[DataFrame, UUID]()
+
+  def toArrowSchema(df: DataFrame): Schema = {
+    val conf = df.queryExecution.sparkSession.sessionState.conf
+    val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
+    ArrowUtils.toArrowSchema(df.schema, timeZoneId)
+  }
+
+  def getArrowAllocator(name: String): BufferAllocator = {
+    ArrowUtils.rootAllocator.newChildAllocator(
+          name, 0, Long.MaxValue)
+  }
+
+  def getAddress(): Array[Byte] = {
+    val objectRef = Ray.put(1)
+    val objectRefImpl = RayDPUtils.convert(objectRef)
+    val objectId = objectRefImpl.getId
+    val runtime = Ray.internal.asInstanceOf[AbstractRayRuntime]
+    runtime.getObjectStore.getOwnershipInfo(objectId)
+  }
+
+  def fromSparkRDD(df: DataFrame): Array[Array[Byte]] = {
+    val rdd = df.toArrowBatchRdd
+    // rdd.cache()
+    // rdd.count()
+    Ray.init()
+    val executorIds = df.sqlContext.sparkContext.getExecutorIds
+    val executors = executorIds.map(x => 
+        Ray.getActor("raydp-executor-" + x).get.asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]])
+    val schema = ObjectStoreWriter.toArrowSchema(df)
+    val numPartitions = rdd.getNumPartitions
+    // val locations = RayExecutorUtils.getBlockLocations(
+    //     executors(0), rdd.id, numPartitions)
+    val results = new Array[Array[Byte]](numPartitions)
+    val partitions = rdd.partitions
+    println(partitions(0).getClass)
+    for (i <- 0 until numPartitions) {
+      results(i) = RayExecutorUtils.getRDDPartition(
+          // executors(locations(i).substring(locations(i).lastIndexOf('_') + 1).toInt), rdd, partitions(i), schema)
+          executors(i % executorIds.length), rdd, partitions(i), schema)
+    }
+    results
+  }
+
 }
 
 object ObjectRefHolder {

@@ -28,12 +28,18 @@ import scala.collection.mutable.HashMap
 import io.ray.api.{ActorHandle, PlacementGroups, Ray}
 import io.ray.api.id.PlacementGroupId
 import io.ray.api.placementgroup.PlacementGroup
+import io.ray.runtime.AbstractRayRuntime
 import io.ray.runtime.config.RayConfig
 
-import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
+import org.apache.spark.{RayDPException, SecurityManager, SparkConf, TaskContext}
+import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.internal.Logging
-import org.apache.spark.raydp.RayExecutorUtils
+import org.apache.spark.raydp.{RayDPUtils, RayExecutorUtils}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.rpc._
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.raydp.ObjectStoreWriter
 import org.apache.spark.util.ShutdownHookManager
 import org.apache.spark.util.Utils
 

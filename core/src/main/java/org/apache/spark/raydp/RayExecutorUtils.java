@@ -24,7 +24,15 @@ import java.util.Map;
 import java.util.List;
 
 import io.ray.api.placementgroup.PlacementGroup;
+import io.ray.runtime.object.ObjectRefImpl;
+import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.spark.Partition;
+import org.apache.spark.TaskContext;
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;
+import org.apache.spark.rdd.RDD;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.Row;
+
 
 public class RayExecutorUtils {
   /**
@@ -47,6 +55,7 @@ public class RayExecutorUtils {
       List<String> javaOpts) {
     ActorCreator<RayCoarseGrainedExecutorBackend> creator = Ray.actor(
             RayCoarseGrainedExecutorBackend::new, executorId, appMasterURL);
+    creator.setName("raydp-executor-" + executorId);
     creator.setJvmOptions(javaOpts);
     creator.setResource("CPU", (double)cores);
     creator.setResource("memory", toMemoryUnits(memoryInMB));
@@ -68,5 +77,24 @@ public class RayExecutorUtils {
       String classPathEntries) {
     handler.task(RayCoarseGrainedExecutorBackend::startUp,
         appId, driverUrl, cores, classPathEntries).remote();
+  }
+
+  public static String[] getBlockLocations(
+      ActorHandle<RayCoarseGrainedExecutorBackend> handler,
+      int rddId,
+      int numPartitions) {
+    return handler.task(RayCoarseGrainedExecutorBackend::getBlockLocations,
+        rddId, numPartitions).remote().get();
+  }
+
+  public static byte[] getRDDPartition(
+      ActorHandle<RayCoarseGrainedExecutorBackend> handler,
+      RDD<byte[]> rdd,
+      Partition partition,
+      Schema schema) {
+    ObjectRefImpl ref = (ObjectRefImpl<byte[]>) handler.task(
+        RayCoarseGrainedExecutorBackend::getRDDPartition,
+        rdd, partition, schema.toJson()).remote();
+    return ref.getId().getBytes();
   }
 }

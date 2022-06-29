@@ -27,13 +27,13 @@ from subprocess import Popen, PIPE
 from copy import copy
 import glob
 import ray
-from py4j.java_gateway import JavaGateway, GatewayParameters
+from py4j.java_gateway import JavaGateway, GatewayParameters, java_import
 
 logger = logging.getLogger(__name__)
 
 RAYDP_SPARK_MASTER_NAME = "RAYDP_SPARK_MASTER"
 
-@ray.remote
+# @ray.remote
 class RayDPSparkMaster():
     def __init__(self, configs):
         self._gateway = None
@@ -193,4 +193,4 @@ class RayDPSparkMaster():
             self._gateway = None
 
         self._started_up = False
-        ray.actor.exit_actor()
+        # ray.actor.exit_actor()
