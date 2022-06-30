@@ -36,7 +36,7 @@ try:
     from ray.util.data import MLDataset
     from ray.util.data.interface import _SourceShard
     HAS_MLDATASET = True
-except ModuleNotFoundError:
+except ImportError:
     # Ray MLDataset is removed in Ray 2.0
     HAS_MLDATASET = False
 from raydp.spark.parallel_iterator_worker import ParallelIteratorWorkerWithLen
