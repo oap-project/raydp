@@ -21,6 +21,7 @@ import pytest
 from pyspark.sql import SparkSession
 import ray
 import raydp
+import subprocess
 
 
 def quiet_logger():
@@ -55,5 +56,20 @@ def spark_on_ray_small(request):
     def stop_all():
         raydp.stop_spark()
         ray.shutdown()
+
     request.addfinalizer(stop_all)
     return spark
+
+
+@pytest.fixture(scope='module')
+def custom_spark_dir(tmp_path_factory) -> str:
+    working_dir = tmp_path_factory.mktemp("spark").as_posix()
+    spark_distribution = 'spark-3.2.1-bin-hadoop3.2'
+    file_extension = 'tgz'
+    spark_distribution_file = f"{working_dir}/{spark_distribution}.{file_extension}"
+
+    import wget
+
+    wget.download(f"https://dlcdn.apache.org/spark/spark-3.2.1/{spark_distribution}.{file_extension}", spark_distribution_file)
+    subprocess.check_output(['tar', 'xzvf', spark_distribution_file, '--directory', working_dir])
+    return f"{working_dir}/{spark_distribution}"

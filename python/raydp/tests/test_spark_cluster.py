@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import os
 import sys
 import time
 
@@ -136,6 +137,18 @@ def test_placement_group(ray_cluster):
         if p["state"] != "REMOVED"
     ])
     assert num_non_removed_pgs == 0
+
+
+def test_custom_installed_spark(custom_spark_dir):
+    os.environ["SPARK_HOME"] = custom_spark_dir
+    ray.shutdown()
+    spark = raydp.init_spark("custom_install_test", 1, 1, "500 M")
+
+    result = spark.range(0, 10).count()
+    raydp.stop_spark()
+    ray.shutdown()
+
+    assert result == 10
 
 
 if __name__ == "__main__":
