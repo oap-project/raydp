@@ -61,7 +61,7 @@ def spark_on_ray_small(request):
     return spark
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def custom_spark_dir(tmp_path_factory) -> str:
     working_dir = tmp_path_factory.mktemp("spark").as_posix()
     spark_distribution = 'spark-3.2.1-bin-hadoop3.2'
