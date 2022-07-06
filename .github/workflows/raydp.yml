@@ -30,8 +30,8 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
-        python-version: [3.7]
-        spark-version: [3.1.3]
+        python-version: [3.6, 3.7, 3.8]
+        spark-version: [3.1.3, 3.2.1]
 
     runs-on: ${{ matrix.os }}
 
@@ -100,11 +100,11 @@ jobs:
       - name: Test with pytest
         run: |
           ray start --head --num-cpus 4
-          pytest --trace python/raydp/tests/
+          pytest python/raydp/tests/
           ray stop --force
       - name: Test Examples
         run: |
-          ray start --head --num-cpus 4
+          ray start --head
           python examples/raydp-submit.py
           ray stop
           python examples/random_nyctaxi.py
