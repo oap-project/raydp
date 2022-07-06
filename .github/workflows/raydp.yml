@@ -104,7 +104,7 @@ jobs:
           ray stop --force
       - name: Test Examples
         run: |
-          ray start --head
+          ray start --head --num-cpus 4
           python examples/raydp-submit.py
           ray stop
           python examples/random_nyctaxi.py
