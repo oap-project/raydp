@@ -100,7 +100,7 @@ jobs:
       - name: Test with pytest
         run: |
           ray start --head --num-cpus 4
-          pytest python/raydp/tests/
+          pytest -v python/raydp/tests/
           ray stop --force
       - name: Test Examples
         run: |
