@@ -84,8 +84,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         """
         self._num_workers: int = num_workers
         self._model = model
-        self._num_workers = num_workers
-        self._model = model
         self._optimizer = optimizer
         self._loss = loss
         self._metrics = metrics
