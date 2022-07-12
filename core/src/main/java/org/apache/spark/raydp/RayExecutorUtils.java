@@ -31,6 +31,7 @@ import org.apache.spark.TaskContext;
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;
 import org.apache.spark.rdd.RDD;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.raydp.ObjectStoreWriter;
 import org.apache.spark.sql.Row;
 
 
@@ -87,14 +88,23 @@ public class RayExecutorUtils {
         rddId, numPartitions).remote().get();
   }
 
+  public static byte[] prepareGetRDDPartition(
+      RDD<byte[]> rdd,
+      int partitionId,
+      int preferredExecutorId,
+      String schema) {
+    return Ray.task(ObjectStoreWriter::prepareGetRDDPartition,
+        rdd, partitionId, preferredExecutorId, schema).remote().get();
+  }
+
   public static byte[] getRDDPartition(
-      ActorHandle<RayCoarseGrainedExecutorBackend> handler,
+      ActorHandle<RayCoarseGrainedExecutorBackend> handle,
       RDD<byte[]> rdd,
       Partition partition,
-      Schema schema) {
-    ObjectRefImpl ref = (ObjectRefImpl<byte[]>) handler.task(
+      String schema) {
+    ObjectRefImpl ref = (ObjectRefImpl<byte[]>) handle.task(
         RayCoarseGrainedExecutorBackend::getRDDPartition,
-        rdd, partition, schema.toJson()).remote();
+        rdd, partition, schema).remote();
     return ref.getId().getBytes();
   }
 }
