@@ -23,7 +23,7 @@ import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import io.ray.api.ActorHandle
 
-import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
+import org.apache.spark.executor.RayDPExecutor
 import org.apache.spark.internal.Logging
 import org.apache.spark.resource.ResourceInformation
 import org.apache.spark.rpc.{RpcAddress, RpcEndpointRef}
@@ -48,7 +48,7 @@ private[spark] class ApplicationInfo(
   var state: ApplicationState.Value = _
   var executors: HashMap[String, ExecutorDesc] = _
   var addressToExecutorId: HashMap[RpcAddress, String] = _
-  var executorIdToHandler: HashMap[String, ActorHandle[RayCoarseGrainedExecutorBackend]] = _
+  var executorIdToHandler: HashMap[String, ActorHandle[RayDPExecutor]] = _
   var removedExecutors: ArrayBuffer[ExecutorDesc] = _
   var coresGranted: Int = _
   var endTime: Long = _
@@ -64,7 +64,7 @@ private[spark] class ApplicationInfo(
     state = ApplicationState.WAITING
     executors = new HashMap[String, ExecutorDesc]
     addressToExecutorId = new HashMap[RpcAddress, String]
-    executorIdToHandler = new HashMap[String, ActorHandle[RayCoarseGrainedExecutorBackend]]
+    executorIdToHandler = new HashMap[String, ActorHandle[RayDPExecutor]]
     endTime = -1L
     nextExecutorId = 0
     removedExecutors = new ArrayBuffer[ExecutorDesc]
@@ -72,7 +72,7 @@ private[spark] class ApplicationInfo(
 
   def addPendingRegisterExecutor(
       executorId: String,
-      handler: ActorHandle[RayCoarseGrainedExecutorBackend],
+      handler: ActorHandle[RayDPExecutor],
       cores: Int,
       memoryInMB: Int): Unit = {
     val desc = ExecutorDesc(executorId, cores, memoryInMB, null)
@@ -126,7 +126,7 @@ private[spark] class ApplicationInfo(
   }
 
   def getExecutorHandler(
-      executorId: String): Option[ActorHandle[RayCoarseGrainedExecutorBackend]] = {
+      executorId: String): Option[ActorHandle[RayDPExecutor]] = {
     executorIdToHandler.get(executorId)
   }
 

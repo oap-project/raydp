@@ -42,7 +42,7 @@ object ObjectStoreReader {
       sparkSession: SparkSession,
       rdd: RayDatasetRDD,
       schema: String): DataFrame = {
-    ArrowConverters.toDataFrame(JavaRDD.fromRDD(rdd), schema, new SQLContext(sparkSession))
+    ArrowConverters.toDataFrame(JavaRDD.fromRDD(rdd), schema, sparkSession)
   }
 
   def getBatchesFromStream(

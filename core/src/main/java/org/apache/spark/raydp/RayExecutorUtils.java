@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.List;
 
 import io.ray.api.placementgroup.PlacementGroup;
-import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;
+import org.apache.spark.executor.RayDPExecutor;
 
 public class RayExecutorUtils {
   /**
@@ -36,7 +36,7 @@ public class RayExecutorUtils {
     return Math.round(result);
   }
 
-  public static ActorHandle<RayCoarseGrainedExecutorBackend> createExecutorActor(
+  public static ActorHandle<RayDPExecutor> createExecutorActor(
       String executorId,
       String appMasterURL,
       double cores,
@@ -45,8 +45,8 @@ public class RayExecutorUtils {
       PlacementGroup placementGroup,
       int bundleIndex,
       List<String> javaOpts) {
-    ActorCreator<RayCoarseGrainedExecutorBackend> creator = Ray.actor(
-            RayCoarseGrainedExecutorBackend::new, executorId, appMasterURL);
+    ActorCreator<RayDPExecutor> creator = Ray.actor(
+            RayDPExecutor::new, executorId, appMasterURL);
     creator.setJvmOptions(javaOpts);
     creator.setResource("CPU", cores);
     creator.setResource("memory", toMemoryUnits(memoryInMB));
@@ -62,12 +62,12 @@ public class RayExecutorUtils {
   }
 
   public static void setUpExecutor(
-      ActorHandle<RayCoarseGrainedExecutorBackend> handler,
+      ActorHandle<RayDPExecutor> handler,
       String appId,
       String driverUrl,
       int cores,
       String classPathEntries) {
-    handler.task(RayCoarseGrainedExecutorBackend::startUp,
+    handler.task(RayDPExecutor::startUp,
         appId, driverUrl, cores, classPathEntries).remote();
   }
 }

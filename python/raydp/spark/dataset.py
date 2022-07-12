@@ -216,7 +216,7 @@ def _convert_by_udf(spark: sql.SparkSession,
     jdf = object_store_reader.createRayObjectRefDF(spark._jsparkSession, locations)
     current_namespace = ray.get_runtime_context().namespace
     ray_address = ray.get(holder.get_ray_address.remote())
-    blocks_df = DataFrame(jdf, spark._wrapped)
+    blocks_df = DataFrame(jdf, spark._wrapped if hasattr(spark, '_wrapped') else spark)
     def _convert_blocks_to_dataframe(blocks):
         # connect to ray
         if not ray.is_initialized():
@@ -246,7 +246,7 @@ def _convert_by_rdd(spark: sql.SparkSession,
     # convert the rdd to dataframe
     object_store_reader = jvm.org.apache.spark.sql.raydp.ObjectStoreReader
     jdf = object_store_reader.RayDatasetToDataFrame(spark._jsparkSession, rdd, schema_str)
-    return DataFrame(jdf, spark._wrapped)
+    return DataFrame(jdf, spark._wrapped if hasattr(spark, '_wrapped') else spark)
 
 @client_mode_wrap
 def get_locations(blocks):
