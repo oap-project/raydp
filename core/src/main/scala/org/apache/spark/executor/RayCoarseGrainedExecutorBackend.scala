@@ -46,5 +46,5 @@ class RayCoarseGrainedExecutorBackend(
     resourceProfile) {
 
   override def getUserClassPath: Seq[URL] = userClassPath
-  
+
 }
