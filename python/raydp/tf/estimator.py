@@ -77,10 +77,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param num_epochs: the number of epochs
         :param shuffle: whether input dataset should be shuffle, True by default.
         :param callbacks: which will be executed during training.
-        :param extra_config: extra config will fit into TFTrainer. You can also set
-               the get_shard config with
-               {"get_shard": {batch_ms=0, num_async=5, shuffle_buffer_size=2, seed=0}}.
-               You can refer to the MLDataset.get_repeatable_shard for the parameters.
+        :param extra_config: extra config will fit into Trainer.
         """
         self._num_workers: int = num_workers
         self._model = model
@@ -171,9 +168,9 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         results = []
         for _ in range(config["num_epochs"]):
             features_len = len(config["feature_columns"])
-            dataset = next(train_dataset_iterator)
-            tf_dataset = prepare_dataset_shard(
-                dataset.to_tf(
+            train_dataset = next(train_dataset_iterator)
+            train_tf_dataset = prepare_dataset_shard(
+                train_dataset.to_tf(
                     label_column=config["label_column"],
                     output_signature=(
                         tf.TensorSpec(shape=(None, features_len), dtype=tf.float32),
@@ -194,7 +191,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                 )
             )
             callbacks = config["callbacks"]
-            train_history = multi_worker_model.fit(tf_dataset, callbacks=callbacks)
+            train_history = multi_worker_model.fit(train_tf_dataset, callbacks=callbacks)
             results.append(train_history.history)
             test_history = multi_worker_model.evaluate(eval_tf_dataset, callbacks=callbacks)
             results.append(test_history)

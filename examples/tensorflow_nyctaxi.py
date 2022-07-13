@@ -62,7 +62,7 @@ adam = keras.optimizers.Adam(learning_rate=0.001)
 loss = keras.losses.MeanSquaredError()
 estimator = TFEstimator(num_workers=2, model=model, optimizer=adam, loss=loss,
                         metrics=["mae"], feature_columns=features, label_column="fare_amount",
-                        batch_size=256, num_epochs=2, callbacks=[PrintingCallback()])
+                        batch_size=256, num_epochs=10, callbacks=[PrintingCallback()])
 
 # Train the model
 estimator.fit_on_spark(train_df, test_df)
