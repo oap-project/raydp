@@ -589,7 +589,7 @@ private[spark] class SparkSubmit extends Logging {
         confKey = SUBMIT_DEPLOY_MODE.key),
       OptionAssigner(args.name, ALL_CLUSTER_MGRS, ALL_DEPLOY_MODES, confKey = "spark.app.name"),
       OptionAssigner(args.ivyRepoPath, ALL_CLUSTER_MGRS, CLIENT,
-        confKey = JAR_IVY_REPO_PATH.key),
+        confKey = "spark.jars.ivy"),
       OptionAssigner(args.driverMemory, ALL_CLUSTER_MGRS, CLIENT,
         confKey = DRIVER_MEMORY.key),
       OptionAssigner(args.driverExtraClassPath, ALL_CLUSTER_MGRS, ALL_DEPLOY_MODES,
@@ -606,13 +606,13 @@ private[spark] class SparkSubmit extends Logging {
 
       // Propagate attributes for dependency resolution at the driver side
       OptionAssigner(args.packages, STANDALONE | MESOS | KUBERNETES,
-        CLUSTER, confKey = JAR_PACKAGES.key),
+        CLUSTER, confKey = "spark.jars.packages"),
       OptionAssigner(args.repositories, STANDALONE | MESOS | KUBERNETES,
-        CLUSTER, confKey = JAR_REPOSITORIES.key),
+        CLUSTER, confKey = "spark.jars.repositories"),
       OptionAssigner(args.ivyRepoPath, STANDALONE | MESOS | KUBERNETES,
-        CLUSTER, confKey = JAR_IVY_REPO_PATH.key),
+        CLUSTER, confKey = "spark.jars.ivy"),
       OptionAssigner(args.packagesExclusions, STANDALONE | MESOS | KUBERNETES,
-        CLUSTER, confKey = JAR_PACKAGES_EXCLUSIONS.key),
+        CLUSTER, confKey = "spark.jars.excludes"),
 
       // Yarn only
       OptionAssigner(args.queue, YARN, ALL_DEPLOY_MODES, confKey = "spark.yarn.queue"),
@@ -647,7 +647,7 @@ private[spark] class SparkSubmit extends Logging {
         confKey = DRIVER_CORES.key),
       OptionAssigner(args.supervise.toString, STANDALONE | MESOS, CLUSTER,
         confKey = DRIVER_SUPERVISE.key),
-      OptionAssigner(args.ivyRepoPath, STANDALONE, CLUSTER, confKey = JAR_IVY_REPO_PATH.key),
+      OptionAssigner(args.ivyRepoPath, STANDALONE, CLUSTER, confKey = "spark.jars.ivy"),
 
       // An internal option used only for spark-shell to add user jars to repl's classloader,
       // previously it uses "spark.jars" or "spark.yarn.dist.jars" which now may be pointed to

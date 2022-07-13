@@ -27,7 +27,7 @@ from setuptools import find_packages, setup, Command
 
 package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
 if package_name == 'raydp_nightly':
-    VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
+    VERSION = datetime.today().strftime("%Y.%m.%d.dev1")
 else:
     VERSION = "0.5.0.dev0"
 
@@ -95,8 +95,8 @@ try:
         "pandas >= 1.1.4",
         "psutil",
         "pyarrow >= 4.0.1, < 7.0.0",
-        "ray >= 1.8.0",
-        "pyspark >= 3.2.0",
+        "ray >= 1.8.0, < 1.13.0",
+        "pyspark >= 3.1.0, < 3.3.0",
         "netifaces"
     ]
 

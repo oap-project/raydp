@@ -15,16 +15,22 @@
 # limitations under the License.
 #
 
-from .dataset import RayMLDataset, \
-                     spark_dataframe_to_ray_dataset, \
+from .dataset import spark_dataframe_to_ray_dataset, \
                      ray_dataset_to_spark_dataframe
 from .interfaces import SparkEstimatorInterface
 from .ray_cluster import SparkCluster
 
 __all__ = [
-  "RayMLDataset",
   "SparkCluster",
   "SparkEstimatorInterface",
   "spark_dataframe_to_ray_dataset",
   "ray_dataset_to_spark_dataframe"
 ]
+
+try:
+    import ray.util.data
+    from .dataset import RayMLDataset
+    __all__.append("RayMLDataset")
+except ImportError:
+    # Ray MLDataset is removed in Ray 2.0
+    pass

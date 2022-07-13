@@ -28,7 +28,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 import io.ray.api.{ObjectRef, PyActorHandle, Ray}
-import io.ray.runtime.RayRuntimeInternal
+import io.ray.runtime.AbstractRayRuntime
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 
@@ -73,7 +73,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
     queue.add(objectRef)
     val objectRefImpl = RayDPUtils.convert(objectRef)
     val objectId = objectRefImpl.getId
-    val runtime = Ray.internal.asInstanceOf[RayRuntimeInternal]
+    val runtime = Ray.internal.asInstanceOf[AbstractRayRuntime]
     val addressInfo = runtime.getObjectStore.getOwnershipInfo(objectId)
     RecordBatch(addressInfo, objectId.getBytes, numRecords)
   }

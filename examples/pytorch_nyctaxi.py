@@ -8,6 +8,8 @@ from raydp.torch import TorchEstimator
 from raydp.utils import random_split
 
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
+from ray.train import TrainingCallback
+from typing import List, Dict
 
 # Firstly, You need to init or connect to a ray cluster. Note that you should set include_java to True.
 # For more config info in ray, please refer the ray doc. https://docs.ray.io/en/latest/package-ref.html
@@ -64,13 +66,19 @@ class NYC_Model(nn.Module):
         
         return x
 
+class PrintingCallback(TrainingCallback):
+    def handle_result(self, results: List[Dict], **info):
+        print(results)
+
 nyc_model = NYC_Model(len(features))
 criterion = nn.SmoothL1Loss()
 optimizer = torch.optim.Adam(nyc_model.parameters(), lr=0.001)
 # Create a distributed estimator based on the raydp api
 estimator = TorchEstimator(num_workers=1, model=nyc_model, optimizer=optimizer, loss=criterion,
-                           feature_columns=features, label_column="fare_amount", batch_size=64,
-                           num_epochs=30)
+                           feature_columns=features, feature_types=torch.float,
+                           label_column="fare_amount", label_type=torch.float,
+                           batch_size=64, num_epochs=30, callbacks=[PrintingCallback()],
+                           metrics_name = ['MeanAbsoluteError', 'MeanSquaredError'])
 # Train the model
 estimator.fit_on_spark(train_df, test_df)
 # shutdown raydp and ray
