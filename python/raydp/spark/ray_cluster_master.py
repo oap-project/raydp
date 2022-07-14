@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 RAYDP_SPARK_MASTER_NAME = "RAYDP_SPARK_MASTER"
 
 @ray.remote
-class RayDPSparkMaster(object):
+class RayDPSparkMaster:
     def __init__(self, configs):
         self._gateway = None
         self._app_master_java_bridge = None
