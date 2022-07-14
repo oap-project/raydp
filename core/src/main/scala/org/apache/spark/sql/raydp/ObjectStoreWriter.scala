@@ -34,6 +34,7 @@ import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 
+import org.apache.spark.Partition;
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.raydp.{RayDPUtils, RayExecutorUtils}
 import org.apache.spark.rdd.RDD;
@@ -209,19 +210,20 @@ object ObjectStoreWriter {
   }
 
   def prepareGetRDDPartition(rdd: RDD[Array[Byte]],
-                             partitionId: Int,
+                             partition: Partition,
                              preferredExecutorId: Int,
+                             executorIds: Array[String],
                              schema: String): Array[Byte] = {
     var handleOption = Ray.getActor("raydp-executor-" + preferredExecutorId)
-    val executorIds = rdd.context.getExecutorIds
     val numExecutors = executorIds.length
+    val partitionId = partition.index
     val i = 0
     while (!handleOption.isPresent) {
       handleOption = Ray.getActor("raydp-executor-" + executorIds((partitionId + i) % numExecutors))
     }
     val handle = handleOption.get.asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]]
     RayExecutorUtils.getRDDPartition(
-          handle, rdd, rdd.partitions(partitionId), schema)
+          handle, rdd, partition, schema)
   }
 
   def fromSparkRDD(df: DataFrame): Array[Array[Byte]] = {
@@ -229,16 +231,17 @@ object ObjectStoreWriter {
       Ray.init()
     }
     val rdd = df.toArrowBatchRdd
-    // val executorIds = df.sqlContext.sparkContext.getExecutorIds
+    val executorIds = df.sqlContext.sparkContext.getExecutorIds.toArray
     val schema = ObjectStoreWriter.toArrowSchema(df).toJson
     val numPartitions = rdd.getNumPartitions
+    val partitions = rdd.partitions
     // val locations = RayExecutorUtils.getBlockLocations(
     //     executors(0), rdd.id, numPartitions)
     val results = new Array[Array[Byte]](numPartitions)
     for (i <- 0 until numPartitions) {
       // TODO use getPreferredLocs, but we don't have a host ip to actor table now
       results(i) = RayExecutorUtils.prepareGetRDDPartition(
-          rdd, i, i, schema)
+          rdd, partitions(i), i, executorIds, schema)
     }
     results
   }

@@ -90,11 +90,12 @@ public class RayExecutorUtils {
 
   public static byte[] prepareGetRDDPartition(
       RDD<byte[]> rdd,
-      int partitionId,
+      Partition partition,
       int preferredExecutorId,
+      String[] executorIds,
       String schema) {
     return Ray.task(ObjectStoreWriter::prepareGetRDDPartition,
-        rdd, partitionId, preferredExecutorId, schema).remote().get();
+        rdd, partition, preferredExecutorId, executorIds, schema).remote().get();
   }
 
   public static byte[] getRDDPartition(
@@ -104,7 +105,7 @@ public class RayExecutorUtils {
       String schema) {
     ObjectRefImpl ref = (ObjectRefImpl<byte[]>) handle.task(
         RayCoarseGrainedExecutorBackend::getRDDPartition,
-        rdd, partition, schema).remote();
+        rdd, partition, schema).setForwardObjectToParentTask(true).remote();
     return ref.getId().getBytes();
   }
 }
