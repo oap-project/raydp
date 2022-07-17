@@ -67,6 +67,8 @@ def custom_spark_dir(tmp_path_factory) -> str:
     working_dir = tmp_path_factory.mktemp("spark").as_posix()
 
     # Leave the if more verbose just in case the distribution name changed in the future.
+    # Please make sure the version here is available in the archive download, otherwise
+    # download url needs to be changed.
     if pyspark.__version__ == "3.2.1":
         spark_distribution = 'spark-3.2.1-bin-hadoop3.2'
     elif pyspark.__version__ == "3.1.3":
@@ -79,7 +81,7 @@ def custom_spark_dir(tmp_path_factory) -> str:
 
     import wget
 
-    wget.download(f"https://dlcdn.apache.org/spark/spark-{pyspark.__version__}/{spark_distribution}.{file_extension}",
+    wget.download(f"https://archive.apache.org/dist/spark/spark-{pyspark.__version__}/{spark_distribution}.{file_extension}",
                   spark_distribution_file)
     subprocess.check_output(['tar', 'xzvf', spark_distribution_file, '--directory', working_dir])
     return f"{working_dir}/{spark_distribution}"
