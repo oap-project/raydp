@@ -18,9 +18,11 @@
 package org.apache.spark.raydp;
 
 import io.ray.api.ActorHandle;
+import io.ray.api.ObjectRef;
 import io.ray.api.Ray;
 import io.ray.api.call.ActorCreator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.List;
 
 import io.ray.api.placementgroup.PlacementGroup;
@@ -93,19 +95,19 @@ public class RayExecutorUtils {
       Partition partition,
       int preferredExecutorId,
       String[] executorIds,
-      String schema) {
+      String schema,
+      UUID uuid) {
     return Ray.task(ObjectStoreWriter::prepareGetRDDPartition,
-        rdd, partition, preferredExecutorId, executorIds, schema).remote().get();
+        rdd, partition, preferredExecutorId, executorIds, schema, uuid).remote().get();
   }
 
-  public static byte[] getRDDPartition(
+  public static ObjectRef<byte[]> getRDDPartition(
       ActorHandle<RayCoarseGrainedExecutorBackend> handle,
       RDD<byte[]> rdd,
       Partition partition,
       String schema) {
-    ObjectRefImpl ref = (ObjectRefImpl<byte[]>) handle.task(
+    return (ObjectRefImpl<byte[]>) handle.task(
         RayCoarseGrainedExecutorBackend::getRDDPartition,
         rdd, partition, schema).setForwardObjectToParentTask(true).remote();
-    return ref.getId().getBytes();
   }
 }

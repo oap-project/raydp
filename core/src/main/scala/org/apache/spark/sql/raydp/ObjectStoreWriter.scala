@@ -213,7 +213,8 @@ object ObjectStoreWriter {
                              partition: Partition,
                              preferredExecutorId: Int,
                              executorIds: Array[String],
-                             schema: String): Array[Byte] = {
+                             schema: String,
+                             uuid: UUID): Array[Byte] = {
     var handleOption = Ray.getActor("raydp-executor-" + preferredExecutorId)
     val numExecutors = executorIds.length
     val partitionId = partition.index
@@ -222,14 +223,18 @@ object ObjectStoreWriter {
       handleOption = Ray.getActor("raydp-executor-" + executorIds((partitionId + i) % numExecutors))
     }
     val handle = handleOption.get.asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]]
-    RayExecutorUtils.getRDDPartition(
-          handle, rdd, partition, schema)
+    val ref = RayExecutorUtils.getRDDPartition(
+        handle, rdd, partition, schema)
+    val queue = ObjectRefHolder.getQueue(uuid)
+    queue.add(ref)
+    RayDPUtils.convert(ref).getId.getBytes
   }
 
   def fromSparkRDD(df: DataFrame): Array[Array[Byte]] = {
     if (!Ray.isInitialized) {
       Ray.init()
     }
+    val uuid = dfToId.getOrElseUpdate(df, UUID.randomUUID())
     val rdd = df.toArrowBatchRdd
     val executorIds = df.sqlContext.sparkContext.getExecutorIds.toArray
     val schema = ObjectStoreWriter.toArrowSchema(df).toJson
@@ -241,7 +246,7 @@ object ObjectStoreWriter {
     for (i <- 0 until numPartitions) {
       // TODO use getPreferredLocs, but we don't have a host ip to actor table now
       results(i) = RayExecutorUtils.prepareGetRDDPartition(
-          rdd, partitions(i), i, executorIds, schema)
+          rdd, partitions(i), i, executorIds, schema, uuid)
     }
     results
   }
