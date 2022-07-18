@@ -41,6 +41,7 @@ class RayDPSparkMaster():
         self._host = None
         self._started_up = False
         self._configs = configs
+        self._spark_home = None
 
     def start_up(self, popen_kwargs=None):
         if self._started_up:
@@ -69,8 +70,8 @@ class RayDPSparkMaster():
         # find ray jar path
         cp_list.append(ray_cp)
         # find pyspark jars path
-        spark_home = os.path.dirname(pyspark.__file__)
-        spark_jars_dir = os.path.abspath(os.path.join(spark_home, "jars/*"))
+        self._spark_home = os.environ.get("SPARK_HOME", os.path.dirname(pyspark.__file__))
+        spark_jars_dir = os.path.abspath(os.path.join(self._spark_home, "jars/*"))
         spark_jars = [jar for jar in glob.glob(spark_jars_dir) if "slf4j-log4j" not in jar]
         cp_list.extend(spark_jars)
         return cp_list
@@ -178,6 +179,10 @@ class RayDPSparkMaster():
     def get_master_url(self):
         assert self._started_up
         return self._app_master_java_bridge.getMasterUrl()
+
+    def get_spark_home(self) -> str:
+        assert self._started_up
+        return self._spark_home
 
     def stop(self):
         if not self._started_up:
