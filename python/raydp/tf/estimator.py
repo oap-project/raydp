@@ -34,6 +34,7 @@ from raydp.spark import spark_dataframe_to_ray_dataset
 class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def __init__(self,
                  num_workers: int = 1,
+                 parallelism: int = None,
                  model: keras.Model = None,
                  optimizer: Union[keras.optimizers.Optimizer, str] = None,
                  loss: Union[keras.losses.Loss, str] = None,
@@ -80,6 +81,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param extra_config: extra config will fit into Trainer.
         """
         self._num_workers: int = num_workers
+        self._parallelism: int = parallelism
         self._model = model
         self._optimizer = optimizer
         self._loss = loss
@@ -162,8 +164,9 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
 
         train_dataset_pipeline = train.get_dataset_shard("train")
         train_dataset_iterator = train_dataset_pipeline.iter_epochs()
-        eval_dataset_pipeline = train.get_dataset_shard("evaluate")
-        eval_dataset_iterator = eval_dataset_pipeline.iter_epochs()
+        if config["evaluate"]:
+            eval_dataset_pipeline = train.get_dataset_shard("evaluate")
+            eval_dataset_iterator = eval_dataset_pipeline.iter_epochs()
 
         results = []
         for _ in range(config["num_epochs"]):
@@ -179,22 +182,23 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                     batch_size=config["batch_size"],
                 )
             )
-            eval_dataset = next(eval_dataset_iterator)
-            eval_tf_dataset = prepare_dataset_shard(
-                eval_dataset.to_tf(
-                    label_column=config["label_column"],
-                    output_signature=(
-                        tf.TensorSpec(shape=(None, features_len), dtype=tf.float32),
-                        tf.TensorSpec(shape=(None), dtype=tf.float32)
-                    ),
-                    batch_size=config["batch_size"],
-                )
-            )
             callbacks = config["callbacks"]
             train_history = multi_worker_model.fit(train_tf_dataset, callbacks=callbacks)
             results.append(train_history.history)
-            test_history = multi_worker_model.evaluate(eval_tf_dataset, callbacks=callbacks)
-            results.append(test_history)
+            if config["evaluate"]:
+                eval_dataset = next(eval_dataset_iterator)
+                eval_tf_dataset = prepare_dataset_shard(
+                    eval_dataset.to_tf(
+                        label_column=config["label_column"],
+                        output_signature=(
+                            tf.TensorSpec(shape=(None, features_len), dtype=tf.float32),
+                            tf.TensorSpec(shape=(None), dtype=tf.float32)
+                        ),
+                        batch_size=config["batch_size"],
+                    )
+                )
+                test_history = multi_worker_model.evaluate(eval_tf_dataset, callbacks=callbacks)
+                results.append(test_history)
         return results
 
     def fit(self,
@@ -215,8 +219,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                   "num_epochs": self._num_epochs,
                   "evaluate": True,
                   "metrics": self._metrics,
-                  "callbacks": self._callbacks
-                  }
+                  "callbacks": self._callbacks}
 
         train_ds_pipeline = train_ds.repeat()
         if self._shuffle:
@@ -245,15 +248,24 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         super().fit_on_spark(train_df, evaluate_df)
         train_df = self._check_and_convert(train_df)
         train_ds = spark_dataframe_to_ray_dataset(train_df,
-                                                  parallelism=self._num_workers,
+                                                  parallelism=self._parallelism,
                                                   _use_owner=stop_spark_after_conversion)
-
         evaluate_ds = None
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
             evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
-                                                         parallelism=self._num_workers,
+                                                         parallelism=self._parallelism,
                                                          _use_owner=stop_spark_after_conversion)
+        if self._parallelism is None:
+            num_blocks = self._num_workers * 4
+            # TODO: we should support shuffle=self._shuffle when ray updates (ray issue#26059)
+            train_ds = train_ds.repartition(num_blocks=num_blocks, shuffle=True)
+            if evaluate_ds:
+                evaluate_ds = evaluate_ds.repartition(num_blocks=num_blocks, shuffle=True)
+        elif self._shuffle:
+            train_ds = train_ds.random_shuffle()
+            if evaluate_ds:
+                evaluate_ds = evaluate_ds.random_shuffle()
 
         if stop_spark_after_conversion:
             stop_spark(del_obj_holder=False)
