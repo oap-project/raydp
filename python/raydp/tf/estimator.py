@@ -34,7 +34,6 @@ from raydp.spark import spark_dataframe_to_ray_dataset
 class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def __init__(self,
                  num_workers: int = 1,
-                 parallelism: int = None,
                  model: keras.Model = None,
                  optimizer: Union[keras.optimizers.Optimizer, str] = None,
                  loss: Union[keras.losses.Loss, str] = None,
@@ -81,7 +80,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param extra_config: extra config will fit into Trainer.
         """
         self._num_workers: int = num_workers
-        self._parallelism: int = parallelism
         self._model = model
         self._optimizer = optimizer
         self._loss = loss
@@ -156,7 +154,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         return model
 
     @staticmethod
-    def train_fun(config):
+    def train_func(config):
         strategy = tf.distribute.MultiWorkerMirroredStrategy()
         with strategy.scope():
             # Model building/compiling need to be within `strategy.scope()`.
@@ -234,7 +232,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             dataset["evaluate"] = evaluate_ds_pipeline
         self._trainer.start()
         results = self._trainer.run(
-            train_func=TFEstimator.train_fun,
+            train_func=TFEstimator.train_func,
             dataset=dataset,
             config=config,
         )
@@ -243,28 +241,22 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def fit_on_spark(self,
                      train_df: DF,
                      evaluate_df: OPTIONAL_DF = None,
+                     fs_directory: Optional[str] = None,
+                     compression: Optional[str] = None,
                      max_retries=3,
                      stop_spark_after_conversion=False) -> NoReturn:
         super().fit_on_spark(train_df, evaluate_df)
         train_df = self._check_and_convert(train_df)
         train_ds = spark_dataframe_to_ray_dataset(train_df,
-                                                  parallelism=self._parallelism,
                                                   _use_owner=stop_spark_after_conversion)
+        if self._shuffle:
+            train_ds = train_ds.random_shuffle()
         evaluate_ds = None
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
             evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
-                                                         parallelism=self._parallelism,
                                                          _use_owner=stop_spark_after_conversion)
-        if self._parallelism is None:
-            num_blocks = self._num_workers * 4
-            # TODO: we should support shuffle=self._shuffle when ray updates (ray issue#26059)
-            train_ds = train_ds.repartition(num_blocks=num_blocks, shuffle=True)
-            if evaluate_ds:
-                evaluate_ds = evaluate_ds.repartition(num_blocks=num_blocks, shuffle=True)
-        elif self._shuffle:
-            train_ds = train_ds.random_shuffle()
-            if evaluate_ds:
+            if self._shuffle:
                 evaluate_ds = evaluate_ds.random_shuffle()
 
         if stop_spark_after_conversion:
