@@ -80,10 +80,56 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param extra_config: extra config will fit into Trainer.
         """
         self._num_workers: int = num_workers
-        self._model = model
-        self._optimizer = optimizer
-        self._loss = loss
-        self._metrics = metrics
+
+        # model
+        assert model is not None, "model must be not be None"
+        if isinstance(model, keras.Model):
+            self._serialized_model = model.to_json()
+        else:
+            raise Exception("Unsupported parameter, we only support tensorflow.keras.Model")
+
+        # optimizer
+        # TODO: we should support multiple optimizers for multiple outputs model
+        assert optimizer is not None, "optimizer must not be None"
+        if isinstance(optimizer, str):
+            # it is a str represents the optimizer
+            _optimizer = optimizer
+        elif isinstance(optimizer, keras.optimizers.Optimizer):
+            _optimizer = keras.optimizers.serialize(optimizer)
+        else:
+            raise Exception(
+                "Unsupported parameter, we only support keras.optimizers.Optimizer subclass "
+                "instance or a str to represent the optimizer")
+        self._serialized_optimizer = _optimizer
+
+        # loss
+        # TODO: we should support multiple losses for multiple outputs model
+        assert loss is not None, "loss must not be None"
+        if isinstance(loss, str):
+            _loss = loss
+        elif isinstance(loss, keras.losses.Loss):
+            _loss = keras.losses.serialize(loss)
+        else:
+            raise Exception(
+                "Unsupported parameter, we only support keras.losses.Loss subclass "
+                "instance or a str to represents the loss")
+        self._serialized_loss = _loss
+
+        # metrics
+        if metrics is None:
+            _metrics = None
+        else:
+            assert isinstance(metrics, list), "metrics must be a list"
+            if isinstance(metrics[0], str):
+                _metrics = metrics
+            elif isinstance(metrics[0], keras.metrics.Metric):
+                _metrics = [keras.metrics.serialize(m) for m in metrics]
+            else:
+                raise Exception(
+                    "Unsupported parameter, we only support list of keras.metrics.Metrics "
+                    "instances or list of str to represents the metrics")
+        self._serialized_metrics = _metrics
+
         self._feature_columns = feature_columns
         self._feature_types = feature_types
         self._feature_shapes = feature_shapes
@@ -96,60 +142,13 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._callbacks = callbacks
         self._extra_config = extra_config
         self._trainer: Trainer = None
-        self._check()
-
-    def _check(self):
-        assert self._model is not None, "Model must be provided"
-        assert isinstance(self._model, keras.Model), "Unsupported parameter, "\
-                                    "we only support tensorflow.keras.Model"
-        assert self._optimizer is not None, "Optimizer must be provided"
-        assert self._loss is not None, "Loss must be provided"
 
     @staticmethod
     def build_and_compile_model(config):
-        # create model
         model: keras.Model = keras.models.model_from_json(config["model"])
-
-        # create optimizer
-        # TODO: we should support multiple optimizers for multiple outputs model
-        if isinstance(config["optimizer"], str):
-            # it is a str represents the optimizer
-            serialized_optimizer = config["optimizer"]
-        elif isinstance(config["optimizer"], keras.optimizers.Optimizer):
-            serialized_optimizer = keras.optimizers.serialize(config["optimizer"])
-        else:
-            raise Exception(
-                "Unsupported parameter, we only support keras.optimizers.Optimizer subclass "
-                "instance or a str to represent the optimizer")
-        optimizer = keras.optimizers.get(serialized_optimizer)
-
-        # create loss
-        # TODO: we should support multiple losses for multiple outputs model
-        if isinstance(config["loss"], str):
-            serialized_loss = config["loss"]
-        elif isinstance(config["loss"], keras.losses.Loss):
-            serialized_loss = keras.losses.serialize(config["loss"])
-        else:
-            raise Exception(
-                "Unsupported parameter, we only support keras.losses.Loss subclass "
-                "instance or a str to represents the loss)")
-        loss = keras.losses.get(serialized_loss)
-
-        # create metrics
-        if "metrics" not in config:
-            serialized_metrics = None
-        else:
-            assert isinstance(config["metrics"], list), "metrics must be a list"
-            if isinstance(config["metrics"][0], str):
-                serialized_metrics = config["metrics"]
-            elif isinstance(config["metrics"][0], keras.metrics.Metric):
-                serialized_metrics = [keras.metrics.serialize(m) for m in config["metrics"]]
-            else:
-                raise Exception(
-                    "Unsupported parameter, we only support list of "
-                    "keras.metrics.Metrics instances or list of str to")
-        metrics = [keras.metrics.get(m) for m in serialized_metrics]
-
+        optimizer = keras.optimizers.get(config["optimizer"])
+        loss = keras.losses.get(config["loss"])
+        metrics = [keras.metrics.get(m) for m in config["metrics"]]
         model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
         return model
 
@@ -208,27 +207,22 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                                 max_retries=max_retries, **self._extra_config)
 
         config = {"num_workers": self._num_workers,
-                  "model": self._model.to_json(),
-                  "optimizer": self._optimizer,
-                  "loss": self._loss,
+                  "model": self._serialized_model,
+                  "optimizer": self._serialized_optimizer,
+                  "loss": self._serialized_loss,
                   "feature_columns": self._feature_columns,
                   "label_column": self._label_column,
                   "batch_size": self._batch_size,
                   "num_epochs": self._num_epochs,
-                  "evaluate": True,
-                  "metrics": self._metrics,
+                  "evaluate": False,
+                  "metrics": self._serialized_metrics,
                   "callbacks": self._callbacks}
 
         train_ds_pipeline = train_ds.repeat()
-        if self._shuffle:
-            train_ds_pipeline = train_ds_pipeline.random_shuffle_each_window()
         dataset = {"train": train_ds_pipeline}
-        if evaluate_ds is None:
-            config["evaluate"] = False
-        else:
+        if evaluate_ds is not None:
+            config["evaluate"] = True
             evaluate_ds_pipeline = evaluate_ds.repeat()
-            if self._shuffle:
-                evaluate_ds_pipeline = evaluate_ds_pipeline.random_shuffle_each_window()
             dataset["evaluate"] = evaluate_ds_pipeline
         self._trainer.start()
         results = self._trainer.run(
