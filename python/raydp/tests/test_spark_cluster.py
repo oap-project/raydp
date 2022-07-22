@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import os
 import sys
 import time
 
@@ -27,6 +28,7 @@ from ray.util.placement_group import placement_group_table
 
 import raydp
 import raydp.utils as utils
+from raydp.spark.ray_cluster_master import RayDPSparkMaster, RAYDP_SPARK_MASTER_NAME
 
 
 def test_spark(spark_on_ray_small):
@@ -136,6 +138,21 @@ def test_placement_group(ray_cluster):
         if p["state"] != "REMOVED"
     ])
     assert num_non_removed_pgs == 0
+
+
+def test_custom_installed_spark(custom_spark_dir):
+    os.environ["SPARK_HOME"] = custom_spark_dir
+    ray.shutdown()
+    spark = raydp.init_spark("custom_install_test", 1, 1, "500 M")
+    spark_master_actor = ray.get_actor(name=RAYDP_SPARK_MASTER_NAME)
+    spark_home = ray.get(spark_master_actor.get_spark_home.remote())
+
+    result = spark.range(0, 10).count()
+    raydp.stop_spark()
+    ray.shutdown()
+
+    assert result == 10
+    assert spark_home == custom_spark_dir
 
 
 if __name__ == "__main__":
