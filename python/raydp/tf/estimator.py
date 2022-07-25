@@ -15,21 +15,21 @@
 # limitations under the License.
 #
 
-import json
-import os
 from typing import Any, List, NoReturn, Optional, Union
 
 import tensorflow as tf
 import tensorflow.keras as keras
-from ray.util.data import MLDataset
-from ray.util.sgd.tf import TFTrainer
-from ray.util.sgd.tf.tf_dataset import TFMLDataset
 from tensorflow import DType, TensorShape
-
+from tensorflow.keras.callbacks import Callback
+from ray import train
+from ray.train import Trainer
+from ray.train.tensorflow import prepare_dataset_shard
+from ray.data.dataset import Dataset
+from ray.data.impl.arrow_block import ArrowRow
 from raydp.estimator import EstimatorInterface
-from raydp.spark import RayMLDataset
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
-
+from raydp import stop_spark
+from raydp.spark import spark_dataframe_to_ray_dataset
 
 class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def __init__(self,
@@ -47,6 +47,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  batch_size: int = 128,
                  num_epochs: int = 1,
                  shuffle: bool = True,
+                 callbacks: Optional[List[Callback]] = None,
                  **extra_config):
         """A scikit-learn like API to distributed training Tensorflow Keras model.
 
@@ -75,10 +76,8 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param batch_size: the batch size
         :param num_epochs: the number of epochs
         :param shuffle: whether input dataset should be shuffle, True by default.
-        :param extra_config: extra config will fit into TFTrainer. You can also set
-               the get_shard config with
-               {"get_shard": {batch_ms=0, num_async=5, shuffle_buffer_size=2, seed=0}}.
-               You can refer to the MLDataset.get_repeatable_shard for the parameters.
+        :param callbacks: which will be executed during training.
+        :param extra_config: extra config will fit into Trainer.
         """
         self._num_workers: int = num_workers
 
@@ -113,7 +112,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         else:
             raise Exception(
                 "Unsupported parameter, we only support keras.losses.Loss subclass "
-                "instance or a str to represents the loss)")
+                "instance or a str to represents the loss")
         self._serialized_loss = _loss
 
         # metrics
@@ -127,116 +126,137 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                 _metrics = [keras.metrics.serialize(m) for m in metrics]
             else:
                 raise Exception(
-                    "Unsupported parameter, we only support list of "
-                    "keras.metrics.Metrics instances or list of str to")
+                    "Unsupported parameter, we only support list of keras.metrics.Metrics "
+                    "instances or list of str to represents the metrics")
         self._serialized_metrics = _metrics
 
         self._feature_columns = feature_columns
         self._feature_types = feature_types
         self._feature_shapes = feature_shapes
         self._label_column = label_column
-        self._label_type = label_type
         self._label_shape = label_shape
+        self._label_type = label_type
         self._batch_size = batch_size
-        self._extra_config = extra_config
+        self._num_epochs = num_epochs
         self._shuffle = shuffle
+        self._callbacks = callbacks
+        self._extra_config = extra_config
+        self._trainer: Trainer = None
 
-        config = {"batch_size": self._batch_size, "shuffle": shuffle}
-        if self._extra_config:
-            if "config" in self._extra_config:
-                self._extra_config["config"].update(config)
-            else:
-                self._extra_config["config"] = config
-        else:
-            self._extra_config = {"config": config}
+    @staticmethod
+    def build_and_compile_model(config):
+        model: keras.Model = keras.models.model_from_json(config["model"])
+        optimizer = keras.optimizers.get(config["optimizer"])
+        loss = keras.losses.get(config["loss"])
+        metrics = [keras.metrics.get(m) for m in config["metrics"]]
+        model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+        return model
 
-        self._num_epochs: int = num_epochs
+    @staticmethod
+    def train_func(config):
+        strategy = tf.distribute.MultiWorkerMirroredStrategy()
+        with strategy.scope():
+            # Model building/compiling need to be within `strategy.scope()`.
+            multi_worker_model = TFEstimator.build_and_compile_model(config)
 
-        self._trainer: TFTrainer = None
+        train_dataset_pipeline = train.get_dataset_shard("train")
+        train_dataset_iterator = train_dataset_pipeline.iter_epochs()
+        if config["evaluate"]:
+            eval_dataset_pipeline = train.get_dataset_shard("evaluate")
+            eval_dataset_iterator = eval_dataset_pipeline.iter_epochs()
 
-    def _create_tf_ds(self, ds: MLDataset) -> TFMLDataset:
-        return ds.to_tf(self._feature_columns,
-                        self._feature_shapes,
-                        self._feature_types,
-                        self._label_column,
-                        self._label_shape,
-                        self._label_type)
+        results = []
+        for _ in range(config["num_epochs"]):
+            features_len = len(config["feature_columns"])
+            train_dataset = next(train_dataset_iterator)
+            train_tf_dataset = prepare_dataset_shard(
+                train_dataset.to_tf(
+                    label_column=config["label_column"],
+                    output_signature=(
+                        tf.TensorSpec(shape=(None, features_len), dtype=tf.float32),
+                        tf.TensorSpec(shape=(None), dtype=tf.float32)
+                    ),
+                    batch_size=config["batch_size"],
+                )
+            )
+            callbacks = config["callbacks"]
+            train_history = multi_worker_model.fit(train_tf_dataset, callbacks=callbacks)
+            results.append(train_history.history)
+            if config["evaluate"]:
+                eval_dataset = next(eval_dataset_iterator)
+                eval_tf_dataset = prepare_dataset_shard(
+                    eval_dataset.to_tf(
+                        label_column=config["label_column"],
+                        output_signature=(
+                            tf.TensorSpec(shape=(None, features_len), dtype=tf.float32),
+                            tf.TensorSpec(shape=(None), dtype=tf.float32)
+                        ),
+                        batch_size=config["batch_size"],
+                    )
+                )
+                test_history = multi_worker_model.evaluate(eval_tf_dataset, callbacks=callbacks)
+                results.append(test_history)
+        return results
 
     def fit(self,
-            train_ds: MLDataset,
-            evaluate_ds: Optional[MLDataset] = None) -> NoReturn:
+            train_ds: Dataset[ArrowRow],
+            evaluate_ds: Optional[Dataset[ArrowRow]] = None,
+            max_retries=3) -> NoReturn:
         super().fit(train_ds, evaluate_ds)
+        self._trainer = Trainer(backend="tensorflow", num_workers=self._num_workers,
+                                max_retries=max_retries, **self._extra_config)
 
-        def model_creator(config):
-            # https://github.com/ray-project/ray/issues/5914
-            import tensorflow.keras as keras  # pylint: disable=C0415, W0404
+        config = {"num_workers": self._num_workers,
+                  "model": self._serialized_model,
+                  "optimizer": self._serialized_optimizer,
+                  "loss": self._serialized_loss,
+                  "feature_columns": self._feature_columns,
+                  "label_column": self._label_column,
+                  "batch_size": self._batch_size,
+                  "num_epochs": self._num_epochs,
+                  "evaluate": False,
+                  "metrics": self._serialized_metrics,
+                  "callbacks": self._callbacks}
 
-            model: keras.Model = keras.models.model_from_json(self._serialized_model)
-            optimizer = keras.optimizers.get(self._serialized_optimizer)
-            loss = keras.losses.get(self._serialized_loss)
-            metrics = [keras.metrics.get(m) for m in self._serialized_metrics]
-            model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-            return model
-
-        train_ds = train_ds.batch(self._batch_size)
-        train_tf_ds = self._create_tf_ds(train_ds)
-
+        train_ds_pipeline = train_ds.repeat()
+        dataset = {"train": train_ds_pipeline}
         if evaluate_ds is not None:
-            evaluate_ds = evaluate_ds.batch(self._batch_size)
-            evaluate_tf_ds = self._create_tf_ds(evaluate_ds)
-        else:
-            evaluate_tf_ds = None
-
-        def data_creator(config):
-            if "TF_CONFIG" in os.environ:
-                tf_config = json.loads(os.environ["TF_CONFIG"])
-                world_rank = tf_config["task"]["index"]
-            else:
-                world_rank = -1
-            batch_size = config["batch_size"]
-            get_shard_config = config.get("get_shard", {})
-            if "shuffle" in config:
-                get_shard_config["shuffle"] = config["shuffle"]
-            train_data = train_tf_ds.get_shard(
-                world_rank, **get_shard_config).repeat().batch(batch_size)
-            options = tf.data.Options()
-            options.experimental_distribute.auto_shard_policy = \
-                tf.data.experimental.AutoShardPolicy.OFF
-            train_data = train_data.with_options(options)
-            evaluate_data = None
-            if evaluate_tf_ds is not None:
-                evaluate_data = evaluate_tf_ds.get_shard(
-                    world_rank, **get_shard_config).batch(batch_size)
-                evaluate_data = evaluate_data.with_options(options)
-            return train_data, evaluate_data
-
-        self._trainer = TFTrainer(model_creator=model_creator,
-                                  data_creator=data_creator,
-                                  num_replicas=self._num_workers,
-                                  **self._extra_config)
-        for i in range(self._num_epochs):
-            stats = self._trainer.train()
-            print(f"Epoch-{i}: {stats}")
-
-        if evaluate_tf_ds is not None:
-            print(self._trainer.validate())
+            config["evaluate"] = True
+            evaluate_ds_pipeline = evaluate_ds.repeat()
+            dataset["evaluate"] = evaluate_ds_pipeline
+        self._trainer.start()
+        results = self._trainer.run(
+            train_func=TFEstimator.train_func,
+            dataset=dataset,
+            config=config,
+        )
+        return results
 
     def fit_on_spark(self,
                      train_df: DF,
                      evaluate_df: OPTIONAL_DF = None,
                      fs_directory: Optional[str] = None,
-                     compression: Optional[str] = None) -> NoReturn:
+                     compression: Optional[str] = None,
+                     max_retries=3,
+                     stop_spark_after_conversion=False) -> NoReturn:
         super().fit_on_spark(train_df, evaluate_df)
         train_df = self._check_and_convert(train_df)
-        if evaluate_df is not None:
-            evaluate_df = self._check_and_convert(evaluate_df)
-        train_ds = RayMLDataset.from_spark(
-            train_df, self._num_workers, self._shuffle, None, fs_directory, compression)
+        train_ds = spark_dataframe_to_ray_dataset(train_df,
+                                                  _use_owner=stop_spark_after_conversion)
+        if self._shuffle:
+            train_ds = train_ds.random_shuffle()
         evaluate_ds = None
         if evaluate_df is not None:
-            evaluate_ds = RayMLDataset.from_spark(
-                evaluate_df, self._num_workers, self._shuffle, None, fs_directory, compression)
-        return self.fit(train_ds, evaluate_ds)
+            evaluate_df = self._check_and_convert(evaluate_df)
+            evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
+                                                         _use_owner=stop_spark_after_conversion)
+            if self._shuffle:
+                evaluate_ds = evaluate_ds.random_shuffle()
+
+        if stop_spark_after_conversion:
+            stop_spark(del_obj_holder=False)
+        return self.fit(
+            train_ds, evaluate_ds, max_retries)
 
     def get_model(self) -> Any:
         assert self._trainer, "Trainer has not been created"
