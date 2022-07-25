@@ -295,10 +295,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             max_retries=3) -> NoReturn:
         super().fit(train_ds, evaluate_ds)
 
-        class PrintingCallback(TrainingCallback):
-            def handle_result(self, results: List[Dict], **info):
-                print(results)
-
         self._trainer = Trainer(backend="torch", num_workers=self._num_workers,
                                 resources_per_worker=self._resources_per_worker,
                                 max_retries=max_retries, **self._extra_config)

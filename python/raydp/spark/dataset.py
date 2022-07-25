@@ -173,9 +173,7 @@ def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
                                    _use_owner: bool = False):
     num_part = df.rdd.getNumPartitions()
     if parallelism is not None:
-        if parallelism < num_part:
-            df = df.coalesce(parallelism)
-        elif parallelism > num_part:
+        if parallelism != num_part:
             df = df.repartition(parallelism)
     blocks, _ = _save_spark_df_to_object_store(df, False, _use_owner)
     return from_arrow_refs(blocks)
