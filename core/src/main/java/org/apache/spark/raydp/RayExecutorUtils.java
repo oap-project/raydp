@@ -22,7 +22,6 @@ import io.ray.api.Ray;
 import io.ray.api.call.ActorCreator;
 import java.util.Map;
 import java.util.List;
-import java.util.Optional;
 
 import io.ray.api.placementgroup.PlacementGroup;
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;

@@ -19,19 +19,21 @@ package org.apache.spark.deploy.raydp
 
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.{Date, Locale, Optional}
+import java.util.{Date, Locale}
 import javax.xml.bind.DatatypeConverter
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
-import io.ray.api.{ActorHandle, PlacementGroups, Ray}
+
+import io.ray.api.{ActorHandle, PlacementGroups}
 import io.ray.api.id.PlacementGroupId
 import io.ray.api.placementgroup.PlacementGroup
 import io.ray.runtime.config.RayConfig
+
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.{RayExecutorUtils, SparkOnRayConfigs}
 import org.apache.spark.rpc._
-import org.apache.spark.util.ShutdownHookManager
 import org.apache.spark.util.Utils
 
 class RayAppMaster(host: String,
@@ -235,7 +237,8 @@ class RayAppMaster(host: String,
       val memory = appInfo.desc.memoryPerExecutorMB
       val executorId = s"${appInfo.getNextExecutorId()}"
 
-      logInfo(s"Requesting Spark executor with Ray logical resource {CPU: ${rayActorCPU}, GPU: ${rayActorGPU}}..")
+      logInfo(s"Requesting Spark executor with Ray logical resource " +
+        s"{ CPU: ${rayActorCPU}, GPU: ${rayActorGPU} }..")
       // TODO: Support generic fractional logical resources using prefix spark.ray.actor.resource.*
 
       val handler = RayExecutorUtils.createExecutorActor(

@@ -20,14 +20,17 @@ package org.apache.spark.scheduler.cluster.raydp
 import java.net.URI
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
+
 import io.ray.api.{ActorHandle, Ray}
+
 import org.apache.spark.{RayDPException, SparkConf, SparkContext}
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.deploy.security.HadoopDelegationTokenManager
-import org.apache.spark.internal.{Logging, config}
+import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.launcher.{LauncherBackend, SparkAppHandle}
 import org.apache.spark.raydp.SparkOnRayConfigs
 import org.apache.spark.resource.{ResourceProfile, ResourceRequirement, ResourceUtils}
@@ -143,13 +146,18 @@ class RayCoarseGrainedSchedulerBackend(
       conf, config.SPARK_EXECUTOR_PREFIX)
     val resourcesInMap = transferResourceRequirements(executorResourceReqs)
     val numExecutors = conf.get(config.EXECUTOR_INSTANCES).get
-    val sparkCoresPerExecutor = coresPerExecutor.getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
-    val rayActorCPU = conf.get(SparkOnRayConfigs.SPARK_CONFIG_ACTOR_CPU_RESOURCE, sparkCoresPerExecutor.toString).toDouble
-    val rayActorGPU = conf.get(SparkOnRayConfigs.SPARK_CONFIG_ACTOR_GPU_RESOURCE, 0.toString).toDouble
+    val sparkCoresPerExecutor = coresPerExecutor
+      .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
+    val rayActorCPU = conf.get(SparkOnRayConfigs.RAY_ACTOR_CPU_RESOURCE,
+      sparkCoresPerExecutor.toString).toDouble
+    val rayActorGPU = conf.get(SparkOnRayConfigs.RAY_ACTOR_GPU_RESOURCE,
+      0.toString).toDouble
 
     val appDesc = ApplicationDescription(name = sc.appName, numExecutors = numExecutors,
-      coresPerExecutor = coresPerExecutor, memoryPerExecutorMB = sc.executorMemory, command = command,
-      resourceReqsPerExecutor = resourcesInMap, rayActorCPU = rayActorCPU, rayActorGPU = rayActorGPU)
+      coresPerExecutor = coresPerExecutor, memoryPerExecutorMB = sc.executorMemory,
+      command = command,
+      resourceReqsPerExecutor = resourcesInMap,
+      rayActorCPU = rayActorCPU, rayActorGPU = rayActorGPU)
 
     val rpcEnv = sc.env.rpcEnv
     appMasterRef.set(rpcEnv.setupEndpoint(

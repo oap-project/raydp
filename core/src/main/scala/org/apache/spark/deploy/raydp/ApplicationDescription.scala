@@ -43,8 +43,10 @@ private[spark] case class ApplicationDescription(
     rayActorGPU: Double = 0d) {
 
   def withNewCommand(newCommand: Command): ApplicationDescription = {
-    ApplicationDescription(name = name, numExecutors = numExecutors, coresPerExecutor = coresPerExecutor,
+    ApplicationDescription(name = name,
+      numExecutors = numExecutors, coresPerExecutor = coresPerExecutor,
       memoryPerExecutorMB = memoryPerExecutorMB, command = newCommand, user = user,
-      resourceReqsPerExecutor = resourceReqsPerExecutor, rayActorCPU = rayActorCPU, rayActorGPU = rayActorGPU)
+      resourceReqsPerExecutor = resourceReqsPerExecutor,
+      rayActorCPU = rayActorCPU, rayActorGPU = rayActorGPU)
   }
 }
