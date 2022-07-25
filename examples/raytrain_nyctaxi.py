@@ -40,7 +40,7 @@ spark.conf.set("spark.sql.session.timeZone", "UTC")
 data = nyc_taxi_preprocess(data)
 # Convert spark dataframe into ray Dataset
 # pylint: disable=unbalanced-tuple-unpacking
-dataset = ray.data.from_spark(data, parallelism = num_executors)
+dataset = ray.data.from_spark(data)
 # Split data into train_dataset and test_dataset
 train_dataset, test_dataset = dataset.split_at_indices([dataset.count()*0.9])
 features = [field.name for field in list(data.schema) if field.name != "fare_amount"]
