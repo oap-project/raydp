@@ -62,6 +62,40 @@ def spark_on_ray_small(request):
     return spark
 
 
+@pytest.fixture(scope="function")
+def spark_on_ray_gpu(request):
+    ray.shutdown()
+    ray.init(num_gpus=2, num_cpus=2)
+
+    spark = raydp.init_spark(app_name="test_gpu",
+                             num_executors=1, executor_cores=1, executor_memory="500 M",
+                             configs={"spark.ray.actor.resource.gpu": "1"})
+
+    def stop_all():
+        raydp.stop_spark()
+        ray.shutdown()
+
+    request.addfinalizer(stop_all)
+    return spark
+
+
+@pytest.fixture(scope="function")
+def spark_on_ray_fractional_cpu(request):
+    ray.shutdown()
+    ray.init(num_cpus=2)
+
+    spark = raydp.init_spark(app_name="test_cpu_fraction",
+                             num_executors=1, executor_cores=3, executor_memory="500 M",
+                             configs={"spark.ray.actor.resource.cpu": "0.1"})
+
+    def stop_all():
+        raydp.stop_spark()
+        ray.shutdown()
+
+    request.addfinalizer(stop_all)
+    return spark
+
+
 @pytest.fixture(scope='session')
 def custom_spark_dir(tmp_path_factory) -> str:
     working_dir = tmp_path_factory.mktemp("spark").as_posix()

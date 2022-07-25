@@ -37,6 +37,34 @@ def test_spark(spark_on_ray_small):
     assert result == 10
 
 
+def test_spark_on_gpu_machine(spark_on_ray_gpu):
+    spark = spark_on_ray_gpu
+    result = spark.range(0, 10).count()
+    assert result == 10
+
+
+def test_spark_on_fractional_cpu(spark_on_ray_fractional_cpu):
+    spark = spark_on_ray_fractional_cpu
+    result = spark.range(0, 10).count()
+    assert result == 10
+
+
+def test_spark_on_fractional_custom_resource():
+    try:
+        ray.shutdown()
+        ray.init(num_cpus=2)
+
+        spark = raydp.init_spark(app_name="test_cpu_fraction",
+                                 num_executors=1, executor_cores=3, executor_memory="500 M",
+                                 configs={"spark.executor.resource.CUSTOM.amount": "0.1"})
+        spark.range(0, 10).count()
+        assert False
+    except Exception:
+        ray.shutdown()
+        raydp.stop_spark()
+        assert True
+
+
 def test_spark_remote(ray_cluster):
     @ray.remote
     class SparkRemote:
