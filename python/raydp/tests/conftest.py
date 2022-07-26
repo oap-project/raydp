@@ -63,6 +63,18 @@ def spark_on_ray_small(request):
 
 
 @pytest.fixture(scope="function", params=["localhost:6379", "ray://localhost:10001"])
+def spark_on_ray_fraction_custom_resource(request):
+    ray.shutdown()
+    ray.init(address=request.param)
+
+    def stop_all():
+        raydp.stop_spark()
+        ray.shutdown()
+
+    request.addfinalizer(stop_all)
+
+
+@pytest.fixture(scope="function", params=["localhost:6379", "ray://localhost:10001"])
 def spark_on_ray_gpu(request):
     if not ray.is_initialized():
         ray.init(num_gpus=2, num_cpus=2)

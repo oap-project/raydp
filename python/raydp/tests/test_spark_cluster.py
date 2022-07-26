@@ -51,19 +51,14 @@ def test_spark_on_fractional_cpu(spark_on_ray_fractional_cpu):
     assert result == 10
 
 
-def test_spark_on_fractional_custom_resource():
+def test_spark_on_fractional_custom_resource(spark_on_ray_fraction_custom_resource):
     try:
-        ray.shutdown()
-        ray.init()
-
         spark = raydp.init_spark(app_name="test_cpu_fraction",
                                  num_executors=1, executor_cores=3, executor_memory="500 M",
                                  configs={"spark.executor.resource.CUSTOM.amount": "0.1"})
         spark.range(0, 10).count()
         assert False
     except Exception:
-        ray.shutdown()
-        raydp.stop_spark()
         assert True
 
 
