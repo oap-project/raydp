@@ -23,6 +23,7 @@ from pyspark.sql import SparkSession
 import ray
 import raydp
 import subprocess
+from ray.cluster_utils import Cluster
 
 
 def quiet_logger():
@@ -62,10 +63,14 @@ def spark_on_ray_small(request):
     return spark
 
 
-@pytest.fixture(scope="function", params=["localhost:6379", "ray://localhost:10001"])
+@pytest.fixture(scope="function")
 def spark_on_ray_fraction_custom_resource(request):
-    ray.shutdown()
-    ray.init(address=request.param)
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 2
+        })
+    ray.init(address=cluster.address)
 
     def stop_all():
         raydp.stop_spark()
@@ -74,12 +79,17 @@ def spark_on_ray_fraction_custom_resource(request):
     request.addfinalizer(stop_all)
 
 
-@pytest.fixture(scope="function", params=["localhost:6379", "ray://localhost:10001"])
+@pytest.fixture(scope="function")
 def spark_on_ray_gpu(request):
-    if not ray.is_initialized():
-        ray.init(num_gpus=2, num_cpus=2)
-    else:
-        ray.init(address=request.param)
+    # https://docs.ray.io/en/latest/ray-core/examples/testing-tips.html#tip-4-create-a-mini-cluster-with-ray-cluster-utils-cluster
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 2,
+            "num_gpus": 2
+        })
+
+    ray.init(address=cluster.address)
 
     spark = raydp.init_spark(app_name="test_gpu",
                              num_executors=1, executor_cores=1, executor_memory="500 M",
@@ -93,12 +103,15 @@ def spark_on_ray_gpu(request):
     return spark
 
 
-@pytest.fixture(scope="function", params=["localhost:6379", "ray://localhost:10001"])
+@pytest.fixture(scope="function")
 def spark_on_ray_fractional_cpu(request):
-    if not ray.is_initialized():
-        ray.init(num_cpus=2)
-    else:
-        ray.init(address=request.param)
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 2
+        })
+
+    ray.init(address=cluster.address)
 
     spark = raydp.init_spark(app_name="test_cpu_fraction",
                              num_executors=1, executor_cores=3, executor_memory="500 M",
