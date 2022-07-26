@@ -139,6 +139,8 @@ class _SparkContext(ContextDecorator):
                 ray.util.remove_placement_group(self._placement_group)
                 self._placement_group = None
             self._placement_group_strategy = None
+        if self._configs is not None:
+            self._configs = None
 
     def __enter__(self):
         self.get_or_create_session()
@@ -199,6 +201,8 @@ def init_spark(app_name: str,
                     configs)
                 return _global_spark_context.get_or_create_session()
             except:
+                if _global_spark_context is not None:
+                    _global_spark_context.stop()
                 _global_spark_context = None
                 raise
         else:
