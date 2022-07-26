@@ -100,13 +100,13 @@ jobs:
       - name: Test with pytest
         run: |
           ray start --head --num-cpus 4
-          pytest python/raydp/tests/ --deselect python/raydp/tests/test_spark_cluster.py::test_spark_on_fractional_cpu --deselect python/raydp/tests/test_spark_cluster.py::test_spark_on_gpu_machine
+          pytest python/raydp/tests/ -m"not spark_fractional_cpu and not spark_gpu"
           ray stop --force
           ray start --head --num-cpus 2
-          pytest -v python/raydp/tests/test_spark_cluster.py::test_spark_on_fractional_cpu
+          pytest python/raydp/tests/ -m"spark_fractional_cpu"
           ray stop --force
           ray start --head --num-cpus 2 --num-gpus 2
-          pytest -v python/raydp/tests/test_spark_cluster.py::test_spark_on_gpu_machine
+          pytest python/raydp/tests/ -m"spark_gpu"
           ray stop --force
       - name: Test Examples
         run: |
