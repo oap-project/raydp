@@ -52,8 +52,7 @@ class NYC_Model(nn.Module):
         self.bn3 = nn.BatchNorm1d(64)
         self.bn4 = nn.BatchNorm1d(16)
 
-    def forward(self, *x):
-        x = torch.cat(x, dim=1)
+    def forward(self, x):
         x = F.relu(self.fc1(x))
         x = self.bn1(x)
         x = F.relu(self.fc2(x))
