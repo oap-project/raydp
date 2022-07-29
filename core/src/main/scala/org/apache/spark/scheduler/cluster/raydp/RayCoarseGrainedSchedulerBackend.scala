@@ -150,14 +150,12 @@ class RayCoarseGrainedSchedulerBackend(
       .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
     val rayActorCPU = conf.get(SparkOnRayConfigs.RAY_ACTOR_CPU_RESOURCE,
       sparkCoresPerExecutor.toString).toDouble
-    val rayActorGPU = conf.get(SparkOnRayConfigs.RAY_ACTOR_GPU_RESOURCE,
-      0.toString).toDouble
 
     val appDesc = ApplicationDescription(name = sc.appName, numExecutors = numExecutors,
       coresPerExecutor = coresPerExecutor, memoryPerExecutorMB = sc.executorMemory,
       command = command,
       resourceReqsPerExecutor = resourcesInMap,
-      rayActorCPU = rayActorCPU, rayActorGPU = rayActorGPU)
+      rayActorCPU = rayActorCPU)
 
     val rpcEnv = sc.env.rpcEnv
     appMasterRef.set(rpcEnv.setupEndpoint(

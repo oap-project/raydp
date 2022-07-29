@@ -40,7 +40,6 @@ public class RayExecutorUtils {
       String executorId,
       String appMasterURL,
       double cores,
-      double gpus,
       int memoryInMB,
       Map<String, Double> resources,
       PlacementGroup placementGroup,
@@ -51,9 +50,7 @@ public class RayExecutorUtils {
     creator.setJvmOptions(javaOpts);
     creator.setResource("CPU", cores);
     creator.setResource("memory", toMemoryUnits(memoryInMB));
-    if(gpus > 0d) {
-      creator.setResource("GPU", gpus);
-    }
+
     for (Map.Entry<String, Double> entry: resources.entrySet()) {
       creator.setResource(entry.getKey(), entry.getValue());
     }

@@ -232,18 +232,17 @@ class RayAppMaster(host: String,
         .coresPerExecutor
         .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
       val rayActorCPU = this.appInfo.desc.rayActorCPU
-      val rayActorGPU = this.appInfo.desc.rayActorGPU
 
       val memory = appInfo.desc.memoryPerExecutorMB
       val executorId = s"${appInfo.getNextExecutorId()}"
 
       logInfo(s"Requesting Spark executor with Ray logical resource " +
-        s"{ CPU: ${rayActorCPU}, GPU: ${rayActorGPU} }..")
+        s"{ CPU: ${rayActorCPU} }..")
       // TODO: Support generic fractional logical resources using prefix spark.ray.actor.resource.*
 
       val handler = RayExecutorUtils.createExecutorActor(
         executorId, getAppMasterEndpointUrl(),
-        rayActorCPU, rayActorGPU,
+        rayActorCPU,
         memory,
         // This won't work, Spark expect integer in custom resources,
         // please see python test test_spark_on_fractional_custom_resource

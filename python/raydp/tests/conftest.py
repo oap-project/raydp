@@ -81,32 +81,6 @@ def spark_on_ray_fraction_custom_resource(request):
 
 
 @pytest.fixture(scope="function")
-def spark_on_ray_gpu(request):
-    ray.shutdown()
-    # https://docs.ray.io/en/latest/ray-core/examples/testing-tips.html#tip-4-create-a-mini-cluster-with-ray-cluster-utils-cluster
-    cluster = Cluster(
-        initialize_head=True,
-        head_node_args={
-            "num_cpus": 2,
-            "num_gpus": 2
-        })
-
-    ray.init(address=cluster.address)
-
-    spark = raydp.init_spark(app_name="test_gpu",
-                             num_executors=1, executor_cores=1, executor_memory="500 M",
-                             configs={"spark.ray.actor.resource.gpu": "1",
-                                      "spark.ray.actor.resource.cpu": "1"})
-
-    def stop_all():
-        raydp.stop_spark()
-        ray.shutdown()
-
-    request.addfinalizer(stop_all)
-    return spark
-
-
-@pytest.fixture(scope="function")
 def spark_on_ray_fractional_cpu(request):
     ray.shutdown()
     cluster = Cluster(
@@ -119,9 +93,7 @@ def spark_on_ray_fractional_cpu(request):
 
     spark = raydp.init_spark(app_name="test_cpu_fraction",
                              num_executors=1, executor_cores=3, executor_memory="500 M",
-                             configs={"spark.ray.actor.resource.cpu": "0.1",
-                                      "spark.ray.actor.resource.gpu": "0",   # TODO: Fix this, Spark config have stale value
-                                      })
+                             configs={"spark.ray.actor.resource.cpu": "0.1"})
 
     def stop_all():
         raydp.stop_spark()
