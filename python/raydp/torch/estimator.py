@@ -247,11 +247,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         train_loss, data_size, batch_idx = 0, 0, 0
         for batch_idx, (inputs, targets) in enumerate(dataset):
             # Compute prediction error
-            inputs = [inputs[:,i].unsqueeze(1) for i in range(inputs.size(1))]
-            targets = targets.reshape(-1)
-            outputs = model(*inputs)
-            if outputs.dim() == 2 and outputs.size(1) == 1:
-                outputs = outputs.reshape(-1)
+            outputs = model(inputs)
             loss = criterion(outputs, targets)
             train_loss += loss.item()
             metrics.update(outputs, targets)
@@ -275,11 +271,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(dataset):
                 # Compute prediction error
-                inputs = [inputs[:,i].unsqueeze(1) for i in range(inputs.size(1))]
-                targets = targets.reshape(-1)
-                outputs = model(*inputs)
-                if outputs.dim() == 2 and outputs.size(1) == 1:
-                    outputs = outputs.reshape(-1)
+                outputs = model(inputs)
                 test_loss += criterion(outputs, targets).item()
                 metrics.update(outputs, targets)
                 data_size += targets.size(0)
