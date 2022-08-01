@@ -36,12 +36,16 @@ private[spark] case class ApplicationDescription(
     numExecutors: Int,
     coresPerExecutor: Option[Int],
     memoryPerExecutorMB: Int,
+    rayActorCPU: Double,
     command: Command,
     user: String = System.getProperty("user.name", "<unknown>"),
     resourceReqsPerExecutor: Map[String, Double] = Map.empty) {
 
   def withNewCommand(newCommand: Command): ApplicationDescription = {
-    ApplicationDescription(name, numExecutors, coresPerExecutor, memoryPerExecutorMB,
-      newCommand, user, resourceReqsPerExecutor)
+    ApplicationDescription(name = name,
+      numExecutors = numExecutors, coresPerExecutor = coresPerExecutor,
+      memoryPerExecutorMB = memoryPerExecutorMB, command = newCommand, user = user,
+      resourceReqsPerExecutor = resourceReqsPerExecutor,
+      rayActorCPU = rayActorCPU)
   }
 }

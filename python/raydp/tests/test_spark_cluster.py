@@ -29,12 +29,33 @@ from ray.util.placement_group import placement_group_table
 import raydp
 import raydp.utils as utils
 from raydp.spark.ray_cluster_master import RayDPSparkMaster, RAYDP_SPARK_MASTER_NAME
+from ray.cluster_utils import Cluster
 
 
 def test_spark(spark_on_ray_small):
     spark = spark_on_ray_small
     result = spark.range(0, 10).count()
     assert result == 10
+
+
+def test_spark_on_fractional_cpu(spark_on_ray_fractional_cpu):
+    spark = spark_on_ray_fractional_cpu
+    result = spark.range(0, 10).count()
+    assert result == 10
+
+
+@pytest.mark.error_on_custom_resource
+def test_spark_on_fractional_custom_resource(spark_on_ray_fraction_custom_resource):
+    try:
+        spark = raydp.init_spark(app_name="test_custom_resource_fraction",
+                                 num_executors=1, executor_cores=3, executor_memory="500 M",
+                                 configs={"spark.executor.resource.CUSTOM.amount": "0.1"})
+        spark.range(0, 10).count()
+    except Exception:
+        assert True
+        return
+
+    assert False
 
 
 def test_spark_remote(ray_cluster):
@@ -142,7 +163,13 @@ def test_placement_group(ray_cluster):
 
 def test_custom_installed_spark(custom_spark_dir):
     os.environ["SPARK_HOME"] = custom_spark_dir
-    ray.shutdown()
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 2
+        })
+
+    ray.init(address=cluster.address)
     spark = raydp.init_spark("custom_install_test", 1, 1, "500 M")
     spark_master_actor = ray.get_actor(name=RAYDP_SPARK_MASTER_NAME)
     spark_home = ray.get(spark_master_actor.get_spark_home.remote())
