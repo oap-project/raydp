@@ -97,6 +97,7 @@ jobs:
         run: |
           pip install pylint==2.8.3
           pylint --rcfile=python/pylintrc python/raydp
+          pylint --rcfile=python/pylintrc examples/*.py
       - name: Test with pytest
         run: |
           ray start --head --num-cpus 4
@@ -113,5 +114,5 @@ jobs:
           python examples/tensorflow_nyctaxi.py
           python examples/horovod_nyctaxi.py
           python examples/xgboost_ray_nyctaxi.py
-          python examples/raysgd_nyctaxi.py
+          python examples/raytrain_nyctaxi.py
           python examples/data_process.py

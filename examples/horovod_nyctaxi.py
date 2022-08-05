@@ -11,44 +11,42 @@ from raydp.spark import RayMLDataset
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 
 # Training settings
-parser = argparse.ArgumentParser(description='Horovod NYC taxi Example')
+parser = argparse.ArgumentParser(description="Horovod NYC taxi Example")
 parser.add_argument(
-    '--batch-size',
+    "--batch-size",
     type=int,
     default=64,
-    metavar='N',
-    help='input batch size for training (default: 64)')
+    metavar="N",
+    help="input batch size for training (default: 64)")
 parser.add_argument(
-    '--epochs',
+    "--epochs",
     type=int,
     default=5,
-    metavar='N',
-    help='number of epochs to train (default: 10)')
+    metavar="N",
+    help="number of epochs to train (default: 10)")
 parser.add_argument(
-    '--lr',
+    "--lr",
     type=float,
     default=0.01,
-    metavar='LR',
-    help='learning rate (default: 0.01)')
+    metavar="LR",
+    help="learning rate (default: 0.01)")
 parser.add_argument(
-    '--log-interval',
+    "--log-interval",
     type=int,
     default=10,
-    metavar='N',
-    help='how many batches to wait before logging training status')
+    metavar="N",
+    help="how many batches to wait before logging training status")
 
 args = parser.parse_args()
 
 class NYC_Model(nn.Module):
     def __init__(self, cols):
-        super(NYC_Model, self).__init__()
-        
+        super().__init__()
         self.fc1 = nn.Linear(cols, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 64)
         self.fc4 = nn.Linear(64, 16)
         self.fc5 = nn.Linear(16, 1)
-        
         self.bn1 = nn.BatchNorm1d(256)
         self.bn2 = nn.BatchNorm1d(128)
         self.bn3 = nn.BatchNorm1d(64)
@@ -65,7 +63,6 @@ class NYC_Model(nn.Module):
         x = F.relu(self.fc4(x))
         x = self.bn4(x)
         x = self.fc5(x)
-        
         return x
 
 def process_data():
@@ -112,15 +109,15 @@ def train_fn(dataset, num_features):
             loss.backward()
             optimizer.step()
             if batch_idx % args.log_interval == 0:
-                print('Train Epoch: {} \tLoss: {:.6f}'.format(
+                print("Train Epoch: {} \tLoss: {:.6f}".format(
                     epoch, loss.item()))
     for epoch in range(1, args.epochs + 1):
         train(epoch)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # connect to ray cluster
     import ray
-    # ray.init(address='auto')
+    # ray.init(address="auto")
     ray.init()
     torch_ds, num_features = process_data()
     # Start horovod workers on Ray
