@@ -18,6 +18,7 @@
 package org.apache.spark.deploy.raydp
 
 import java.io.{DataOutputStream, File, FileOutputStream}
+import java.net.InetAddress
 import java.nio.file.Files
 
 import py4j.GatewayServer
@@ -33,10 +34,17 @@ class AppMasterEntryPoint {
 }
 
 object AppMasterEntryPoint extends Logging {
+  private val localhost = InetAddress.getLoopbackAddress()
+
   initializeLogIfNecessary(true)
 
   def main(args: Array[String]): Unit = {
-    val server = new GatewayServer(new AppMasterEntryPoint())
+    val server = new GatewayServer.GatewayServerBuilder()
+      .javaPort(0)
+      .javaAddress(localhost)
+      .entryPoint(new AppMasterEntryPoint())
+      .build()
+
     server.start()
     val boundPort: Int = server.getListeningPort()
     if (boundPort == -1) {

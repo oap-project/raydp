@@ -23,6 +23,11 @@ import pytest
 import pyarrow
 import ray
 import ray._private.services
+import multiprocessing
+
+from multiprocessing import TimeoutError
+from multiprocessing.dummy import Pool as ThreadPool
+from functools import partial
 
 from ray.util.placement_group import placement_group_table
 
@@ -180,6 +185,46 @@ def test_custom_installed_spark(custom_spark_dir):
 
     assert result == 10
     assert spark_home == custom_spark_dir
+
+def start_spark(app_name):
+    try:
+        raydp.init_spark(app_name, 1, 1, "500 M")
+    except Exception as e:
+        raise e
+
+
+start_result = []
+
+
+def collect_result(result):
+    start_result.append(result)
+
+
+def abortable_worker(func, *args, **kwargs):
+    timeout = kwargs.get('timeout', None)
+    p = ThreadPool(1)
+    res = p.apply_async(func, args=args)
+    try:
+        out = res.get(timeout)
+        return True
+    except TimeoutError as e:
+        return False
+
+
+def test_init_spark_twice():
+    ray.shutdown()
+
+    pool = multiprocessing.Pool(maxtasksperchild=1)
+    for i in range(2):
+        abortable_func = partial(abortable_worker, start_spark, timeout=600)
+        pool.apply_async(abortable_func, args=["spark"], callback=collect_result)
+
+    pool.close()
+    pool.join()
+
+    assert start_result[0] is True
+    assert start_result[1] is True
+
 
 
 if __name__ == "__main__":
