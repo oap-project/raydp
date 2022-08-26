@@ -139,6 +139,36 @@ def test_placement_group(ray_cluster):
     ])
     assert num_non_removed_pgs == 0
 
+def test_reconstruction():
+    cluster = ray.cluster_utils.Cluster()
+    # Head node with no resources.
+    cluster.add_node(
+        num_cpus=0,
+        enable_object_reconstruction=True,
+    )
+    ray.init(address=cluster.address)
+    # Node to place the initial object.
+    node_to_kill = cluster.add_node(
+        num_cpus=1, resources={"node1": 1}, object_store_memory=10 ** 8
+    )
+    cluster.wait_for_nodes()
+    spark = raydp.init_spark('a', 1, 1, '500m')
+    df = spark.read.format("csv").option("header", "true") \
+            .option("inferSchema", "true") \
+            .load("file://"+ os.path.dirname(os.path.abspath(__file__)) + "../../../examples/fake_nyctaxi.csv")
+    jvm = spark._jvm.org.apache.spark.sql.raydp.ObjectStoreWriter
+    id = jvm.fromSparkRDD(df._jdf)
+    addr = jvm.getAddress()
+    ref = ray.ObjectRef(id[0])
+    worker = ray.worker.global_worker
+    worker.core_worker.deserialize_and_register_object_ref(
+        ref.binary(), ray.ObjectRef.nil(), addr, "")
+    # remove the node
+    cluster.remove_node(node_to_kill, allow_graceful=False)
+    cluster.add_node(
+        num_cpus=1, resources={"node1": 1}, object_store_memory=10 ** 8
+    )
+    ray.get(ref)
 
 def test_custom_installed_spark(custom_spark_dir):
     os.environ["SPARK_HOME"] = custom_spark_dir

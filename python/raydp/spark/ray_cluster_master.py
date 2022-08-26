@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import shutil
+import shlex
 import signal
 import struct
 import tempfile
@@ -27,13 +28,16 @@ from subprocess import Popen, PIPE
 from copy import copy
 import glob
 import ray
-from py4j.java_gateway import JavaGateway, GatewayParameters, java_import
+from py4j.java_gateway import java_import, JavaGateway, GatewayParameters
+from py4j.clientserver import ClientServer, JavaParameters, PythonParameters
+from pyspark.find_spark_home import _find_spark_home
+from pyspark.serializers import read_int, UTF8Deserializer
+
 
 logger = logging.getLogger(__name__)
 
 RAYDP_SPARK_MASTER_NAME = "RAYDP_SPARK_MASTER"
 
-# @ray.remote
 class RayDPSparkMaster():
     def __init__(self, configs):
         self._gateway = None
@@ -50,7 +54,8 @@ class RayDPSparkMaster():
         extra_classpath = os.pathsep.join(self._prepare_jvm_classpath())
         self._gateway = self._launch_gateway(extra_classpath, popen_kwargs)
         self._app_master_java_bridge = self._gateway.entry_point.getAppMasterBridge()
-        self._set_properties()
+        jvm_properties = self._generate_ray_configs()
+        self._gateway.jvm.org.apache.spark.deploy.raydp.RayAppMaster.setProperties(jvm_properties)
         self._host = ray.util.get_node_ip_address()
         self._create_app_master(extra_classpath)
         self._started_up = True
@@ -144,7 +149,7 @@ class RayDPSparkMaster():
 
         return gateway
 
-    def _set_properties(self):
+    def _generate_ray_configs(self):
         assert ray.is_initialized()
         options = copy(self._configs)
 
@@ -164,8 +169,7 @@ class RayDPSparkMaster():
         options["ray.job.namespace"] = ray.get_runtime_context().namespace
 
         # jnius_config.set_option has some bug, we set this options in java side
-        jvm_properties = json.dumps(options)
-        self._app_master_java_bridge.setProperties(jvm_properties)
+        return json.dumps(options)
 
     def get_host(self) -> str:
         assert self._started_up

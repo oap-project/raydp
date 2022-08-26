@@ -19,7 +19,7 @@ package org.apache.spark.sql.raydp
 
 
 import java.io.ByteArrayOutputStream
-import java.util.{List, Optional, UUID}
+import java.util.{ArrayList, List, Optional, UUID}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 import java.util.function.{Function => JFunction}
 
@@ -209,44 +209,62 @@ object ObjectStoreWriter {
     runtime.getObjectStore.getOwnershipInfo(objectId)
   }
 
-  def prepareGetRDDPartition(rdd: RDD[Array[Byte]],
-                             partition: Partition,
-                             preferredExecutorId: Int,
-                             executorIds: Array[String],
-                             schema: String,
-                             uuid: UUID): Array[Byte] = {
-    var handleOption = Ray.getActor("raydp-executor-" + preferredExecutorId)
-    val numExecutors = executorIds.length
-    val partitionId = partition.index
-    val i = 0
-    while (!handleOption.isPresent) {
-      handleOption = Ray.getActor("raydp-executor-" + executorIds((partitionId + i) % numExecutors))
-    }
-    val handle = handleOption.get.asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]]
-    val ref = RayExecutorUtils.getRDDPartition(
-        handle, rdd, partition, schema)
-    val queue = ObjectRefHolder.getQueue(uuid)
-    queue.add(ref)
-    RayDPUtils.convert(ref).getId.getBytes
-  }
+  // def prepareGetRDDPartition(rdd: RDD[Array[Byte]],
+  //                            partition: Partition,
+  //                            preferredExecutorId: Int,
+  //                            executorIds: Array[String],
+  //                            schema: String,
+  //                            uuid: UUID): Array[Byte] = {
+  //   var handleOption = Ray.getActor("raydp-executor-" + preferredExecutorId)
+  //   val numExecutors = executorIds.length
+  //   val partitionId = partition.index
+  //   println("prepare get rdd partition " + partitionId)
+  //   var i = 0
+  //   while (!handleOption.isPresent) {
+  //     handleOption = Ray.getActor("raydp-executor-" + executorIds((partitionId + i) % numExecutors))
+  //     i += 1
+  //   }
+  //   val handle = handleOption.get.asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]]
+  //   val ref = RayExecutorUtils.getRDDPartition(
+  //       handle, rdd, partition, schema)
+  //   val queue = ObjectRefHolder.getQueue(uuid)
+  //   queue.add(ref)
+  //   val waitlist = new ArrayList[ObjectRef[Array[Byte]]]()
+  //   waitlist.add(ref)
+  //   Ray.wait(waitlist, 1, -1, false)
+  //   // Thread.sleep(10000)
+  //   RayDPUtils.convert(ref).getId.getBytes
+  // }
 
   def fromSparkRDD(df: DataFrame): Array[Array[Byte]] = {
     if (!Ray.isInitialized) {
       Ray.init()
     }
     val uuid = dfToId.getOrElseUpdate(df, UUID.randomUUID())
+    val queue = ObjectRefHolder.getQueue(uuid)
     val rdd = df.toArrowBatchRdd
+    rdd.cache()
+    rdd.count()
     val executorIds = df.sqlContext.sparkContext.getExecutorIds.toArray
+    val numExecutors = executorIds.length
     val schema = ObjectStoreWriter.toArrowSchema(df).toJson
     val numPartitions = rdd.getNumPartitions
     val partitions = rdd.partitions
     // val locations = RayExecutorUtils.getBlockLocations(
     //     executors(0), rdd.id, numPartitions)
     val results = new Array[Array[Byte]](numPartitions)
+    val refs = new Array[ObjectRef[Array[Byte]]](numPartitions)
+    val handles = executorIds.map {id =>
+      Ray.getActor("raydp-executor-" + id).get.asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]]
+    }
     for (i <- 0 until numPartitions) {
       // TODO use getPreferredLocs, but we don't have a host ip to actor table now
-      results(i) = RayExecutorUtils.prepareGetRDDPartition(
-          rdd, partitions(i), i, executorIds, schema, uuid)
+      refs(i) = RayExecutorUtils.getRDDPartition(
+          handles(i), rdd, partitions(i), schema)
+      queue.add(refs(i))
+    }
+    for (i <- 0 until numPartitions) {
+      results(i) = RayDPUtils.convert(refs(i)).getId.getBytes
     }
     results
   }

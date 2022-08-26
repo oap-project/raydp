@@ -84,6 +84,11 @@ class SparkCluster(Cluster):
             spark_builder.enableHiveSupport()
         self._spark_session = \
             spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
+        # provide ray cluster config through jvm properties
+        # this is needed to connect to ray cluster during from_spark(fault tolerant)
+        jvm_properties = self._spark_master._generate_ray_configs()
+        jvm = self._spark_session._jvm
+        jvm.org.apache.spark.deploy.raydp.RayAppMaster.setProperties(jvm_properties)
         return self._spark_session
 
     def stop(self):

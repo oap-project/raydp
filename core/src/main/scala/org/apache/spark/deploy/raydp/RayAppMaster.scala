@@ -42,6 +42,8 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.raydp.ObjectStoreWriter
 import org.apache.spark.util.ShutdownHookManager
 import org.apache.spark.util.Utils
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 class RayAppMaster(host: String,
                    port: Int,
@@ -185,6 +187,24 @@ class RayAppMaster(host: String,
           }
         }
         context.reply(success)
+
+      case RequestAddPendingRestartedExecutor(executorId) =>
+        if (appInfo.remainingUnRegisteredExecutors > 0) {
+          val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
+          val memory = appInfo.desc.memoryPerExecutorMB
+          val newExecutorId = s"${appInfo.getNextExecutorId()}"
+          // ray actor will restart using the old ID
+          val handlerOpt = Ray.getActor("raydp-executor-" + executorId)
+          if (!handlerOpt.isPresent) {
+            context.reply(AddPendingRestartedExecutorReply(None))
+          } else {
+            val handler = handlerOpt.get.asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]]
+            appInfo.addPendingRegisterExecutor(newExecutorId, handler, cores, memory)
+            context.reply(AddPendingRestartedExecutorReply(Some(newExecutorId)))
+          }
+        } else {
+          context.reply(AddPendingRestartedExecutorReply(None))
+        }
     }
 
     override def onDisconnected(remoteAddress: RpcAddress): Unit = {
@@ -299,4 +319,14 @@ class RayAppMaster(host: String,
 object RayAppMaster extends Serializable {
   val ENV_NAME = "RAY_RPC_ENV"
   val ENDPOINT_NAME = "RAY_APP_MASTER"
+
+  def setProperties(properties: String): Unit = {
+    implicit val formats: DefaultFormats.type = org.json4s.DefaultFormats
+    val parsed = parse(properties).extract[Map[String, String]]
+    parsed.foreach{ case (key, value) =>
+      System.setProperty(key, value)
+    }
+    // Use the same session dir as the python side
+    RayConfig.create().setSessionDir(System.getProperty("ray.session-dir"))
+  }
 }

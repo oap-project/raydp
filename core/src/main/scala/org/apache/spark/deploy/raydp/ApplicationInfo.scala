@@ -55,8 +55,6 @@ private[spark] class ApplicationInfo(
   private var nextExecutorId: Int = _
   // this only count those registered executors and minus removed executors
   private var registeredExecutors: Int = 0
-  // this only count pending registered and minus
-  private var totalRequestedExecutors: Int = 0
 
   init()
 
@@ -117,7 +115,10 @@ private[spark] class ApplicationInfo(
       removedExecutors += executors(executorId)
       executors -= executorId
       coresGranted -= exec.cores
-      executorIdToHandler(executorId).kill(true) // kill the executor
+      // TODO: decide if actor can restart
+      // if it is lost accidentally, restart it
+      // otherwise, like decomission, no restart 
+      executorIdToHandler(executorId).kill(true)
       executorIdToHandler -= executorId
       true
     } else {
@@ -136,6 +137,12 @@ private[spark] class ApplicationInfo(
 
   def currentExecutors(): Int = {
     registeredExecutors
+  }
+
+  def isRemovedExecutor(executorId: String): Boolean = {
+    !removedExecutors.filter {desc =>
+      desc.executorId == executorId
+    }.isEmpty
   }
 
   def getNextExecutorId(): Int = {

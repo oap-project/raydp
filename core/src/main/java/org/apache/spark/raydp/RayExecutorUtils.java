@@ -65,10 +65,15 @@ public class RayExecutorUtils {
     for (Map.Entry<String, Double> entry: resources.entrySet()) {
       creator.setResource(entry.getKey(), entry.getValue());
     }
+    // if (Integer.parseInt(executorId) % 2 == 0) {
+    //   creator.setResource("node:10.0.2.139", 0.01);
+    // } else {
+    //   creator.setResource("node:10.0.2.140", 0.01);
+    // }
     if (placementGroup != null) {
       creator.setPlacementGroup(placementGroup, bundleIndex);
     }
-
+    creator.setMaxRestarts(3);
     return creator.remote();
   }
 
@@ -90,16 +95,16 @@ public class RayExecutorUtils {
         rddId, numPartitions).remote().get();
   }
 
-  public static byte[] prepareGetRDDPartition(
-      RDD<byte[]> rdd,
-      Partition partition,
-      int preferredExecutorId,
-      String[] executorIds,
-      String schema,
-      UUID uuid) {
-    return Ray.task(ObjectStoreWriter::prepareGetRDDPartition,
-        rdd, partition, preferredExecutorId, executorIds, schema, uuid).remote().get();
-  }
+  // public static ObjectRef<byte[]> prepareGetRDDPartition(
+  //     RDD<byte[]> rdd,
+  //     Partition partition,
+  //     int preferredExecutorId,
+  //     String[] executorIds,
+  //     String schema,
+  //     UUID uuid) {
+  //   return Ray.task(ObjectStoreWriter::prepareGetRDDPartition,
+  //       rdd, partition, preferredExecutorId, executorIds, schema, uuid).remote();
+  // }
 
   public static ObjectRef<byte[]> getRDDPartition(
       ActorHandle<RayCoarseGrainedExecutorBackend> handle,
@@ -108,6 +113,6 @@ public class RayExecutorUtils {
       String schema) {
     return (ObjectRefImpl<byte[]>) handle.task(
         RayCoarseGrainedExecutorBackend::getRDDPartition,
-        rdd, partition, schema).setForwardObjectToParentTask(true).remote();
+        rdd, partition, schema).remote();
   }
 }

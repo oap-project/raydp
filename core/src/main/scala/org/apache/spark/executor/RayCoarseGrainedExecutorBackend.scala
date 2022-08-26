@@ -26,6 +26,7 @@ import java.nio.file.Paths
 import java.nio.channels.{Channels, ReadableByteChannel}
 
 import io.ray.runtime.config.RayConfig
+import io.ray.api.Ray
 import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
 import org.apache.arrow.vector.ipc.message.{IpcOption, MessageSerializer}
 import org.apache.arrow.vector.ipc.{ArrowStreamWriter, WriteChannel}
@@ -37,7 +38,7 @@ import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.apache.spark.{Partition, RayDPException, SecurityManager, SparkConf, SparkContext, SparkEnv, TaskContext}
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.deploy.raydp.{ExecutorStarted, RegisterExecutor}
+import org.apache.spark.deploy.raydp._
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
 import org.apache.spark.rdd.RDD;
@@ -56,7 +57,7 @@ import org.apache.spark.sql.execution.python.BatchIterator
 
 
 class RayCoarseGrainedExecutorBackend(
-    val executorId: String,
+    var executorId: String,
     val appMasterURL: String) extends Logging {
 
   val nodeIp = RayConfig.create().nodeIp
@@ -91,7 +92,19 @@ class RayCoarseGrainedExecutorBackend(
           }
       }
     }
-
+    // Check if this actor is restarted
+    val ifRestarted = Ray.getRuntimeContext.wasCurrentActorRestarted
+    if (ifRestarted) {
+      val reply = appMaster.askSync[AddPendingRestartedExecutorReply](
+          RequestAddPendingRestartedExecutor(executorId))
+      // this executor might be restarted, use the returned new id and register self
+      if (!reply.newExecutorId.isEmpty) {
+        logInfo(s"Executor: ${executorId} seems to be restarted, registering using new id")
+        executorId = reply.newExecutorId.get
+      } else {
+        throw new RuntimeException(s"Executor ${executorId} restarted, but getActor failed.")
+      }
+    }
     val registeredResult = appMaster.askSync[Boolean](RegisterExecutor(executorId, nodeIp))
     if (registeredResult) {
       logInfo(s"Executor: ${executorId} register to app master success")
@@ -296,7 +309,7 @@ class RayCoarseGrainedExecutorBackend(
 
   def getRDDPartition(rdd: RDD[Array[Byte]], partition: Partition, schemaStr: String): Array[Byte] = {
     val env = SparkEnv.get
-    val context = new TaskContextImpl(0, 0, partition.index, 0, 0,
+    val context = new TaskContextImpl(0, 0, partition.index, -1024, 0,
         new TaskMemoryManager(env.memoryManager, 0), new Properties(), env.metricsSystem)
     TaskContext.setTaskContext(context)
   //   val rddIter = rdd.iterator(partition, context)
