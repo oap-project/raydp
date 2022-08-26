@@ -25,7 +25,6 @@ from ray import train
 from ray.train import Trainer
 from ray.train.tensorflow import prepare_dataset_shard
 from ray.data.dataset import Dataset
-from ray.data.impl.arrow_block import ArrowRow
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
 from raydp import stop_spark
@@ -199,8 +198,8 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         return results
 
     def fit(self,
-            train_ds: Dataset[ArrowRow],
-            evaluate_ds: Optional[Dataset[ArrowRow]] = None,
+            train_ds: Dataset,
+            evaluate_ds: Optional[Dataset] = None,
             max_retries=3) -> NoReturn:
         super().fit(train_ds, evaluate_ds)
         self._trainer = Trainer(backend="tensorflow", num_workers=self._num_workers,

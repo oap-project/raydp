@@ -31,7 +31,6 @@ from raydp.spark import spark_dataframe_to_ray_dataset
 from ray import train
 from ray.train import Trainer, TrainingCallback, get_dataset_shard
 from ray.data.dataset import Dataset
-from ray.data.impl.arrow_block import ArrowRow
 
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     """
@@ -282,8 +281,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         return eval_res, test_loss
 
     def fit(self,
-            train_ds: Dataset[ArrowRow],
-            evaluate_ds: Optional[Dataset[ArrowRow]] = None,
+            train_ds: Dataset,
+            evaluate_ds: Optional[Dataset] = None,
             max_retries=3) -> NoReturn:
         super().fit(train_ds, evaluate_ds)
 
