@@ -72,9 +72,9 @@ class NYC_Model(nn.Module):
 
 def process_data(num_workers):
     app_name = "NYC Taxi Fare Prediction with RayDP"
-    num_executors = 1
+    num_executors = 2
     cores_per_executor = 1
-    memory_per_executor = "2g"
+    memory_per_executor = "1g"
     # Use RayDP to perform data processing
     spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
     data = spark.read.format("csv").option("header", "true") \
@@ -84,17 +84,20 @@ def process_data(num_workers):
     spark.conf.set("spark.sql.session.timeZone", "UTC")
     data = nyc_taxi_preprocess(data)
     ds = ray.data.from_spark(data, parallelism=num_workers)
-    features = len(data.schema) - 1
+    features = [field.name for field in list(data.schema) if field.name != "fare_amount"]
     return ds, features
 
 def train_fn(config):
     hvd.init()
-    num_features = config.get("num_features")
+    features = config.get("features")
     rank = hvd.rank()
     train_data_shard = ray.train.get_dataset_shard("train")
-    train_data =train_data_shard.to_torch(label_column="fare_amount",
-                                              batch_size=args.batch_size)
-    model = NYC_Model(num_features)
+    train_data =train_data_shard.to_torch(feature_columns=features,
+                                          label_column="fare_amount",
+                                          label_column_dtype=torch.float,
+                                          feature_column_dtypes=torch.float,
+                                          batch_size=args.batch_size)
+    model = NYC_Model(len(features))
     lr_scaler = hvd.size()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr_scaler * args.lr)
     # Horovod: broadcast parameters & optimizer state.
@@ -121,11 +124,11 @@ def train_fn(config):
 if __name__ == "__main__":
     # connect to ray cluster
     import ray
-    ray.init(address="auto")
-    ds, num_features = process_data(args.num_workers)
+    ray.init()
+    ds, features = process_data(args.num_workers)
     trainer = Trainer(backend="horovod", num_workers=args.num_workers)
     trainer.start()
-    trainer.run(train_fn, dataset={"train": ds}, config={"num_features": num_features})
+    trainer.run(train_fn, dataset={"train": ds}, config={"features": features})
     trainer.shutdown()
     raydp.stop_spark()
     ray.shutdown()
