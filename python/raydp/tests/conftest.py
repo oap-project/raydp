@@ -42,21 +42,21 @@ def spark_session(request):
     return spark
 
 
-@pytest.fixture(scope="function", params=["localhost", "ray://localhost:10001"])
+@pytest.fixture(scope="function", params=["local", "ray://localhost:10001"])
 def ray_cluster(request):
     ray.shutdown()
-    if request.param == "localhost":
-        ray.init(num_cpus=4, include_dashboard=False)
+    if request.param == "local":
+        ray.init(address="local", num_cpus=4, include_dashboard=False)
     else:
         ray.init(address=request.param)
     request.addfinalizer(lambda: ray.shutdown())
 
 
-@pytest.fixture(scope="function", params=["localhost", "ray://localhost:10001"])
+@pytest.fixture(scope="function", params=["local", "ray://localhost:10001"])
 def spark_on_ray_small(request):
     ray.shutdown()
-    if request.param == "localhost":
-        ray.init(num_cpus=4, include_dashboard=False)
+    if request.param == "local":
+        ray.init(address="local", num_cpus=4, include_dashboard=False)
     else:
         ray.init(address=request.param)
     spark = raydp.init_spark("test", 1, 1, "500 M")
