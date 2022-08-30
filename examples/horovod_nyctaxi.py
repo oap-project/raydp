@@ -26,7 +26,7 @@ parser.add_argument(
 parser.add_argument(
     "--num-workers",
     type=int,
-    default=1,
+    default=2,
     metavar="N",
     help="number of workers to train (default: 1)")
 parser.add_argument(
@@ -72,7 +72,7 @@ class NYC_Model(nn.Module):
 
 def process_data(num_workers):
     app_name = "NYC Taxi Fare Prediction with RayDP"
-    num_executors = 2
+    num_executors = 1
     cores_per_executor = 1
     memory_per_executor = "1g"
     # Use RayDP to perform data processing
@@ -124,7 +124,7 @@ def train_fn(config):
 if __name__ == "__main__":
     # connect to ray cluster
     import ray
-    ray.init()
+    ray.init(address="local", num_cpus=4)
     ds, features = process_data(args.num_workers)
     trainer = Trainer(backend="horovod", num_workers=args.num_workers)
     trainer.start()
