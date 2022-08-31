@@ -7,7 +7,7 @@ import horovod.torch as hvd
 import raydp
 from ray.train import Trainer, get_dataset_shard
 
-from data_process import NYC_DATASET_SCHEMA, nyc_taxi_preprocess, NYC_TRAIN_CSV
+from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 
 # Training settings
 parser = argparse.ArgumentParser(description="Horovod NYC taxi Example")
@@ -78,7 +78,7 @@ def process_data(num_workers):
     # Use RayDP to perform data processing
     spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
     data = spark.read.format("csv").option("header", "true") \
-            .schema(NYC_DATASET_SCHEMA) \
+            .option("inferSchema", "true") \
             .load(NYC_TRAIN_CSV)
     # Set spark timezone for processing datetime
     spark.conf.set("spark.sql.session.timeZone", "UTC")

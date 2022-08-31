@@ -6,11 +6,6 @@ from pyspark.sql.functions import hour, quarter, month, year, dayofweek, dayofmo
 # change this to where the dataset is
 NYC_TRAIN_CSV = "file://" + dirname(realpath(__file__)) + "/fake_nyctaxi.csv"
 
-NYC_DATASET_SCHEMA = "key string, fare_amount float, pickup_datetime string, "   \
-                     "pickup_longitude float, pickup_latitude float, "            \
-                     "dropoff_longitude float, dropoff_latitude float, "          \
-                     "passenger_count integer"
-
 def clean_up(data):
     data = data.filter(col("pickup_longitude")<=-72) \
             .filter(col("pickup_longitude")>=-76) \
