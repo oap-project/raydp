@@ -18,7 +18,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, NoReturn, Optional
 
-from ray.util.data import MLDataset
 
 
 class EstimatorInterface(ABC):
@@ -28,8 +27,8 @@ class EstimatorInterface(ABC):
 
     @abstractmethod
     def fit(self,
-            train_ds: MLDataset,
-            evaluate_ds: Optional[MLDataset] = None) -> NoReturn:
+            train_ds,
+            evaluate_ds = None) -> NoReturn:
         """Train or evaluate the model.
 
         :param train_ds: the model will train on the MLDataset

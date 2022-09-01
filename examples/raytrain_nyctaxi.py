@@ -18,7 +18,7 @@ from typing import List, Dict
 # https://docs.ray.io/en/latest/package-ref.html
 
 # ray.init(address="auto")
-ray.init(num_cpus=6)
+ray.init(address="local", num_cpus=6)
 
 # After initialize ray cluster, you can use the raydp api to get a spark session
 app_name = "NYC Taxi Fare Prediction with RayDP"

@@ -160,7 +160,7 @@ def test_placement_group(ray_cluster):
     ])
     assert num_non_removed_pgs == 0
 
-
+@pytest.mark.skip("flaky")
 def test_custom_installed_spark(custom_spark_dir):
     os.environ["SPARK_HOME"] = custom_spark_dir
     cluster = Cluster(
