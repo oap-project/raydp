@@ -153,8 +153,8 @@ class RayDPSparkMaster():
         assert ray.is_initialized()
         options = copy(self._configs)
 
-        node = ray.worker.global_worker.node
-
+        node = ray._private.worker._global_node
+        print(node.address)
         options["ray.run-mode"] = "CLUSTER"
         options["ray.node-ip"] = node.node_ip_address
         options["ray.address"] = node.address

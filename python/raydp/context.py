@@ -126,6 +126,8 @@ class _SparkContext(ContextDecorator):
 
     def stop(self, del_obj_holder=True):
         if self._spark_session is not None:
+            jvm = self._spark_session._jvm.org.apache.spark.deploy.raydp.RayAppMaster
+            jvm.shutdownRay()
             self._spark_session.stop()
             self._spark_session = None
         if self.handle is not None and del_obj_holder is True:

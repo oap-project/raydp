@@ -329,4 +329,8 @@ object RayAppMaster extends Serializable {
     // Use the same session dir as the python side
     RayConfig.create().setSessionDir(System.getProperty("ray.session-dir"))
   }
+
+  def shutdownRay(): Unit = {
+    Ray.shutdown()
+  }
 }

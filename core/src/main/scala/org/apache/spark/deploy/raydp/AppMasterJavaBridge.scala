@@ -41,6 +41,7 @@ class AppMasterJavaBridge {
   def stop(): Unit = {
     if (instance != null) {
       instance.stop()
+      Ray.shutdown()
       instance = null
     }
   }
