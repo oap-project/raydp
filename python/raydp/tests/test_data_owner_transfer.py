@@ -29,7 +29,7 @@ def gen_test_data():
 
 @client_mode_wrap
 def ray_gc():
-  ray.internal.internal_api.global_gc()
+  ray._private.internal_api.global_gc()
   
 def test_fail_without_data_ownership_transfer(ray_cluster):
   """

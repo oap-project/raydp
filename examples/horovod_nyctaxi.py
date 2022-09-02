@@ -2,11 +2,10 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data.dataloader import DataLoader
 
 import horovod.torch as hvd
 import raydp
-from raydp.spark import RayMLDataset
+from ray.train import Trainer, get_dataset_shard
 
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 
@@ -23,7 +22,13 @@ parser.add_argument(
     type=int,
     default=5,
     metavar="N",
-    help="number of epochs to train (default: 10)")
+    help="number of epochs to train (default: 5)")
+parser.add_argument(
+    "--num-workers",
+    type=int,
+    default=2,
+    metavar="N",
+    help="number of workers to train (default: 1)")
 parser.add_argument(
     "--lr",
     type=float,
@@ -65,11 +70,11 @@ class NYC_Model(nn.Module):
         x = self.fc5(x)
         return x
 
-def process_data():
+def process_data(num_workers):
     app_name = "NYC Taxi Fare Prediction with RayDP"
     num_executors = 1
     cores_per_executor = 1
-    memory_per_executor = "500M"
+    memory_per_executor = "1g"
     # Use RayDP to perform data processing
     spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
     data = spark.read.format("csv").option("header", "true") \
@@ -78,17 +83,21 @@ def process_data():
     # Set spark timezone for processing datetime
     spark.conf.set("spark.sql.session.timeZone", "UTC")
     data = nyc_taxi_preprocess(data)
-    ds = RayMLDataset.from_spark(data, 1, args.batch_size)
+    ds = ray.data.from_spark(data, parallelism=num_workers)
     features = [field.name for field in list(data.schema) if field.name != "fare_amount"]
-    return ds.to_torch(feature_columns=features, label_column="fare_amount"), len(features)
+    return ds, features
 
-def train_fn(dataset, num_features):
+def train_fn(config):
     hvd.init()
+    features = config.get("features")
     rank = hvd.rank()
-    print(rank)
-    train_data = dataset.get_shard(rank)
-    train_loader = DataLoader(train_data, batch_size=args.batch_size)
-    model = NYC_Model(num_features)
+    train_data_shard = ray.train.get_dataset_shard("train")
+    train_data =train_data_shard.to_torch(feature_columns=features,
+                                          label_column="fare_amount",
+                                          label_column_dtype=torch.float,
+                                          feature_column_dtypes=torch.float,
+                                          batch_size=args.batch_size)
+    model = NYC_Model(len(features))
     lr_scaler = hvd.size()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr_scaler * args.lr)
     # Horovod: broadcast parameters & optimizer state.
@@ -100,11 +109,9 @@ def train_fn(dataset, num_features):
                                          op=hvd.Average)
     def train(epoch):
         model.train()
-        for batch_idx, data in enumerate(train_loader):
-            feature = data[:-1]
-            target = data[-1]
+        for batch_idx, (feature, target) in enumerate(train_data):
             optimizer.zero_grad()
-            output = model(*feature)
+            output = model(feature)
             loss = F.smooth_l1_loss(output, target)
             loss.backward()
             optimizer.step()
@@ -117,14 +124,11 @@ def train_fn(dataset, num_features):
 if __name__ == "__main__":
     # connect to ray cluster
     import ray
-    # ray.init(address="auto")
-    ray.init()
-    torch_ds, num_features = process_data()
-    # Start horovod workers on Ray
-    from horovod.ray import RayExecutor
-    settings = RayExecutor.create_settings(500)
-    executor = RayExecutor(settings, num_workers=1, cpus_per_worker=1)
-    executor.start()
-    executor.run(train_fn, args=[torch_ds, num_features])
+    ray.init(address="local", num_cpus=4)
+    ds, features = process_data(args.num_workers)
+    trainer = Trainer(backend="horovod", num_workers=args.num_workers)
+    trainer.start()
+    trainer.run(train_fn, dataset={"train": ds}, config={"features": features})
+    trainer.shutdown()
     raydp.stop_spark()
     ray.shutdown()

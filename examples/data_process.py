@@ -103,7 +103,7 @@ def nyc_taxi_preprocess(data):
 if __name__ == "__main__":
     import ray
     import raydp
-    ray.init()
+    ray.init(address="local", num_cpus=4)
     spark = raydp.init_spark("NYCTAXI data processing",
                              num_executors=1,
                              executor_cores=1,

@@ -30,7 +30,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.7, 3.8, 3.9]
         spark-version: [3.1.3, 3.2.1]
 
     runs-on: ${{ matrix.os }}
@@ -76,7 +76,7 @@ jobs:
           else
             pip install torch
           fi
-          pip install ray==1.12 pytest koalas tensorflow==2.5.1 tabulate xgboost_ray[default] grpcio-tools wget
+          pip install ray[default]==2.0.0 pytest koalas tensorflow==2.5.1 tabulate xgboost_ray[default] grpcio-tools wget
           pip install torchmetrics
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
