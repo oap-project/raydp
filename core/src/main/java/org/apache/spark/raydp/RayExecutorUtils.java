@@ -115,4 +115,10 @@ public class RayExecutorUtils {
         RayCoarseGrainedExecutorBackend::getRDDPartition,
         rdd, partition, schema).remote();
   }
+
+  public static void exitExecutor(
+    ActorHandle<RayCoarseGrainedExecutorBackend> handle
+  ) {
+    handle.task(RayCoarseGrainedExecutorBackend::stop).remote();
+  }
 }

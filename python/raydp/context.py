@@ -112,7 +112,7 @@ class _SparkContext(ContextDecorator):
     def get_or_create_session(self):
         if self._spark_session is not None:
             return self._spark_session
-        self.handle = RayDPConversionHelper.options(name=RAYDP_OBJ_HOLDER_NAME).remote()
+        # self.handle = RayDPConversionHelper.options(name=RAYDP_OBJ_HOLDER_NAME).remote()
         self._prepare_placement_group()
         spark_cluster = self._get_or_create_spark_cluster()
         self._spark_session = spark_cluster.get_spark_session(
@@ -130,9 +130,9 @@ class _SparkContext(ContextDecorator):
             jvm.shutdownRay()
             self._spark_session.stop()
             self._spark_session = None
-        if self.handle is not None and del_obj_holder is True:
-            self.handle.terminate.remote()
-            self.handle = None
+        # if self.handle is not None and del_obj_holder is True:
+        #     self.handle.terminate.remote()
+        #     self.handle = None
         if self._spark_cluster is not None:
             self._spark_cluster.stop()
             self._spark_cluster = None

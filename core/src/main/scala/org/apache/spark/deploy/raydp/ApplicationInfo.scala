@@ -25,6 +25,7 @@ import io.ray.api.ActorHandle
 
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.internal.Logging
+import org.apache.spark.raydp.RayExecutorUtils
 import org.apache.spark.resource.ResourceInformation
 import org.apache.spark.rpc.{RpcAddress, RpcEndpointRef}
 
@@ -118,7 +119,8 @@ private[spark] class ApplicationInfo(
       // TODO: decide if actor can restart
       // if it is lost accidentally, restart it
       // otherwise, like decomission, no restart 
-      executorIdToHandler(executorId).kill(true)
+      // executorIdToHandler(executorId).kill(true)
+      RayExecutorUtils.exitExecutor(executorIdToHandler(executorId))
       executorIdToHandler -= executorId
       true
     } else {

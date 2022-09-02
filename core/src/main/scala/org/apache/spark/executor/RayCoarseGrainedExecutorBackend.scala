@@ -293,6 +293,13 @@ class RayCoarseGrainedExecutorBackend(
     }
   }
 
+  def stop(): Unit = {
+    // this method should only be called in onDisconnected of RayAppMaster
+    // that means spark executor should already be dead
+    // this function only deals with ray actor
+    Ray.exitActor
+  }
+
   def getBlockLocations(rddId: Int, numPartitions: Int): Array[String] = {
     val env = SparkEnv.get
     val blockIds = (0 until numPartitions).map(i => 
