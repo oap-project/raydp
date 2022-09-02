@@ -24,12 +24,13 @@ import ray._private.services
 from pyspark.sql.session import SparkSession
 
 from raydp.services import Cluster
-from .ray_cluster_master import RAYDP_SPARK_MASTER_NAME, RayDPSparkMaster
+from .ray_cluster_master import RAYDP_SPARK_MASTER_SUFFIX, RayDPSparkMaster
 
 
 class SparkCluster(Cluster):
-    def __init__(self, configs):
+    def __init__(self, app_name, configs):
         super().__init__(None)
+        self._app_name = app_name
         self._spark_master_handle = None
         self._configs = configs
         self._set_up_master(None, None)
@@ -37,9 +38,10 @@ class SparkCluster(Cluster):
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[Any, Any]):
         # TODO: specify the app master resource
-        self._spark_master_handle = RayDPSparkMaster.options(name=RAYDP_SPARK_MASTER_NAME) \
-                                                   .remote(self._configs)
-        self._spark_master_handle.start_up.remote()
+        spark_master_name = self._app_name + RAYDP_SPARK_MASTER_SUFFIX
+        self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name) \
+                                                    .remote(self._configs)
+        ray.get(self._spark_master_handle.start_up.remote())
 
     def _set_up_worker(self, resources: Dict[str, float], kwargs: Dict[str, str]):
         raise Exception("Unsupported operation")

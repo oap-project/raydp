@@ -23,17 +23,14 @@ import pytest
 import pyarrow
 import ray
 import ray._private.services
-import multiprocessing
 
-from multiprocessing import TimeoutError
-from multiprocessing.dummy import Pool as ThreadPool
-from functools import partial
+from multiprocessing import Array, Barrier, Process
 
 from ray.util.placement_group import placement_group_table
 
 import raydp
 import raydp.utils as utils
-from raydp.spark.ray_cluster_master import RayDPSparkMaster, RAYDP_SPARK_MASTER_NAME
+from raydp.spark.ray_cluster_master import RayDPSparkMaster, RAYDP_SPARK_MASTER_SUFFIX
 from ray.cluster_utils import Cluster
 
 
@@ -175,8 +172,9 @@ def test_custom_installed_spark(custom_spark_dir):
         })
 
     ray.init(address=cluster.address)
-    spark = raydp.init_spark("custom_install_test", 1, 1, "500 M")
-    spark_master_actor = ray.get_actor(name=RAYDP_SPARK_MASTER_NAME)
+    app_name = "custom_install_test"
+    spark = raydp.init_spark(app_name, 1, 1, "500 M")
+    spark_master_actor = ray.get_actor(name=app_name + RAYDP_SPARK_MASTER_SUFFIX)
     spark_home = ray.get(spark_master_actor.get_spark_home.remote())
 
     result = spark.range(0, 10).count()
@@ -186,46 +184,33 @@ def test_custom_installed_spark(custom_spark_dir):
     assert result == 10
     assert spark_home == custom_spark_dir
 
-def start_spark(app_name):
+def start_spark(barrier, i, results):
     try:
-        raydp.init_spark(app_name, 1, 1, "500 M")
+        barrier.wait()
+        if i == 1:
+            time.sleep(1)
+        ray.init(address='auto')
+        raydp.init_spark(f"spark-{i}", 1, 1, "500 M")
+        results[i] = 0
+        raydp.stop_spark()
+        ray.shutdown()
     except Exception as e:
-        raise e
-
-
-start_result = []
-
-
-def collect_result(result):
-    start_result.append(result)
-
-
-def abortable_worker(func, *args, **kwargs):
-    timeout = kwargs.get('timeout', None)
-    p = ThreadPool(1)
-    res = p.apply_async(func, args=args)
-    try:
-        out = res.get(timeout)
-        return True
-    except TimeoutError as e:
-        return False
-
+        results[i] = -1
 
 def test_init_spark_twice():
-    ray.shutdown()
-
-    pool = multiprocessing.Pool(maxtasksperchild=1)
+    num_processes = 2
+    barrier = Barrier(num_processes)
+    results = Array('i', [0] * num_processes)
+    processes = [Process(target=start_spark, args=(barrier, i, results)) for i in range(num_processes)]
+    
     for i in range(2):
-        abortable_func = partial(abortable_worker, start_spark, timeout=600)
-        pool.apply_async(abortable_func, args=["spark"], callback=collect_result)
+        processes[i].start()
 
-    pool.close()
-    pool.join()
+    for i in range(2):
+        processes[i].join()
 
-    assert start_result[0] is True
-    assert start_result[1] is True
-
-
+    assert results[0] == 0
+    assert results[1] == 0
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))

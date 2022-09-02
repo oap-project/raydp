@@ -150,9 +150,9 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
     jvm = df.sql_ctx.sparkSession.sparkContext._jvm
     jdf = df._jdf
     object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
-
+    obj_holder_name = df.sql_ctx.sparkSession.sparkContext.appName + RAYDP_OBJ_HOLDER_SUFFIX
     if _use_owner is True:
-        records = object_store_writer.save(use_batch, RAYDP_OBJ_HOLDER_NAME)
+        records = object_store_writer.save(use_batch, obj_holder_name)
     else:
         records = object_store_writer.save(use_batch, "")
 
@@ -161,7 +161,7 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
     blocks, block_sizes = _register_objects(record_tuples)
 
     if _use_owner is True:
-        holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
+        holder = ray.get_actor(obj_holder_name)
         df_id = uuid.uuid4()
         ray.get(holder.add_objects.remote(df_id, blocks))
 
@@ -200,13 +200,14 @@ class RayDPConversionHelper():
         self.this_actor_id = ray.get_runtime_context().actor_id
         return self.this_actor_id
 
-RAYDP_OBJ_HOLDER_NAME = "raydp_obj_holder"
+RAYDP_OBJ_HOLDER_SUFFIX = "_OBJ_HOLDER"
 
 def _convert_by_udf(spark: sql.SparkSession,
                     blocks: List[ObjectRef],
                     locations: List[bytes],
                     schema: StructType) -> DataFrame:
-    holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
+    app_name = spark.sparkContext.appName
+    holder = ray.get_actor(app_name + RAYDP_OBJ_HOLDER_SUFFIX)
     df_id = uuid.uuid4()
     ray.get(holder.add_objects.remote(df_id, blocks))
     jvm = spark.sparkContext._jvm
@@ -222,7 +223,7 @@ def _convert_by_udf(spark: sql.SparkSession,
             ray.init(address=ray_address,
                      namespace=current_namespace,
                      logging_level=logging.WARN)
-        obj_holder = ray.get_actor(RAYDP_OBJ_HOLDER_NAME)
+        obj_holder = ray.get_actor(RAYDP_OBJ_HOLDER_SUFFIX)
         for block in blocks:
             dfs = []
             for idx in block["idx"]:

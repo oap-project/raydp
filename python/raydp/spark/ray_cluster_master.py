@@ -31,7 +31,7 @@ from py4j.java_gateway import JavaGateway, GatewayParameters
 
 logger = logging.getLogger(__name__)
 
-RAYDP_SPARK_MASTER_NAME = "RAYDP_SPARK_MASTER"
+RAYDP_SPARK_MASTER_SUFFIX = "_SPARK_MASTER"
 
 @ray.remote
 class RayDPSparkMaster():
