@@ -184,25 +184,25 @@ def test_custom_installed_spark(custom_spark_dir):
     assert result == 10
     assert spark_home == custom_spark_dir
 
-def start_spark(barrier, i, results):
-    try:
-        barrier.wait()
-        if i == 1:
-            time.sleep(1)
-        ray.init(address='auto')
-        raydp.init_spark(f"spark-{i}", 1, 1, "500 M")
-        results[i] = 0
-        raydp.stop_spark()
-        ray.shutdown()
-    except Exception as e:
-        results[i] = -1
-
 def test_init_spark_twice():
+    def start_spark(barrier, i, results):
+        try:
+            # connect to the cluster started before pytest
+            ray.init(address="auto")
+            # wait on barrier to ensure 2 processes are connected
+            # to the same ray cluster at the same time
+            barrier.wait()
+            raydp.init_spark(f"spark-{i}", 1, 1, "500 M")
+            raydp.stop_spark()
+            ray.shutdown()
+            results[i] = 0
+        except Exception as e:
+            results[i] = -1
     num_processes = 2
     barrier = Barrier(num_processes)
-    results = Array('i', [0] * num_processes)
+    # shared memory for processes to return if spark started successfully
+    results = Array('i', [-1] * num_processes)
     processes = [Process(target=start_spark, args=(barrier, i, results)) for i in range(num_processes)]
-    
     for i in range(2):
         processes[i].start()
 
