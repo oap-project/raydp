@@ -206,8 +206,8 @@ def _convert_by_udf(spark: sql.SparkSession,
                     blocks: List[ObjectRef],
                     locations: List[bytes],
                     schema: StructType) -> DataFrame:
-    app_name = spark.sparkContext.appName
-    holder = ray.get_actor(app_name + RAYDP_OBJ_HOLDER_SUFFIX)
+    holder_name  = spark.sparkContext.appName + RAYDP_OBJ_HOLDER_SUFFIX
+    holder = ray.get_actor(holder_name)
     df_id = uuid.uuid4()
     ray.get(holder.add_objects.remote(df_id, blocks))
     jvm = spark.sparkContext._jvm
@@ -223,7 +223,7 @@ def _convert_by_udf(spark: sql.SparkSession,
             ray.init(address=ray_address,
                      namespace=current_namespace,
                      logging_level=logging.WARN)
-        obj_holder = ray.get_actor(RAYDP_OBJ_HOLDER_SUFFIX)
+        obj_holder = ray.get_actor(holder_name)
         for block in blocks:
             dfs = []
             for idx in block["idx"]:
