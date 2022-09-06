@@ -74,6 +74,7 @@ public class RayExecutorUtils {
       creator.setPlacementGroup(placementGroup, bundleIndex);
     }
     creator.setMaxRestarts(3);
+    creator.setMaxTaskRetries(3);
     return creator.remote();
   }
 
