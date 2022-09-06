@@ -24,7 +24,7 @@ import pyarrow
 import ray
 import ray._private.services
 
-from multiprocessing import Array, Barrier, Process
+from multiprocessing import Array, Barrier, Process, set_start_method
 
 from ray.util.placement_group import placement_group_table
 
@@ -199,6 +199,7 @@ def start_spark(barrier, i, results):
         results[i] = -1
 
 def test_init_spark_twice():
+    set_start_method("spawn")
     num_processes = 2
     barrier = Barrier(num_processes)
     # shared memory for processes to return if spark started successfully
