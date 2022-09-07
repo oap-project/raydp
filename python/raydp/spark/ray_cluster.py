@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional
 
 import ray
 import ray._private.services
+import pyspark
 from pyspark.sql.session import SparkSession
 
 from raydp.services import Cluster
@@ -67,13 +68,17 @@ class SparkCluster(Cluster):
         extra_conf["spark.driver.bindAddress"] = str(driver_node_ip)
         RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
         RAY_CP = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
+        # A workaround for the spark driver to bind to its slf4j-log4j jar instead of the one from
+        # Ray's jar. Without this, the driver produces INFO logs and the level cannot be changed.
+        spark_home = os.environ.get("SPARK_HOME", os.path.dirname(pyspark.__file__))
+        log4j_path = os.path.abspath(os.path.join(spark_home, "jars/slf4j-log4j*.jar"))
         try:
             extra_jars = [extra_conf["spark.jars"]]
         except KeyError:
             extra_jars = []
         extra_conf["spark.jars"] = ",".join(glob.glob(RAYDP_CP) + extra_jars)
         driver_cp_key = "spark.driver.extraClassPath"
-        driver_cp = ":".join(glob.glob(RAYDP_CP) + glob.glob(RAY_CP))
+        driver_cp = ":".join(glob.glob(log4j_path) + glob.glob(RAYDP_CP) + glob.glob(RAY_CP))
         if driver_cp_key in extra_conf:
             extra_conf[driver_cp_key] = driver_cp + ":" + extra_conf[driver_cp_key]
         else:
