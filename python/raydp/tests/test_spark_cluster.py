@@ -199,6 +199,7 @@ def start_spark(barrier, i, results):
     except Exception as e:
         results[i] = -1
 
+@pytest.mark.skip("flaky")
 def test_init_spark_twice():
     num_processes = 2
     ctx = get_context("spawn")
