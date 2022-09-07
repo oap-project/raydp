@@ -24,7 +24,7 @@ import pyarrow
 import ray
 import ray._private.services
 
-from multiprocessing import Array, Barrier, Process, set_start_method
+from multiprocessing import get_context
 
 from ray.util.placement_group import placement_group_table
 
@@ -188,31 +188,32 @@ def start_spark(barrier, i, results):
     try:
         # connect to the cluster started before pytest
         ray.init(address="auto")
-        # wait on barrier to ensure 2 processes are connected
-        # to the same ray cluster at the same time
+        spark = raydp.init_spark(f"spark-{i}", 1, 1, "500 M")
+        # wait on barrier to ensure 2 spark sessions
+        # are active on the same ray cluster at the same time
         barrier.wait()
-        raydp.init_spark(f"spark-{i}", 1, 1, "500 M")
+        df = spark.range(10)
+        results[i] = df.count()
         raydp.stop_spark()
         ray.shutdown()
-        results[i] = 0
     except Exception as e:
         results[i] = -1
 
 def test_init_spark_twice():
-    set_start_method("spawn")
     num_processes = 2
-    barrier = Barrier(num_processes)
+    ctx = get_context("spawn")
+    barrier = ctx.Barrier(num_processes)
     # shared memory for processes to return if spark started successfully
-    results = Array('i', [-1] * num_processes)
-    processes = [Process(target=start_spark, args=(barrier, i, results)) for i in range(num_processes)]
+    results = ctx.Array('i', [-1] * num_processes)
+    processes = [ctx.Process(target=start_spark, args=(barrier, i, results)) for i in range(num_processes)]
     for i in range(2):
         processes[i].start()
 
     for i in range(2):
         processes[i].join()
 
-    assert results[0] == 0
-    assert results[1] == 0
+    assert results[0] == 10
+    assert results[1] == 10
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))
