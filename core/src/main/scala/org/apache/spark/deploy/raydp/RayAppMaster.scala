@@ -19,7 +19,7 @@ package org.apache.spark.deploy.raydp
 
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.{Date, Locale}
+import java.util.{Date, Locale, UUID}
 import javax.xml.bind.DatatypeConverter
 
 import scala.collection.JavaConverters._
@@ -203,7 +203,10 @@ class RayAppMaster(host: String,
 
     /** Generate a new app ID given an app's submission date */
     private def newApplicationId(submitDate: Date): String = {
-      val appId = "app-%s-%04d".format(createDateFormat.format(submitDate), nextAppNumber)
+      val uuid = UUID.randomUUID
+      val appId = "app-%s-%04d-%s".format(createDateFormat.format(submitDate),
+                                          nextAppNumber,
+                                          uuid.toString)
       nextAppNumber += 1
       appId
     }
