@@ -35,6 +35,7 @@ import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 
 import org.apache.spark.Partition;
+import org.apache.spark.deploy.raydp.{RayAppMasterUtils, RayDPDriverAgent}
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.raydp.{RayDPUtils, RayExecutorUtils}
 import org.apache.spark.rdd.RDD;
@@ -189,6 +190,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
 object ObjectStoreWriter {
   val dfToId = new mutable.HashMap[DataFrame, UUID]()
+  var driverAgentHandle: ActorHandle[RayDPDriverAgent] = null
 
   def toArrowSchema(df: DataFrame): Schema = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
@@ -239,6 +241,7 @@ object ObjectStoreWriter {
   def fromSparkRDD(df: DataFrame): Array[Array[Byte]] = {
     if (!Ray.isInitialized) {
       Ray.init()
+      driverAgentHandle = RayAppMasterUtils.createDriverAgent("RAYDP_DRIVER_AGENT")
     }
     val uuid = dfToId.getOrElseUpdate(df, UUID.randomUUID())
     val queue = ObjectRefHolder.getQueue(uuid)

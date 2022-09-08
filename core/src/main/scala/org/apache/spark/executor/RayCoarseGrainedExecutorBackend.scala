@@ -26,7 +26,7 @@ import java.nio.file.Paths
 import java.nio.channels.{Channels, ReadableByteChannel}
 
 import io.ray.runtime.config.RayConfig
-import io.ray.api.Ray
+import io.ray.api.{Ray, ActorHandle}
 import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
 import org.apache.arrow.vector.ipc.message.{IpcOption, MessageSerializer}
 import org.apache.arrow.vector.ipc.{ArrowStreamWriter, WriteChannel}
@@ -66,6 +66,7 @@ class RayCoarseGrainedExecutorBackend(
   private var temporaryRpcEnv: Option[RpcEnv] = None
   private var executorRunningThread: Thread = null
   private var workingDir: File = null
+  private var started: Boolean = false
 
   init()
 
@@ -142,6 +143,7 @@ class RayCoarseGrainedExecutorBackend(
       }
     }
     executorRunningThread.start()
+    started = true
   }
 
   def createWorkingDir(appId: String): Unit = {
@@ -323,12 +325,29 @@ class RayCoarseGrainedExecutorBackend(
   //   val allocator = ObjectStoreWriter.getArrowAllocator(s"${rdd.id}_${partition.index}")
     val schema = Schema.fromJSON(schemaStr)
   //   val root = VectorSchemaRoot.create(schema, allocator)
+    var iterator: Iterator[Array[Byte]] = null
+    try {
+      iterator = rdd.iterator(partition, context)
+    } catch {
+      case e: Exception =>
+        // might need to cache rdd again, e.g., due to failure
+        val handleOpt = Ray.getActor("RAYDP_DRIVER_AGENT")
+        if (!handleOpt.isPresent) {
+          throw new RayDPException("RayDPDriverAgent is not available")
+        }
+        val handle = handleOpt.get.asInstanceOf[ActorHandle[RayDPDriverAgent]]
+        RayAppMasterUtils.recacheRDD(handle, rdd.id)
+        iterator = rdd.iterator(partition, context)
+    }
     val byteOut = new ByteArrayOutputStream()
     val writeChannel = new WriteChannel(Channels.newChannel(byteOut))
     MessageSerializer.serialize(writeChannel, schema)
-    rdd.iterator(partition, context).foreach(writeChannel.write)
+    iterator.foreach(writeChannel.write)
     ArrowStreamWriter.writeEndOfStream(writeChannel, new IpcOption)
-    byteOut.toByteArray
+    val result = byteOut.toByteArray
+    writeChannel.close
+    byteOut.close
+    result
   //   val arrowWriter = ArrowWriter.create(root)
   //   var results: Array[Byte] = null
   //   // val accessor = InternalRow.getAccessor(IntegerType)
