@@ -60,3 +60,6 @@ spark = raydp.init_spark(...,enable_hive=True)
 spark.sql("select * from db.xxx").show()
 ```
 
+### Logging
++ Driver Log: By default, the spark driver log level is WARN. After getting a Spark session by running `spark = raydp.init_spark`, you can change the log level for example `spark.sparkContext.setLogLevel("INFO")`. You will also see some AppMaster INFO logs on the driver. This is because Ray redirects the actor logs to driver by default. To disable logging to driver, you can set it in Ray init `ray.init(log_to_driver=False)`
++ Executor Log: The spark executor logs are stored in Ray's logging directory. By default they are available at /tmp/ray/session_\*/logs/java-worker-\*.log
