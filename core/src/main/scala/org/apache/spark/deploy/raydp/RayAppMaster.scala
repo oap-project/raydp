@@ -98,14 +98,13 @@ class RayAppMaster(host: String,
   class RayAppMasterEndpoint(override val rpcEnv: RpcEnv)
       extends ThreadSafeRpcEndpoint with Logging {
     // For application IDs
-    private def createDateFormat = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US)
+    private def createDateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS", Locale.US)
     private var driverEndpoint: RpcEndpointRef = null
     private var driverAddress: RpcAddress = null
     private var appInfo: ApplicationInfo = null
     private var nodesWithShuffleService
                   = new HashMap[String, ActorHandle[RayExternalShuffleService]]()
 
-    private var nextAppNumber = 0
     private val shuffleServiceOptions = RayExternalShuffleService.getShuffleConf(conf)
 
     private val placementGroup: PlacementGroup = conf
@@ -203,8 +202,7 @@ class RayAppMaster(host: String,
 
     /** Generate a new app ID given an app's submission date */
     private def newApplicationId(submitDate: Date): String = {
-      val appId = "app-%s-%04d".format(createDateFormat.format(submitDate), nextAppNumber)
-      nextAppNumber += 1
+      val appId = "app-%s".format(createDateFormat.format(submitDate))
       appId
     }
 
