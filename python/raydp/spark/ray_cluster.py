@@ -21,15 +21,17 @@ from typing import Any, Dict, Optional
 
 import ray
 import ray._private.services
+import pyspark
 from pyspark.sql.session import SparkSession
 
 from raydp.services import Cluster
-from .ray_cluster_master import RAYDP_SPARK_MASTER_NAME, RayDPSparkMaster
+from .ray_cluster_master import RAYDP_SPARK_MASTER_SUFFIX, RayDPSparkMaster
 
 
 class SparkCluster(Cluster):
-    def __init__(self, configs):
+    def __init__(self, app_name, configs):
         super().__init__(None)
+        self._app_name = app_name
         self._spark_master = None
         self._configs = configs
         self._set_up_master(None, None)
@@ -37,6 +39,11 @@ class SparkCluster(Cluster):
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[Any, Any]):
         # TODO: specify the app master resource
+        # TODO: differentiate client mode
+        # spark_master_name = self._app_name + RAYDP_SPARK_MASTER_SUFFIX
+        # self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name) \
+        #                                             .remote(self._configs)
+        # ray.get(self._spark_master_handle.start_up.remote())
         self._spark_master = RayDPSparkMaster(self._configs)
         self._spark_master.start_up()
 
@@ -44,6 +51,7 @@ class SparkCluster(Cluster):
         raise Exception("Unsupported operation")
 
     def get_cluster_url(self) -> str:
+        # return ray.get(self._spark_master_handle.get_master_url.remote())
         return self._spark_master.get_master_url()
 
     def get_spark_session(self,
@@ -66,13 +74,17 @@ class SparkCluster(Cluster):
         extra_conf["spark.driver.bindAddress"] = str(driver_node_ip)
         RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
         RAY_CP = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
+        # A workaround for the spark driver to bind to its slf4j-log4j jar instead of the one from
+        # Ray's jar. Without this, the driver produces INFO logs and the level cannot be changed.
+        spark_home = os.environ.get("SPARK_HOME", os.path.dirname(pyspark.__file__))
+        log4j_path = os.path.abspath(os.path.join(spark_home, "jars/slf4j-log4j*.jar"))
         try:
             extra_jars = [extra_conf["spark.jars"]]
         except KeyError:
             extra_jars = []
         extra_conf["spark.jars"] = ",".join(glob.glob(RAYDP_CP) + extra_jars)
         driver_cp_key = "spark.driver.extraClassPath"
-        driver_cp = ":".join(glob.glob(RAYDP_CP) + glob.glob(RAY_CP))
+        driver_cp = ":".join(glob.glob(log4j_path) + glob.glob(RAYDP_CP) + glob.glob(RAY_CP))
         if driver_cp_key in extra_conf:
             extra_conf[driver_cp_key] = driver_cp + ":" + extra_conf[driver_cp_key]
         else:
@@ -97,5 +109,6 @@ class SparkCluster(Cluster):
             self._spark_session = None
 
         if self._spark_master is not None:
+            # self._spark_master_handle.stop.remote()
             self._spark_master.stop()
             self._spark_master = None

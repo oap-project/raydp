@@ -23,6 +23,7 @@ from pyspark.sql import SparkSession
 import ray
 import raydp
 import subprocess
+from ray.cluster_utils import Cluster
 
 
 def quiet_logger():
@@ -41,18 +42,64 @@ def spark_session(request):
     return spark
 
 
-@pytest.fixture(scope="function", params=["localhost:6379", "ray://localhost:10001"])
+@pytest.fixture(scope="function", params=["local", "ray://localhost:10001"])
 def ray_cluster(request):
     ray.shutdown()
-    ray.init(address=request.param)
+    if request.param == "local":
+        ray.init(address="local", num_cpus=4, include_dashboard=False)
+    else:
+        ray.init(address=request.param)
     request.addfinalizer(lambda: ray.shutdown())
 
 
-@pytest.fixture(scope="function", params=["localhost:6379", "ray://localhost:10001"])
+@pytest.fixture(scope="function", params=["local", "ray://localhost:10001"])
 def spark_on_ray_small(request):
     ray.shutdown()
-    ray.init(address=request.param)
+    if request.param == "local":
+        ray.init(address="local", num_cpus=4, include_dashboard=False)
+    else:
+        ray.init(address=request.param)
     spark = raydp.init_spark("test", 1, 1, "500 M")
+
+    def stop_all():
+        raydp.stop_spark()
+        ray.shutdown()
+
+    request.addfinalizer(stop_all)
+    return spark
+
+
+@pytest.fixture(scope="function")
+def spark_on_ray_fraction_custom_resource(request):
+    ray.shutdown()
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 2
+        })
+    ray.init(address=cluster.address)
+
+    def stop_all():
+        raydp.stop_spark()
+        ray.shutdown()
+
+    request.addfinalizer(stop_all)
+
+
+@pytest.fixture(scope="function")
+def spark_on_ray_fractional_cpu(request):
+    ray.shutdown()
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 2
+        })
+
+    ray.init(address=cluster.address)
+
+    spark = raydp.init_spark(app_name="test_cpu_fraction",
+                             num_executors=1, executor_cores=3, executor_memory="500 M",
+                             configs={"spark.ray.actor.resource.cpu": "0.1"})
 
     def stop_all():
         raydp.stop_spark()
@@ -67,6 +114,9 @@ def custom_spark_dir(tmp_path_factory) -> str:
     working_dir = tmp_path_factory.mktemp("spark").as_posix()
 
     # Leave the if more verbose just in case the distribution name changed in the future.
+    # Please make sure the version here is not the most recent release, so the file is available
+    # in the archive download. Latest release's download URL (https://dlcdn.apache.org/spark/*)
+    # will be changed to archive when the next release come out and break the test.
     if pyspark.__version__ == "3.2.1":
         spark_distribution = 'spark-3.2.1-bin-hadoop3.2'
     elif pyspark.__version__ == "3.1.3":
@@ -79,7 +129,7 @@ def custom_spark_dir(tmp_path_factory) -> str:
 
     import wget
 
-    wget.download(f"https://dlcdn.apache.org/spark/spark-{pyspark.__version__}/{spark_distribution}.{file_extension}",
+    wget.download(f"https://archive.apache.org/dist/spark/spark-{pyspark.__version__}/{spark_distribution}.{file_extension}",
                   spark_distribution_file)
     subprocess.check_output(['tar', 'xzvf', spark_distribution_file, '--directory', working_dir])
     return f"{working_dir}/{spark_distribution}"

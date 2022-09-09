@@ -31,7 +31,6 @@ from raydp.spark import spark_dataframe_to_ray_dataset
 from ray import train
 from ray.train import Trainer, TrainingCallback, get_dataset_shard
 from ray.data.dataset import Dataset
-from ray.data.impl.arrow_block import ArrowRow
 
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     """
@@ -247,11 +246,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         train_loss, data_size, batch_idx = 0, 0, 0
         for batch_idx, (inputs, targets) in enumerate(dataset):
             # Compute prediction error
-            inputs = [inputs[:,i].unsqueeze(1) for i in range(inputs.size(1))]
-            targets = targets.reshape(-1)
-            outputs = model(*inputs)
-            if outputs.dim() == 2 and outputs.size(1) == 1:
-                outputs = outputs.reshape(-1)
+            outputs = model(inputs)
             loss = criterion(outputs, targets)
             train_loss += loss.item()
             metrics.update(outputs, targets)
@@ -275,11 +270,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(dataset):
                 # Compute prediction error
-                inputs = [inputs[:,i].unsqueeze(1) for i in range(inputs.size(1))]
-                targets = targets.reshape(-1)
-                outputs = model(*inputs)
-                if outputs.dim() == 2 and outputs.size(1) == 1:
-                    outputs = outputs.reshape(-1)
+                outputs = model(inputs)
                 test_loss += criterion(outputs, targets).item()
                 metrics.update(outputs, targets)
                 data_size += targets.size(0)
@@ -290,14 +281,10 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         return eval_res, test_loss
 
     def fit(self,
-            train_ds: Dataset[ArrowRow],
-            evaluate_ds: Optional[Dataset[ArrowRow]] = None,
+            train_ds: Dataset,
+            evaluate_ds: Optional[Dataset] = None,
             max_retries=3) -> NoReturn:
         super().fit(train_ds, evaluate_ds)
-
-        class PrintingCallback(TrainingCallback):
-            def handle_result(self, results: List[Dict], **info):
-                print(results)
 
         self._trainer = Trainer(backend="torch", num_workers=self._num_workers,
                                 resources_per_worker=self._resources_per_worker,

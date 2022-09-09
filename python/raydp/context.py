@@ -26,7 +26,7 @@ from pyspark.sql import SparkSession
 from ray.util.placement_group import PlacementGroup
 
 from raydp.spark import SparkCluster
-from raydp.spark.dataset import RayDPConversionHelper, RAYDP_OBJ_HOLDER_NAME
+from raydp.spark.dataset import RayDPConversionHelper, RAYDP_OBJ_HOLDER_SUFFIX
 from raydp.utils import parse_memory_size
 
 
@@ -88,7 +88,7 @@ class _SparkContext(ContextDecorator):
     def _get_or_create_spark_cluster(self) -> SparkCluster:
         if self._spark_cluster is not None:
             return self._spark_cluster
-        self._spark_cluster = SparkCluster(self._configs)
+        self._spark_cluster = SparkCluster(self._app_name, self._configs)
         return self._spark_cluster
 
     def _prepare_placement_group(self):
@@ -112,7 +112,8 @@ class _SparkContext(ContextDecorator):
     def get_or_create_session(self):
         if self._spark_session is not None:
             return self._spark_session
-        # self.handle = RayDPConversionHelper.options(name=RAYDP_OBJ_HOLDER_NAME).remote()
+        obj_holder_name = self._app_name + RAYDP_OBJ_HOLDER_SUFFIX
+        self.handle = RayDPConversionHelper.options(name=obj_holder_name).remote()
         self._prepare_placement_group()
         spark_cluster = self._get_or_create_spark_cluster()
         self._spark_session = spark_cluster.get_spark_session(
@@ -130,9 +131,9 @@ class _SparkContext(ContextDecorator):
             jvm.shutdownRay()
             self._spark_session.stop()
             self._spark_session = None
-        # if self.handle is not None and del_obj_holder is True:
-        #     self.handle.terminate.remote()
-        #     self.handle = None
+        if self.handle is not None and del_obj_holder is True:
+            self.handle.terminate.remote()
+            self.handle = None
         if self._spark_cluster is not None:
             self._spark_cluster.stop()
             self._spark_cluster = None
@@ -141,6 +142,8 @@ class _SparkContext(ContextDecorator):
                 ray.util.remove_placement_group(self._placement_group)
                 self._placement_group = None
             self._placement_group_strategy = None
+        if self._configs is not None:
+            self._configs = None
 
     def __enter__(self):
         self.get_or_create_session()
@@ -201,6 +204,8 @@ def init_spark(app_name: str,
                     configs)
                 return _global_spark_context.get_or_create_session()
             except:
+                if _global_spark_context is not None:
+                    _global_spark_context.stop()
                 _global_spark_context = None
                 raise
         else:

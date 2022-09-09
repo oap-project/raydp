@@ -1,17 +1,15 @@
 import ray
 import numpy as np
-from pyspark.sql.functions import *
 # XGBoost on ray is needed to run this example.
 # Please refer to https://docs.ray.io/en/latest/xgboost-ray.html to install it.
 from xgboost_ray import RayDMatrix, train, RayParams
 import raydp
 from raydp.utils import random_split
-from raydp.spark import RayMLDataset
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 
 # connect to ray cluster
-# ray.init(address='auto')
-ray.init(num_cpus=3)
+# ray.init(address="auto")
+ray.init(address="local", num_cpus=4)
 # After ray.init, you can use the raydp api to get a spark session
 app_name = "NYC Taxi Fare Prediction with RayDP"
 num_executors = 1
@@ -31,8 +29,8 @@ train_df, test_df = random_split(data, [0.9, 0.1], 0)
 train_dataset = ray.data.from_spark(train_df)
 test_dataset = ray.data.from_spark(test_df)
 # Then convert them into DMatrix used by xgboost
-dtrain = RayDMatrix(train_dataset, label='fare_amount')
-dtest = RayDMatrix(test_dataset, label='fare_amount')
+dtrain = RayDMatrix(train_dataset, label="fare_amount")
+dtest = RayDMatrix(test_dataset, label="fare_amount")
 # Configure the XGBoost model
 config = {
     "tree_method": "hist",

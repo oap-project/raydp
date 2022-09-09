@@ -45,8 +45,7 @@ def test_torch_estimator(spark_on_ray_small):
             super(LinearModel, self).__init__()
             self.linear = torch.nn.Linear(2, 1)
 
-        def forward(self, x, y):
-            x = torch.cat([x, y], dim=1)
+        def forward(self, x):
             return self.linear(x)
 
     model = LinearModel()

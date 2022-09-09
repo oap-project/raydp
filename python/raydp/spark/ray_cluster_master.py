@@ -36,7 +36,7 @@ from pyspark.serializers import read_int, UTF8Deserializer
 
 logger = logging.getLogger(__name__)
 
-RAYDP_SPARK_MASTER_NAME = "RAYDP_SPARK_MASTER"
+RAYDP_SPARK_MASTER_SUFFIX = "_SPARK_MASTER"
 
 class RayDPSparkMaster():
     def __init__(self, configs):

@@ -44,7 +44,7 @@ public class RayExecutorUtils {
   public static ActorHandle<RayCoarseGrainedExecutorBackend> createExecutorActor(
       String executorId,
       String appMasterURL,
-      int cores,
+      double cores,
       int memoryInMB,
       Map<String, Double> resources,
       PlacementGroup placementGroup,
@@ -54,8 +54,9 @@ public class RayExecutorUtils {
             RayCoarseGrainedExecutorBackend::new, executorId, appMasterURL);
     creator.setName("raydp-executor-" + executorId);
     creator.setJvmOptions(javaOpts);
-    creator.setResource("CPU", (double)cores);
+    creator.setResource("CPU", cores);
     creator.setResource("memory", toMemoryUnits(memoryInMB));
+
     for (Map.Entry<String, Double> entry: resources.entrySet()) {
       creator.setResource(entry.getKey(), entry.getValue());
     }

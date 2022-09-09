@@ -24,17 +24,40 @@ import pyarrow
 import ray
 import ray._private.services
 
+from multiprocessing import get_context
+
 from ray.util.placement_group import placement_group_table
 
 import raydp
 import raydp.utils as utils
-from raydp.spark.ray_cluster_master import RayDPSparkMaster, RAYDP_SPARK_MASTER_NAME
+from raydp.spark.ray_cluster_master import RayDPSparkMaster, RAYDP_SPARK_MASTER_SUFFIX
+from ray.cluster_utils import Cluster
 
 
 def test_spark(spark_on_ray_small):
     spark = spark_on_ray_small
     result = spark.range(0, 10).count()
     assert result == 10
+
+
+def test_spark_on_fractional_cpu(spark_on_ray_fractional_cpu):
+    spark = spark_on_ray_fractional_cpu
+    result = spark.range(0, 10).count()
+    assert result == 10
+
+
+@pytest.mark.error_on_custom_resource
+def test_spark_on_fractional_custom_resource(spark_on_ray_fraction_custom_resource):
+    try:
+        spark = raydp.init_spark(app_name="test_custom_resource_fraction",
+                                 num_executors=1, executor_cores=3, executor_memory="500 M",
+                                 configs={"spark.executor.resource.CUSTOM.amount": "0.1"})
+        spark.range(0, 10).count()
+    except Exception:
+        assert True
+        return
+
+    assert False
 
 
 def test_spark_remote(ray_cluster):
@@ -170,11 +193,19 @@ def test_reconstruction():
     )
     ray.get(ref)
 
+@pytest.mark.skip("flaky")
 def test_custom_installed_spark(custom_spark_dir):
     os.environ["SPARK_HOME"] = custom_spark_dir
-    ray.shutdown()
-    spark = raydp.init_spark("custom_install_test", 1, 1, "500 M")
-    spark_master_actor = ray.get_actor(name=RAYDP_SPARK_MASTER_NAME)
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 2
+        })
+
+    ray.init(address=cluster.address)
+    app_name = "custom_install_test"
+    spark = raydp.init_spark(app_name, 1, 1, "500 M")
+    spark_master_actor = ray.get_actor(name=app_name + RAYDP_SPARK_MASTER_SUFFIX)
     spark_home = ray.get(spark_master_actor.get_spark_home.remote())
 
     result = spark.range(0, 10).count()
@@ -184,6 +215,36 @@ def test_custom_installed_spark(custom_spark_dir):
     assert result == 10
     assert spark_home == custom_spark_dir
 
+def start_spark(barrier, i, results):
+    try:
+        # connect to the cluster started before pytest
+        ray.init(address="auto")
+        spark = raydp.init_spark(f"spark-{i}", 1, 1, "500 M")
+        # wait on barrier to ensure 2 spark sessions
+        # are active on the same ray cluster at the same time
+        barrier.wait()
+        df = spark.range(10)
+        results[i] = df.count()
+        raydp.stop_spark()
+        ray.shutdown()
+    except Exception as e:
+        results[i] = -1
+
+def test_init_spark_twice():
+    num_processes = 2
+    ctx = get_context("spawn")
+    barrier = ctx.Barrier(num_processes)
+    # shared memory for processes to return if spark started successfully
+    results = ctx.Array('i', [-1] * num_processes)
+    processes = [ctx.Process(target=start_spark, args=(barrier, i, results)) for i in range(num_processes)]
+    for i in range(2):
+        processes[i].start()
+
+    for i in range(2):
+        processes[i].join()
+
+    assert results[0] == 10
+    assert results[1] == 10
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))
