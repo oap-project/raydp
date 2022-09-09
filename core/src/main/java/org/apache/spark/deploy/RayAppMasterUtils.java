@@ -40,7 +40,7 @@ public class RayAppMasterUtils {
     handle.task(RayAppMaster::stop).remote().get();
     handle.kill();
   }
-  
+
   public static ActorHandle<RayDPDriverAgent> createDriverAgent(
       String name) {
     return Ray.actor(RayDPDriverAgent::new).setName(name).remote();

@@ -22,19 +22,13 @@ import io.ray.api.ObjectRef;
 import io.ray.api.Ray;
 import io.ray.api.call.ActorCreator;
 import java.util.Map;
-import java.util.UUID;
 import java.util.List;
 
 import io.ray.api.placementgroup.PlacementGroup;
 import io.ray.runtime.object.ObjectRefImpl;
-import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.spark.Partition;
-import org.apache.spark.TaskContext;
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;
 import org.apache.spark.rdd.RDD;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.raydp.ObjectStoreWriter;
-import org.apache.spark.sql.Row;
 
 
 public class RayExecutorUtils {
@@ -65,11 +59,6 @@ public class RayExecutorUtils {
     for (Map.Entry<String, Double> entry: resources.entrySet()) {
       creator.setResource(entry.getKey(), entry.getValue());
     }
-    // if (Integer.parseInt(executorId) % 2 == 0) {
-    //   creator.setResource("node:10.0.2.139", 0.01);
-    // } else {
-    //   creator.setResource("node:10.0.2.140", 0.01);
-    // }
     if (placementGroup != null) {
       creator.setPlacementGroup(placementGroup, bundleIndex);
     }
@@ -95,17 +84,6 @@ public class RayExecutorUtils {
     return handler.task(RayCoarseGrainedExecutorBackend::getBlockLocations,
         rddId, numPartitions).remote().get();
   }
-
-  // public static ObjectRef<byte[]> prepareGetRDDPartition(
-  //     RDD<byte[]> rdd,
-  //     Partition partition,
-  //     int preferredExecutorId,
-  //     String[] executorIds,
-  //     String schema,
-  //     UUID uuid) {
-  //   return Ray.task(ObjectStoreWriter::prepareGetRDDPartition,
-  //       rdd, partition, preferredExecutorId, executorIds, schema, uuid).remote();
-  // }
 
   public static ObjectRef<byte[]> getRDDPartition(
       ActorHandle<RayCoarseGrainedExecutorBackend> handle,

@@ -18,7 +18,6 @@
 package org.apache.spark.deploy.raydp
 
 import org.apache.spark.{SparkConf, SparkContext}
- 
 
 class RayDPDriverAgent {
   def recacheRDD(rddId: Int): Int = {

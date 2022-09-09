@@ -17,44 +17,40 @@
 
 package org.apache.spark.executor
 
-import scala.reflect.{classTag, ClassTag}
-
 import java.io.{ByteArrayOutputStream, File}
 import java.net.URL
-import java.util.Properties
-import java.nio.file.Paths
 import java.nio.channels.{Channels, ReadableByteChannel}
+import java.nio.file.Paths
+import java.util.Properties
 
+import scala.reflect.{classTag, ClassTag}
+
+import io.ray.api.{ActorHandle, Ray}
 import io.ray.runtime.config.RayConfig
-import io.ray.api.{Ray, ActorHandle}
-import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
-import org.apache.arrow.vector.ipc.message.{IpcOption, MessageSerializer}
-import org.apache.arrow.vector.ipc.{ArrowStreamWriter, WriteChannel}
-
-import org.apache.spark.memory.TaskMemoryManager
-import org.apache.spark.TaskContextImpl
 import org.apache.arrow.vector.VectorSchemaRoot
+import org.apache.arrow.vector.ipc.{ArrowStreamWriter, WriteChannel}
+import org.apache.arrow.vector.ipc.message.{IpcOption, MessageSerializer}
 import org.apache.arrow.vector.types.pojo.Schema
-import org.apache.arrow.vector.ipc.ArrowStreamWriter
-import org.apache.spark.{Partition, RayDPException, SecurityManager, SparkConf, SparkContext, SparkEnv, TaskContext}
+import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
+
+import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
-import org.apache.spark.rdd.RDD;
+import org.apache.spark.memory.TaskMemoryManager
+import org.apache.spark.rdd.RDD
 import org.apache.spark.resource.ResourceProfile
 import org.apache.spark.rpc.{RpcEndpointRef, RpcEnv}
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{RetrieveSparkAppConfig, SparkAppConfig}
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.arrow.ArrowWriter
-import org.apache.spark.sql.execution.columnar.DefaultCachedBatch
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.raydp.ObjectStoreWriter
-import org.apache.spark.storage.{BlockId, BlockManager, RDDBlockId, StorageLevel}
-import org.apache.spark.sql.types.IntegerType
-import org.apache.spark.util.Utils
 import org.apache.spark.sql.execution.python.BatchIterator
-
+import org.apache.spark.sql.raydp.ObjectStoreWriter
+import org.apache.spark.sql.types.IntegerType
+import org.apache.spark.storage.{BlockId, BlockManager, RDDBlockId, StorageLevel}
+import org.apache.spark.util.Utils
 
 class RayCoarseGrainedExecutorBackend(
     var executorId: String,
@@ -296,15 +292,12 @@ class RayCoarseGrainedExecutorBackend(
   }
 
   def stop(): Unit = {
-    // this method should only be called in onDisconnected of RayAppMaster
-    // that means spark executor should already be dead
-    // this function only deals with ray actor
     Ray.exitActor
   }
 
   def getBlockLocations(rddId: Int, numPartitions: Int): Array[String] = {
     val env = SparkEnv.get
-    val blockIds = (0 until numPartitions).map(i => 
+    val blockIds = (0 until numPartitions).map(i =>
       BlockId.apply("rdd_" + rddId + "_" + i)
     ).toArray
     val locations = BlockManager.blockIdsToLocations(blockIds, env)
@@ -316,15 +309,14 @@ class RayCoarseGrainedExecutorBackend(
     result
   }
 
-  def getRDDPartition(rdd: RDD[Array[Byte]], partition: Partition, schemaStr: String): Array[Byte] = {
+  def getRDDPartition(rdd: RDD[Array[Byte]],
+                      partition: Partition,
+                      schemaStr: String): Array[Byte] = {
     val env = SparkEnv.get
     val context = new TaskContextImpl(0, 0, partition.index, -1024, 0,
         new TaskMemoryManager(env.memoryManager, 0), new Properties(), env.metricsSystem)
     TaskContext.setTaskContext(context)
-  //   val rddIter = rdd.iterator(partition, context)
-  //   val allocator = ObjectStoreWriter.getArrowAllocator(s"${rdd.id}_${partition.index}")
     val schema = Schema.fromJSON(schemaStr)
-  //   val root = VectorSchemaRoot.create(schema, allocator)
     var iterator: Iterator[Array[Byte]] = null
     try {
       iterator = rdd.iterator(partition, context)
@@ -333,7 +325,7 @@ class RayCoarseGrainedExecutorBackend(
         // might need to cache rdd again, e.g., due to failure
         val handleOpt = Ray.getActor("RAYDP_DRIVER_AGENT")
         if (!handleOpt.isPresent) {
-          throw new RayDPException("RayDPDriverAgent is not available")
+          throw new RayDPException("RayDPDriverAgent actor is not alive!")
         }
         val handle = handleOpt.get.asInstanceOf[ActorHandle[RayDPDriverAgent]]
         RayAppMasterUtils.recacheRDD(handle, rdd.id)
@@ -348,49 +340,5 @@ class RayCoarseGrainedExecutorBackend(
     writeChannel.close
     byteOut.close
     result
-  //   val arrowWriter = ArrowWriter.create(root)
-  //   var results: Array[Byte] = null
-  //   // val accessor = InternalRow.getAccessor(IntegerType)
-  //   val dataIter = new BatchIterator(rddIter, 50)
-    
-  //   Utils.tryWithSafeFinally {
-  //     // write out the schema meta data
-  //     val writer = new ArrowStreamWriter(root, null, byteOut)
-  //     val iter = dataIter.next
-  //     writer.start()
-  //     while (iter.hasNext) {
-  //       val row = iter.next
-  //       // println(accessor(row, 0))
-  //       arrowWriter.write(row.asInstanceOf[InternalRow])
-  //     }
-
-  //     // set the write record count
-  //     arrowWriter.finish()
-  //     // write out the record batch to the underlying out
-  //     writer.writeBatch()
-
-  //     // end writes footer to the output stream and doesn't clean any resources.
-  //     // It could throw exception if the output stream is closed, so it should be
-  //     // in the try block.
-  //     writer.end()
-  //     // get the wrote ByteArray and save to Ray ObjectStore
-  //     results = byteOut.toByteArray
-  //     byteOut.close()
-  //   } {
-  //     // If we close root and allocator in TaskCompletionListener, there could be a race
-  //     // condition where the writer thread keeps writing to the VectorSchemaRoot while
-  //     // it's being closed by the TaskCompletion listener.
-  //     // Closing root and allocator here is cleaner because root and allocator is owned
-  //     // by the writer thread and is only visible to the writer thread.
-  //     //
-  //     // If the writer thread is interrupted by TaskCompletionListener, it should either
-  //     // (1) in the try block, in which case it will get an InterruptedException when
-  //     // performing io, and goes into the finally block or (2) in the finally block,
-  //     // in which case it will ignore the interruption and close the resources.
-
-  //     root.close()
-  //     allocator.close()
-  //   }
-  //   results
   }
 }

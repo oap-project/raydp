@@ -116,10 +116,11 @@ private[spark] class ApplicationInfo(
       removedExecutors += executors(executorId)
       executors -= executorId
       coresGranted -= exec.cores
-      // TODO: decide if actor can restart
-      // if it is lost accidentally, restart it
-      // otherwise, like decomission, no restart 
-      // executorIdToHandler(executorId).kill(true)
+      // Previously we use Ray.kill(true) here, which prevents executors from restarting.
+      // But we want executors died accidentally to restart, so we use Ray.exitActor now.
+      // Because if ray actor is already dead, it probably died from node failure,
+      // and this method won't be executed, so it can restart.
+      // Otherwise, it exits intentionally here and won't restart.
       RayExecutorUtils.exitExecutor(executorIdToHandler(executorId))
       executorIdToHandler -= executorId
       true
