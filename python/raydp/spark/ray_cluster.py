@@ -39,20 +39,16 @@ class SparkCluster(Cluster):
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[Any, Any]):
         # TODO: specify the app master resource
-        # TODO: differentiate client mode
-        # spark_master_name = self._app_name + RAYDP_SPARK_MASTER_SUFFIX
-        # self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name) \
-        #                                             .remote(self._configs)
-        # ray.get(self._spark_master_handle.start_up.remote())
-        self._spark_master = RayDPSparkMaster(self._configs)
-        self._spark_master.start_up()
+        spark_master_name = self._app_name + RAYDP_SPARK_MASTER_SUFFIX
+        self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name) \
+                                                    .remote(self._configs)
+        ray.get(self._spark_master_handle.start_up.remote())
 
     def _set_up_worker(self, resources: Dict[str, float], kwargs: Dict[str, str]):
         raise Exception("Unsupported operation")
 
     def get_cluster_url(self) -> str:
-        # return ray.get(self._spark_master_handle.get_master_url.remote())
-        return self._spark_master.get_master_url()
+        return ray.get(self._spark_master_handle.get_master_url.remote())
 
     def get_spark_session(self,
                           app_name: str,
@@ -98,7 +94,8 @@ class SparkCluster(Cluster):
             spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
         # provide ray cluster config through jvm properties
         # this is needed to connect to ray cluster during from_spark(fault tolerant)
-        jvm_properties = self._spark_master._generate_ray_configs()
+        jvm_properties_ref = self._spark_master_handle._generate_ray_configs.remote()
+        jvm_properties = ray.get(jvm_properties_ref)
         jvm = self._spark_session._jvm
         jvm.org.apache.spark.deploy.raydp.RayAppMaster.setProperties(jvm_properties)
         return self._spark_session
@@ -107,8 +104,6 @@ class SparkCluster(Cluster):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
-
-        if self._spark_master is not None:
-            # self._spark_master_handle.stop.remote()
-            self._spark_master.stop()
-            self._spark_master = None
+        if self._spark_master_handle is not None:
+            self._spark_master_handle.stop.remote()
+            self._spark_master_handle = None

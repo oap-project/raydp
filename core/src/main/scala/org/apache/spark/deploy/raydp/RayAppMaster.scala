@@ -25,7 +25,7 @@ import javax.xml.bind.DatatypeConverter
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 
-import io.ray.api.{ActorHandle, PlacementGroups}
+import io.ray.api.{ActorHandle, PlacementGroups, Ray}
 import io.ray.api.id.PlacementGroupId
 import io.ray.api.placementgroup.PlacementGroup
 import io.ray.runtime.AbstractRayRuntime
