@@ -46,6 +46,7 @@ class RayAppMaster(host: String,
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
   private val conf: SparkConf = new SparkConf()
+  private val restartedExecutors = new HashMap[String, String]()
 
   init()
 
@@ -80,6 +81,8 @@ class RayAppMaster(host: String,
   def getAppMasterEndpointUrl(): String = {
     RpcEndpointAddress(rpcEnv.address, RayAppMaster.ENDPOINT_NAME).toString
   }
+
+  def getRestartedExecutors(): java.util.Map[String, String] = restartedExecutors.asJava
 
   /**
    * This is used to represent the Spark on Ray cluster URL.
@@ -194,6 +197,7 @@ class RayAppMaster(host: String,
           } else {
             val handler = handlerOpt.get.asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]]
             appInfo.addPendingRegisterExecutor(newExecutorId, handler, cores, memory)
+            restartedExecutors(newExecutorId) = executorId
             context.reply(AddPendingRestartedExecutorReply(Some(newExecutorId)))
           }
         } else {
@@ -324,6 +328,7 @@ class RayAppMaster(host: String,
 object RayAppMaster extends Serializable {
   val ENV_NAME = "RAY_RPC_ENV"
   val ENDPOINT_NAME = "RAY_APP_MASTER"
+  val ACTOR_NAME = "RAY_APP_MASTER"
 
   def setProperties(properties: String): Unit = {
     implicit val formats: DefaultFormats.type = org.json4s.DefaultFormats

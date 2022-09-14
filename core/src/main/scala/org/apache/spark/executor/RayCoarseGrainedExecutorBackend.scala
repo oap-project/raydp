@@ -62,6 +62,10 @@ class RayCoarseGrainedExecutorBackend(
   private var temporaryRpcEnv: Option[RpcEnv] = None
   private var executorRunningThread: Thread = null
   private var workingDir: File = null
+  // TODO: make this actor parallel
+  // On restart, the startUp task might be submitted after
+  // the retried task. In that case, make that task wait
+  // on this variable.
   private var started: Boolean = false
 
   init()
@@ -303,8 +307,8 @@ class RayCoarseGrainedExecutorBackend(
     val locations = BlockManager.blockIdsToLocations(blockIds, env)
     var result = new Array[String](numPartitions)
     for ((key, value) <- locations) {
-      val name = key.name
-      result(name.substring(name.lastIndexOf('_') + 1).toInt) = value(0)
+      val partitionId = key.name.substring(key.name.lastIndexOf('_') + 1).toInt
+      result(partitionId) = value(0).substring(value(0).lastIndexOf('_') + 1)
     }
     result
   }

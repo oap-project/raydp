@@ -17,32 +17,37 @@
 
 package org.apache.spark.deploy.raydp
 
-import io.ray.api.Ray
+import java.util.ArrayList;
+
+import io.ray.api.{ActorHandle, Ray}
 import io.ray.runtime.config.RayConfig
 
+import org.apache.spark.deploy.raydp.RayAppMasterUtils
+
 class AppMasterJavaBridge {
-  private var instance: RayAppMaster = null
+  private var handle: ActorHandle[RayAppMaster] = null
 
   def startUpAppMaster(extra_cp: String): Unit = {
-    if (instance == null) {
+    if (handle == null) {
       // init ray, we should set the config by java properties
       Ray.init()
-      instance = new RayAppMaster(extra_cp)
+      val name = RayAppMaster.ACTOR_NAME
+      handle = RayAppMasterUtils.createAppMaster(extra_cp, name, new ArrayList[String]());
     }
   }
 
   def getMasterUrl(): String = {
-    if (instance == null) {
-      throw new RuntimeException("You should create the RayAppMaster instance first")
+    if (handle == null) {
+      throw new RuntimeException("You should create the RayAppMaster handle first")
     }
-    instance.getMasterUrl()
+    RayAppMasterUtils.getMasterUrl(handle)
   }
 
   def stop(): Unit = {
-    if (instance != null) {
-      instance.stop()
+    if (handle != null) {
+      RayAppMasterUtils.stopAppMaster(handle)
       Ray.shutdown()
-      instance = null
+      handle = null
     }
   }
 }
