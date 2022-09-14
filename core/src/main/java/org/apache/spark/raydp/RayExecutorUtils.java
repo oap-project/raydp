@@ -65,6 +65,7 @@ public class RayExecutorUtils {
     }
     creator.setMaxRestarts(3);
     creator.setMaxTaskRetries(3);
+    creator.setMaxConcurrency(2);
     return creator.remote();
   }
 

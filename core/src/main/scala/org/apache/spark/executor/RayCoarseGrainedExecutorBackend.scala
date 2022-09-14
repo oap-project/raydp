@@ -22,6 +22,7 @@ import java.net.URL
 import java.nio.channels.{Channels, ReadableByteChannel}
 import java.nio.file.Paths
 import java.util.Properties
+import java.util.concurrent.atomic.AtomicBoolean
 
 import scala.reflect.{classTag, ClassTag}
 
@@ -62,11 +63,7 @@ class RayCoarseGrainedExecutorBackend(
   private var temporaryRpcEnv: Option[RpcEnv] = None
   private var executorRunningThread: Thread = null
   private var workingDir: File = null
-  // TODO: make this actor parallel
-  // On restart, the startUp task might be submitted after
-  // the retried task. In that case, make that task wait
-  // on this variable.
-  private var started: Boolean = false
+  private val started = new AtomicBoolean(false)
 
   init()
 
@@ -119,6 +116,9 @@ class RayCoarseGrainedExecutorBackend(
       driverUrl: String,
       cores: Int,
       classPathEntries: String): Unit = {
+    if (started.get) {
+      throw new RayDPException("executor is already started")
+    }
     createWorkingDir(appId)
     setUserDir()
     // redirectLog()
@@ -143,7 +143,7 @@ class RayCoarseGrainedExecutorBackend(
       }
     }
     executorRunningThread.start()
-    started = true
+    started.compareAndSet(false, true)
   }
 
   def createWorkingDir(appId: String): Unit = {
@@ -316,6 +316,17 @@ class RayCoarseGrainedExecutorBackend(
   def getRDDPartition(rdd: RDD[Array[Byte]],
                       partition: Partition,
                       schemaStr: String): Array[Byte] = {
+    while (!started.get) {
+      // wait until executor is started
+      // this might happen if executor restarts
+      // and this task get retried
+      try {
+        Thread.sleep(1000)
+      } catch {
+        case e: Exception =>
+          throw e
+      }
+    }
     val env = SparkEnv.get
     val context = new TaskContextImpl(0, 0, partition.index, -1024, 0,
         new TaskMemoryManager(env.memoryManager, 0), new Properties(), env.metricsSystem)
