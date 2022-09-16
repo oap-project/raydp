@@ -89,12 +89,13 @@ public class RayExecutorUtils {
 
   public static ObjectRef<byte[]> getRDDPartition(
       ActorHandle<RayCoarseGrainedExecutorBackend> handle,
-      RDD<byte[]> rdd,
-      Partition partition,
-      String schema) {
+      int rddId,
+      int partitionId,
+      String schema,
+      String driverAgentUrl) {
     return (ObjectRefImpl<byte[]>) handle.task(
         RayCoarseGrainedExecutorBackend::getRDDPartition,
-        rdd, partition, schema).remote();
+        rddId, partitionId, schema, driverAgentUrl).remote();
   }
 
   public static void exitExecutor(

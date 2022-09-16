@@ -190,7 +190,8 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
 object ObjectStoreWriter {
   val dfToId = new mutable.HashMap[DataFrame, UUID]()
-  var driverAgentHandle: ActorHandle[RayDPDriverAgent] = null
+  var driverAgent: RayDPDriverAgent = _
+  var driverAgentUrl: String = _
 
   def toArrowSchema(df: DataFrame): Schema = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
@@ -214,7 +215,8 @@ object ObjectStoreWriter {
   def fromSparkRDD(df: DataFrame): Array[Array[Byte]] = {
     if (!Ray.isInitialized) {
       Ray.init()
-      driverAgentHandle = RayAppMasterUtils.createDriverAgent("RAYDP_DRIVER_AGENT")
+      driverAgent = new RayDPDriverAgent()
+      driverAgentUrl = driverAgent.getDriverAgentEndpointUrl
     }
     val uuid = dfToId.getOrElseUpdate(df, UUID.randomUUID())
     val queue = ObjectRefHolder.getQueue(uuid)
@@ -238,7 +240,6 @@ object ObjectStoreWriter {
     }
     val schema = ObjectStoreWriter.toArrowSchema(df).toJson
     val numPartitions = rdd.getNumPartitions
-    val partitions = rdd.partitions
     val results = new Array[Array[Byte]](numPartitions)
     val refs = new Array[ObjectRef[Array[Byte]]](numPartitions)
     val handles = executorIds.map {id =>
@@ -252,7 +253,7 @@ object ObjectStoreWriter {
     for (i <- 0 until numPartitions) {
       // TODO use getPreferredLocs, but we don't have a host ip to actor table now
       refs(i) = RayExecutorUtils.getRDDPartition(
-          handlesMap(locations(i)), rdd, partitions(i), schema)
+          handlesMap(locations(i)), rdd.id, i, schema, driverAgentUrl)
       queue.add(refs(i))
     }
     for (i <- 0 until numPartitions) {

@@ -17,15 +17,61 @@
 
 package org.apache.spark.deploy.raydp
 
-import org.apache.spark.{SparkConf, SparkContext}
+import io.ray.runtime.config.RayConfig
 
-class RayDPDriverAgent {
-  def recacheRDD(rddId: Int): Int = {
-    val spark = SparkContext.getOrCreate(new SparkConf())
-    spark.getPersistentRDDs.map {
-      case (id, rdd) =>
-        if (id == rddId) rdd.count
-    }
-    0
+import org.apache.spark.{SecurityManager, SparkContext, SparkConf}
+import org.apache.spark.internal.Logging
+import org.apache.spark.rpc._
+
+
+class RayDPDriverAgent() {
+  private val spark = SparkContext.getOrCreate()
+  private var endpoint: RpcEndpointRef = _
+  private var rpcEnv: RpcEnv = _
+  private val conf: SparkConf = new SparkConf()
+
+  init
+
+  def init(): Unit = {
+    val securityMgr = new SecurityManager(conf)
+    val host = RayConfig.create().nodeIp
+    rpcEnv = RpcEnv.create(
+      RayAppMaster.ENV_NAME,
+      host,
+      host,
+      0,
+      conf,
+      securityMgr,
+      // limit to single-thread
+      numUsableCores = 1,
+      clientMode = false)
+    // register endpoint
+    endpoint = rpcEnv.setupEndpoint(RayDPDriverAgent.ENDPOINT_NAME,
+      new RayDPDriverAgentEndpoint(rpcEnv))
   }
+
+  def getDriverAgentEndpointUrl(): String = {
+    RpcEndpointAddress(rpcEnv.address, RayDPDriverAgent.ENDPOINT_NAME).toString
+  }
+
+  class RayDPDriverAgentEndpoint(override val rpcEnv: RpcEnv)
+      extends ThreadSafeRpcEndpoint with Logging {
+    override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
+      case RecacheRDD(rddId) =>
+        // TODO if multiple blocks get lost, should call this only once
+        // SparkEnv.get.blockManagerMaster.getLocationsAndStatus()
+        spark.getPersistentRDDs.map {
+          case (id, rdd) =>
+            if (id == rddId) {
+              rdd.count
+            }
+        }
+        context.reply(true)
+    }
+  }
+
+}
+
+object RayDPDriverAgent {
+  val ENDPOINT_NAME = "RAYDP_DRIVER_AGENT"
 }

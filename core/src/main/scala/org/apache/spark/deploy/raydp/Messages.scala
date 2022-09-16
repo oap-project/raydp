@@ -41,3 +41,5 @@ case class RequestAddPendingRestartedExecutor(executorId: String)
 
 case class AddPendingRestartedExecutorReply(newExecutorId: Option[String])
   extends RayDPDeployMessage
+
+case class RecacheRDD(rddId: Int) extends RayDPDeployMessage

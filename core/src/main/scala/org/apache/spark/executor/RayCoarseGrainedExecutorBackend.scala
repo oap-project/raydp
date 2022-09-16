@@ -58,6 +58,7 @@ class RayCoarseGrainedExecutorBackend(
     val appMasterURL: String) extends Logging {
 
   val nodeIp = RayConfig.create().nodeIp
+  val conf = new SparkConf()
 
   private val temporaryRpcEnvName = "ExecutorTemporaryRpcEnv"
   private var temporaryRpcEnv: Option[RpcEnv] = None
@@ -68,7 +69,6 @@ class RayCoarseGrainedExecutorBackend(
   init()
 
   def init(): Unit = {
-    val conf = new SparkConf()
     createTemporaryRpcEnv(temporaryRpcEnvName, conf)
     assert(temporaryRpcEnv.nonEmpty)
     registerToAppMaster()
@@ -313,9 +313,33 @@ class RayCoarseGrainedExecutorBackend(
     result
   }
 
-  def getRDDPartition(rdd: RDD[Array[Byte]],
-                      partition: Partition,
-                      schemaStr: String): Array[Byte] = {
+  def requestRecacheRDD(rddId: Int, driverAgentUrl: String): Unit = {
+    val env = RpcEnv.create("TEMP_EXECUTOR_"+executorId, nodeIp, nodeIp, -1, conf,
+                            new SecurityManager(conf),
+                            numUsableCores = 0, clientMode = true)
+    var driverAgent: RpcEndpointRef = null
+    val nTries = 3
+    for (i <- 0 until nTries if driverAgent == null) {
+      try {
+        driverAgent = env.setupEndpointRefByURI(driverAgentUrl)
+      } catch {
+        case e: Throwable =>
+          if (i == nTries - 1) {
+            throw e
+          } else {
+            logWarning(
+              s"Executor: ${executorId} register to driver Agent failed(${i + 1}/${nTries}) ")
+          }
+      }
+    }
+    val success = driverAgent.askSync[Boolean](RecacheRDD(rddId))
+    env.shutdown
+  }
+
+  def getRDDPartition(rddId: Int,
+                      partitionId: Int,
+                      schemaStr: String,
+                      driverAgentUrl: String): Array[Byte] = {
     while (!started.get) {
       // wait until executor is started
       // this might happen if executor restarts
@@ -328,23 +352,23 @@ class RayCoarseGrainedExecutorBackend(
       }
     }
     val env = SparkEnv.get
-    val context = new TaskContextImpl(0, 0, partition.index, -1024, 0,
+    val context = new TaskContextImpl(0, 0, partitionId, -1024, 0,
         new TaskMemoryManager(env.memoryManager, 0), new Properties(), env.metricsSystem)
     TaskContext.setTaskContext(context)
     val schema = Schema.fromJSON(schemaStr)
-    var iterator: Iterator[Array[Byte]] = null
-    try {
-      iterator = rdd.iterator(partition, context)
-    } catch {
-      case e: Exception =>
-        // might need to cache rdd again, e.g., due to failure
-        val handleOpt = Ray.getActor("RAYDP_DRIVER_AGENT")
-        if (!handleOpt.isPresent) {
-          throw new RayDPException("RayDPDriverAgent actor is not alive!")
+    val blockId = BlockId.apply("rdd_" + rddId + "_" + partitionId)
+    val iterator = env.blockManager.get(blockId)(classTag[Array[Byte]]) match {
+      case Some(blockResult) =>
+        blockResult.data.asInstanceOf[Iterator[Array[Byte]]]
+      case None =>
+        logWarning("The cached block has been lost. Cache it again via driver agent")
+        requestRecacheRDD(rddId, driverAgentUrl)
+        env.blockManager.get(blockId)(classTag[Array[Byte]]) match {
+          case Some(blockResult) =>
+            blockResult.data.asInstanceOf[Iterator[Array[Byte]]]
+          case None =>
+            throw new RayDPException("Still cannot get the block after recache!")
         }
-        val handle = handleOpt.get.asInstanceOf[ActorHandle[RayDPDriverAgent]]
-        RayAppMasterUtils.recacheRDD(handle, rdd.id)
-        iterator = rdd.iterator(partition, context)
     }
     val byteOut = new ByteArrayOutputStream()
     val writeChannel = new WriteChannel(Channels.newChannel(byteOut))
