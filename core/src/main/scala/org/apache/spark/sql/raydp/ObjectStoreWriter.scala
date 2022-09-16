@@ -192,6 +192,7 @@ object ObjectStoreWriter {
   val dfToId = new mutable.HashMap[DataFrame, UUID]()
   var driverAgent: RayDPDriverAgent = _
   var driverAgentUrl: String = _
+  var address: Array[Byte] = null
 
   def toArrowSchema(df: DataFrame): Schema = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
@@ -205,11 +206,14 @@ object ObjectStoreWriter {
   }
 
   def getAddress(): Array[Byte] = {
-    val objectRef = Ray.put(1)
-    val objectRefImpl = RayDPUtils.convert(objectRef)
-    val objectId = objectRefImpl.getId
-    val runtime = Ray.internal.asInstanceOf[AbstractRayRuntime]
-    runtime.getObjectStore.getOwnershipInfo(objectId)
+    if (address == null) {
+      val objectRef = Ray.put(1)
+      val objectRefImpl = RayDPUtils.convert(objectRef)
+      val objectId = objectRefImpl.getId
+      val runtime = Ray.internal.asInstanceOf[AbstractRayRuntime]
+      runtime.getObjectStore.getOwnershipInfo(objectId)
+    }
+    address
   }
 
   def fromSparkRDD(df: DataFrame): Array[Array[Byte]] = {
