@@ -61,6 +61,7 @@ class _SparkContext(ContextDecorator):
                  executor_cores: int,
                  executor_memory: Union[str, int],
                  enable_hive: bool,
+                 fault_tolerant_mode: bool,
                  placement_group_strategy: Optional[str],
                  placement_group: Optional[PlacementGroup],
                  placement_group_bundle_indexes: Optional[List[int]],
@@ -69,6 +70,7 @@ class _SparkContext(ContextDecorator):
         self._num_executors = num_executors
         self._executor_cores = executor_cores
         self._enable_hive = enable_hive
+        self._fault_tolerant_mode = fault_tolerant_mode
 
         if isinstance(executor_memory, str):
             # If this is human readable str(like: 10KB, 10MB..), parse it
@@ -123,6 +125,8 @@ class _SparkContext(ContextDecorator):
             self._executor_memory,
             self._enable_hive,
             self._configs)
+        if self._fault_tolerant_mode:
+            spark_cluster.connect_spark_driver_to_ray()
         return self._spark_session
 
     def stop(self, del_obj_holder=True):
@@ -161,6 +165,7 @@ def init_spark(app_name: str,
                executor_cores: int,
                executor_memory: Union[str, int],
                enable_hive: bool = False,
+               fault_tolerant_mode = False,
                placement_group_strategy: Optional[str] = None,
                placement_group: Optional[PlacementGroup] = None,
                placement_group_bundle_indexes: Optional[List[int]] = None,
@@ -192,12 +197,22 @@ def init_spark(app_name: str,
         # ray has not initialized, init local
         ray.init()
 
+    if fault_tolerant_mode:
+        print('''
+            Caution: Fault-tolerant mode is now experimental!
+                     This mode CANNOT be used in ray client mode.
+                     Use raydp.spark.from_spark_recoverable instead of ray.data.from_spark
+                     to make your data recoverable.
+                     The spark dataframe converted this way will be cached.
+        ''')
+
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is None:
             try:
                 _global_spark_context = _SparkContext(
                     app_name, num_executors, executor_cores, executor_memory, enable_hive,
+                    fault_tolerant_mode,
                     placement_group_strategy,
                     placement_group,
                     placement_group_bundle_indexes,

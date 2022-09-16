@@ -194,15 +194,12 @@ object ObjectStoreWriter {
   var driverAgentUrl: String = _
   var address: Array[Byte] = null
 
-  def toArrowSchema(df: DataFrame): Schema = {
-    val conf = df.queryExecution.sparkSession.sessionState.conf
-    val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
-    ArrowUtils.toArrowSchema(df.schema, timeZoneId)
-  }
-
-  def getArrowAllocator(name: String): BufferAllocator = {
-    ArrowUtils.rootAllocator.newChildAllocator(
-          name, 0, Long.MaxValue)
+  def connectToRay(): Unit = {
+    if (!Ray.isInitialized) {
+      Ray.init()
+      driverAgent = new RayDPDriverAgent()
+      driverAgentUrl = driverAgent.getDriverAgentEndpointUrl
+    }
   }
 
   def getAddress(): Array[Byte] = {
@@ -216,11 +213,16 @@ object ObjectStoreWriter {
     address
   }
 
+  def toArrowSchema(df: DataFrame): Schema = {
+    val conf = df.queryExecution.sparkSession.sessionState.conf
+    val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
+    ArrowUtils.toArrowSchema(df.schema, timeZoneId)
+  }
+
   def fromSparkRDD(df: DataFrame): Array[Array[Byte]] = {
     if (!Ray.isInitialized) {
-      Ray.init()
-      driverAgent = new RayDPDriverAgent()
-      driverAgentUrl = driverAgent.getDriverAgentEndpointUrl
+      throw new RayDPException(
+        "Not yet connected to Ray! Please set fault_tolerant_mode=True when starting RayDP.")
     }
     val uuid = dfToId.getOrElseUpdate(df, UUID.randomUUID())
     val queue = ObjectRefHolder.getQueue(uuid)

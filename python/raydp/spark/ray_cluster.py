@@ -50,6 +50,15 @@ class SparkCluster(Cluster):
     def get_cluster_url(self) -> str:
         return ray.get(self._spark_master_handle.get_master_url.remote())
 
+    def connect_spark_driver_to_ray(self):
+        # provide ray cluster config through jvm properties
+        # this is needed to connect to ray cluster
+        jvm_properties_ref = self._spark_master_handle._generate_ray_configs.remote()
+        jvm_properties = ray.get(jvm_properties_ref)
+        jvm = self._spark_session._jvm
+        jvm.org.apache.spark.deploy.raydp.RayAppMaster.setProperties(jvm_properties)
+        jvm.org.apache.spark.sql.raydp.ObjectStoreWriter.connectToRay()
+
     def get_spark_session(self,
                           app_name: str,
                           num_executors: int,
@@ -92,12 +101,6 @@ class SparkCluster(Cluster):
             spark_builder.enableHiveSupport()
         self._spark_session = \
             spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
-        # provide ray cluster config through jvm properties
-        # this is needed to connect to ray cluster during from_spark(fault tolerant)
-        jvm_properties_ref = self._spark_master_handle._generate_ray_configs.remote()
-        jvm_properties = ray.get(jvm_properties_ref)
-        jvm = self._spark_session._jvm
-        jvm.org.apache.spark.deploy.raydp.RayAppMaster.setProperties(jvm_properties)
         return self._spark_session
 
     def stop(self):
