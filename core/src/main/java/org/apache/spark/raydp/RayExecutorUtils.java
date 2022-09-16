@@ -26,9 +26,7 @@ import java.util.List;
 
 import io.ray.api.placementgroup.PlacementGroup;
 import io.ray.runtime.object.ObjectRefImpl;
-import org.apache.spark.Partition;
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend;
-import org.apache.spark.rdd.RDD;
 
 
 public class RayExecutorUtils {

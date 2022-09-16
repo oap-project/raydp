@@ -19,7 +19,7 @@ package org.apache.spark.deploy.raydp
 
 import io.ray.runtime.config.RayConfig
 
-import org.apache.spark.{SecurityManager, SparkContext, SparkConf}
+import org.apache.spark.{SecurityManager, SparkConf, SparkContext}
 import org.apache.spark.internal.Logging
 import org.apache.spark.rpc._
 

@@ -18,17 +18,15 @@
 package org.apache.spark.executor
 
 import java.io.{ByteArrayOutputStream, File}
-import java.net.URL
-import java.nio.channels.{Channels, ReadableByteChannel}
+import java.nio.channels.Channels
 import java.nio.file.Paths
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicBoolean
 
-import scala.reflect.{classTag, ClassTag}
+import scala.reflect.classTag
 
-import io.ray.api.{ActorHandle, Ray}
+import io.ray.api.Ray
 import io.ray.runtime.config.RayConfig
-import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.{ArrowStreamWriter, WriteChannel}
 import org.apache.arrow.vector.ipc.message.{IpcOption, MessageSerializer}
 import org.apache.arrow.vector.types.pojo.Schema
@@ -40,17 +38,10 @@ import org.apache.spark.deploy.raydp._
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
 import org.apache.spark.memory.TaskMemoryManager
-import org.apache.spark.rdd.RDD
 import org.apache.spark.resource.ResourceProfile
 import org.apache.spark.rpc.{RpcEndpointRef, RpcEnv}
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{RetrieveSparkAppConfig, SparkAppConfig}
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.execution.arrow.ArrowWriter
-import org.apache.spark.sql.execution.python.BatchIterator
-import org.apache.spark.sql.raydp.ObjectStoreWriter
-import org.apache.spark.sql.types.IntegerType
-import org.apache.spark.storage.{BlockId, BlockManager, RDDBlockId, StorageLevel}
+import org.apache.spark.storage.{BlockId, BlockManager}
 import org.apache.spark.util.Utils
 
 class RayCoarseGrainedExecutorBackend(
@@ -314,7 +305,7 @@ class RayCoarseGrainedExecutorBackend(
   }
 
   def requestRecacheRDD(rddId: Int, driverAgentUrl: String): Unit = {
-    val env = RpcEnv.create("TEMP_EXECUTOR_"+executorId, nodeIp, nodeIp, -1, conf,
+    val env = RpcEnv.create("TEMP_EXECUTOR_" + executorId, nodeIp, nodeIp, -1, conf,
                             new SecurityManager(conf),
                             numUsableCores = 0, clientMode = true)
     var driverAgent: RpcEndpointRef = null

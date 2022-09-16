@@ -28,12 +28,11 @@ import scala.collection.mutable.HashMap
 import io.ray.api.{ActorHandle, PlacementGroups, Ray}
 import io.ray.api.id.PlacementGroupId
 import io.ray.api.placementgroup.PlacementGroup
-import io.ray.runtime.AbstractRayRuntime
 import io.ray.runtime.config.RayConfig
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
-import org.apache.spark.{RayDPException, SecurityManager, SparkConf, TaskContext}
+import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.{RayExecutorUtils, SparkOnRayConfigs}
