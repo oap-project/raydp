@@ -164,34 +164,35 @@ def test_placement_group(ray_cluster):
 
 def test_reconstruction():
     cluster = ray.cluster_utils.Cluster()
-    # Head node with no resources.
+    # Head node has 2 cores for necessray actors
+    head = cluster.add_node(
+        num_cpus=2,
+        include_dashboard=False,
+        enable_object_reconstruction=True
+    )
+    ray.init(address=cluster.address, include_dashboard=False)
+    # init_spark before adding nodes to ensure drivers connect to the head node
+    spark = raydp.init_spark('a', 2, 1, '500m', fault_tolerant_mode=True)
+    # Add two nodes, 1 executor each
+    node_to_kill = cluster.add_node(num_cpus=1, include_dashboard=False,object_store_memory=10**8)
+    second_node = cluster.add_node(num_cpus=1, include_dashboard=False,object_store_memory=10**8)
+    # wait for executors to start
+    time.sleep(5)
+    # df should be large enough so that result will be put into plasma
+    df = spark.range(100000)
+    ds = raydp.spark.from_spark_recoverable(df)
+    # remove the node, object get lost
+    cluster.remove_node(node_to_kill)
+    # add a node back, otherwise executor cannot restart due to lack of resource
     cluster.add_node(
-        num_cpus=0,
-        enable_object_reconstruction=True,
+        num_cpus=1, object_store_memory=10 ** 8
     )
-    ray.init(address=cluster.address)
-    # Node to place the initial object.
-    node_to_kill = cluster.add_node(
-        num_cpus=1, resources={"node1": 1}, object_store_memory=10 ** 8
-    )
-    cluster.wait_for_nodes()
-    spark = raydp.init_spark('a', 1, 1, '500m')
-    df = spark.read.format("csv").option("header", "true") \
-            .option("inferSchema", "true") \
-            .load("file://"+ os.path.dirname(os.path.abspath(__file__)) + "../../../examples/fake_nyctaxi.csv")
-    jvm = spark._jvm.org.apache.spark.sql.raydp.ObjectStoreWriter
-    id = jvm.fromSparkRDD(df._jdf)
-    addr = jvm.getAddress()
-    ref = ray.ObjectRef(id[0])
-    worker = ray.worker.global_worker
-    worker.core_worker.deserialize_and_register_object_ref(
-        ref.binary(), ray.ObjectRef.nil(), addr, "")
-    # remove the node
-    cluster.remove_node(node_to_kill, allow_graceful=False)
-    cluster.add_node(
-        num_cpus=1, resources={"node1": 1}, object_store_memory=10 ** 8
-    )
-    ray.get(ref)
+    # verify that block is recovered
+    for block in ds.get_internal_block_refs():
+        ray.get(block)
+    raydp.stop_spark()
+    ray.shutdown()
+    cluster.shutdown()
 
 @pytest.mark.skip("flaky")
 def test_custom_installed_spark(custom_spark_dir):
