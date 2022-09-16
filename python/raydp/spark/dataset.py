@@ -167,7 +167,6 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
 
     return blocks, block_sizes
 
-
 def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
                                    parallelism: Optional[int] = None,
                                    _use_owner: bool = False):
@@ -176,6 +175,29 @@ def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
         if parallelism != num_part:
             df = df.repartition(parallelism)
     blocks, _ = _save_spark_df_to_object_store(df, False, _use_owner)
+    return from_arrow_refs(blocks)
+
+# This is an experimental API for now.
+# If you had any issue using it, welcome to report at our github.
+# This function WILL cache/persist the dataframe!
+def from_spark_recoverable(df: sql.DataFrame,
+                           parallelism: Optional[int] = None,):
+    num_part = df.rdd.getNumPartitions()
+    if parallelism is not None:
+        if parallelism != num_part:
+            df = df.repartition(parallelism)
+    jvm = df.sql_ctx.sparkSession.sparkContext._jvm
+    object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter
+    ids = object_store_writer.fromSparkRDD(df._jdf)
+    owner = object_store_writer.getAddress()
+    worker = ray.worker.global_worker
+    blocks = []
+    for id in ids:
+        object_ref = ray.ObjectRef(id)
+        # Register the ownership of the ObjectRef
+        worker.core_worker.deserialize_and_register_object_ref(
+            object_ref.binary(), ray.ObjectRef.nil(), owner, "")
+        blocks.append(object_ref)
     return from_arrow_refs(blocks)
 
 @ray.remote
