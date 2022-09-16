@@ -198,13 +198,15 @@ def init_spark(app_name: str,
         ray.init()
 
     if fault_tolerant_mode:
-        print('''
-            Caution: Fault-tolerant mode is now experimental!
-                     This mode CANNOT be used in ray client mode.
-                     Use raydp.spark.from_spark_recoverable instead of ray.data.from_spark
-                     to make your data recoverable.
-                     The spark dataframe converted this way will be cached.
-        ''')
+        print(
+    '''
+    Caution: Fault-tolerant mode is now experimental!
+            This mode CANNOT be used in ray client mode.
+            Use raydp.spark.from_spark_recoverable instead of ray.data.from_spark
+            to make your data recoverable.
+            The spark dataframe converted this way will be cached.
+    '''
+        )
 
     with _spark_context_lock:
         global _global_spark_context

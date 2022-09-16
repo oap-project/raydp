@@ -34,7 +34,7 @@ import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.apache.arrow.vector.types.pojo.Schema
 
-import org.apache.spark.Partition
+import org.apache.spark.RayDPException
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
 import org.apache.spark.raydp.{RayDPUtils, RayExecutorUtils}
@@ -208,7 +208,7 @@ object ObjectStoreWriter {
       val objectRefImpl = RayDPUtils.convert(objectRef)
       val objectId = objectRefImpl.getId
       val runtime = Ray.internal.asInstanceOf[AbstractRayRuntime]
-      runtime.getObjectStore.getOwnershipInfo(objectId)
+      address = runtime.getObjectStore.getOwnershipInfo(objectId)
     }
     address
   }
