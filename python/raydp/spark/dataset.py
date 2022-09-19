@@ -26,6 +26,7 @@ import pyspark.sql as sql
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import StructType
 from pyspark.sql.pandas.types import from_arrow_type
+from pyspark.storagelevel import StorageLevel
 import ray
 from ray.data import Dataset, from_arrow_refs
 from ray.types import ObjectRef
@@ -181,14 +182,16 @@ def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
 # If you had any issue using it, welcome to report at our github.
 # This function WILL cache/persist the dataframe!
 def from_spark_recoverable(df: sql.DataFrame,
-                           parallelism: Optional[int] = None,):
+                           storage_level: StorageLevel = StorageLevel.MEMORY_AND_DISK,
+                           parallelism: Optional[int] = None):
     num_part = df.rdd.getNumPartitions()
     if parallelism is not None:
         if parallelism != num_part:
             df = df.repartition(parallelism)
-    jvm = df.sql_ctx.sparkSession.sparkContext._jvm
-    object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter
-    ids = object_store_writer.fromSparkRDD(df._jdf)
+    sc = df.sql_ctx.sparkSession.sparkContext
+    storage_level = sc._getJavaStorageLevel(storage_level)
+    object_store_writer = sc._jvm.org.apache.spark.sql.raydp.ObjectStoreWriter
+    ids = object_store_writer.fromSparkRDD(df._jdf, storage_level)
     owner = object_store_writer.getAddress()
     worker = ray.worker.global_worker
     blocks = []

@@ -43,6 +43,7 @@ import org.apache.spark.sql.execution.arrow.ArrowWriter
 import org.apache.spark.sql.execution.python.BatchIterator
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.util.ArrowUtils
+import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.Utils
 
 /**
@@ -218,7 +219,7 @@ object ObjectStoreWriter {
     ArrowUtils.toArrowSchema(df.schema, timeZoneId)
   }
 
-  def fromSparkRDD(df: DataFrame): Array[Array[Byte]] = {
+  def fromSparkRDD(df: DataFrame, storageLevel: StorageLevel): Array[Array[Byte]] = {
     if (!Ray.isInitialized) {
       throw new RayDPException(
         "Not yet connected to Ray! Please set fault_tolerant_mode=True when starting RayDP.")
@@ -226,7 +227,7 @@ object ObjectStoreWriter {
     val uuid = dfToId.getOrElseUpdate(df, UUID.randomUUID())
     val queue = ObjectRefHolder.getQueue(uuid)
     val rdd = df.toArrowBatchRdd
-    rdd.cache()
+    rdd.persist(storageLevel)
     rdd.count()
     var executorIds = df.sqlContext.sparkContext.getExecutorIds.toArray
     val numExecutors = executorIds.length
