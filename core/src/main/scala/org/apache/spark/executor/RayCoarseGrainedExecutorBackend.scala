@@ -327,10 +327,11 @@ class RayCoarseGrainedExecutorBackend(
     env.shutdown
   }
 
-  def getRDDPartition(rddId: Int,
-                      partitionId: Int,
-                      schemaStr: String,
-                      driverAgentUrl: String): Array[Byte] = {
+  def getRDDPartition(
+      rddId: Int,
+      partitionId: Int,
+      schemaStr: String,
+      driverAgentUrl: String): Array[Byte] = {
     while (!started.get) {
       // wait until executor is started
       // this might happen if executor restarts

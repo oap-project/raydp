@@ -188,12 +188,12 @@ class RayAppMaster(host: String,
         if (appInfo.remainingUnRegisteredExecutors > 0) {
           val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
           val memory = appInfo.desc.memoryPerExecutorMB
-          val newExecutorId = s"${appInfo.getNextExecutorId()}"
           // ray actor will restart using the old ID
           val handlerOpt = Ray.getActor("raydp-executor-" + executorId)
           if (!handlerOpt.isPresent) {
             context.reply(AddPendingRestartedExecutorReply(None))
           } else {
+            val newExecutorId = s"${appInfo.getNextExecutorId()}"
             val handler = handlerOpt.get.asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]]
             appInfo.addPendingRegisterExecutor(newExecutorId, handler, cores, memory)
             restartedExecutors(newExecutorId) = executorId

@@ -19,7 +19,6 @@ import json
 import logging
 import os
 import shutil
-import shlex
 import signal
 import struct
 import tempfile
@@ -28,11 +27,7 @@ from subprocess import Popen, PIPE
 from copy import copy
 import glob
 import ray
-from py4j.java_gateway import java_import, JavaGateway, GatewayParameters
-from py4j.clientserver import ClientServer, JavaParameters, PythonParameters
-from pyspark.find_spark_home import _find_spark_home
-from pyspark.serializers import read_int, UTF8Deserializer
-
+from py4j.java_gateway import JavaGateway, GatewayParameters
 
 logger = logging.getLogger(__name__)
 

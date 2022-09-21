@@ -142,12 +142,6 @@ private[spark] class ApplicationInfo(
     registeredExecutors
   }
 
-  def isRemovedExecutor(executorId: String): Boolean = {
-    !removedExecutors.filter {desc =>
-      desc.executorId == executorId
-    }.isEmpty
-  }
-
   def getNextExecutorId(): Int = {
     val previous = nextExecutorId
     nextExecutorId += 1

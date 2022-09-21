@@ -191,12 +191,12 @@ def from_spark_recoverable(df: sql.DataFrame,
     sc = df.sql_ctx.sparkSession.sparkContext
     storage_level = sc._getJavaStorageLevel(storage_level)
     object_store_writer = sc._jvm.org.apache.spark.sql.raydp.ObjectStoreWriter
-    ids = object_store_writer.fromSparkRDD(df._jdf, storage_level)
+    object_ids = object_store_writer.fromSparkRDD(df._jdf, storage_level)
     owner = object_store_writer.getAddress()
     worker = ray.worker.global_worker
     blocks = []
-    for id in ids:
-        object_ref = ray.ObjectRef(id)
+    for object_id in object_ids:
+        object_ref = ray.ObjectRef(object_id)
         # Register the ownership of the ObjectRef
         worker.core_worker.deserialize_and_register_object_ref(
             object_ref.binary(), ray.ObjectRef.nil(), owner, "")
