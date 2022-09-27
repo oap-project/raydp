@@ -59,7 +59,7 @@ with open(conf_path, "w") as f:
     }
   }
  ```
- 3. Run your application, such as `raydp-submit --ray-conf=/path/to/ray.conf --conf spark.executor.cores=1 --conf spark.executor.instances=1 --conf spark.executor.memory=500m $SPARK_HOME/examples/src/main/python/pi.py`
+ 3. Run your application, such as `raydp-submit --ray-conf /path/to/ray.conf --class org.apache.spark.examples.SparkPi --conf spark.executor.cores=1 --conf spark.executor.instances=1 --conf spark.executor.memory=500m $SPARK_HOME/examples/jars/spark-examples.jar`. Note that `--ray-conf` must be specified right after raydp-submit, and before any spark arguments.
 
 ### Placement Group
 RayDP can leverage Ray's placement group feature and schedule executors onto spcecified placement group. It provides better control over the allocation of Spark executors on a Ray cluster, for example spreading the spark executors onto seperate nodes or starting all executors on a single node. You can specify a created placement group when init spark, as shown below:
