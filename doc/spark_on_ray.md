@@ -27,7 +27,39 @@ raydp.init_spark(..., configs={"raydp.executor.extraClassPath": "/your/extra/jar
 
 ### Spark Submit
 
-RayDP provides a substitute for spark-submit in Apache Spark. You can run your java or scala application on RayDP cluster by using `bin/raydp-submit`. You can add it to `PATH` for convenience. When using `raydp-submit`, you should specify number of executors, number of cores and memory each executor by Spark properties, such as `--conf spark.executor.cores=1`, `--conf spark.executor.instances=1` and `--conf spark.executor.memory=500m`. `raydp-submit` only supports Ray cluster. Spark standalone, Apache Mesos, Apache Yarn are not supported, please use traditional `spark-submit` in that case. For the same reason, you do not need to specify `--master` in the command. Besides, RayDP does not support cluster as deploy-mode.
+RayDP provides a substitute for spark-submit in Apache Spark. You can run your java or scala application on RayDP cluster by using `bin/raydp-submit`. You can add it to `PATH` for convenience. When using `raydp-submit`, you should specify number of executors, number of cores and memory each executor by Spark properties, such as `--conf spark.executor.cores=1`, `--conf spark.executor.instances=1` and `--conf spark.executor.memory=500m`. `raydp-submit` only supports Ray cluster. Spark standalone, Apache Mesos, Apache Yarn are not supported, please use traditional `spark-submit` in that case. Besides, RayDP does not support cluster as deploy-mode.
+
+Here is an example:
+
+1. To use `raydp-submit`, you need to start your ray cluster in advance. Let's say your ray address is `1.2.3.4:6379`
+2. You should use a ray config file to provide your ray cluster configuration to `raydp-submit`. You can create it using this script: 
+```python
+ray.init(address="auto")
+node = ray.worker.global_worker.node
+options = {}
+options["ray"] = {}
+options["ray"]["run-mode"] = "CLUSTER"
+options["ray"]["node-ip"] = node.node_ip_address
+options["ray"]["address"] = node.address
+options["ray"]["session-dir"] = node.get_session_dir_path()
+
+ray.shutdown()
+conf_path = "ray.conf"
+with open(conf_path, "w") as f:
+    json.dump(options, f)
+ ```
+ The file should look like this:
+ ```json
+ {
+    "ray": {
+        "run-mode": "CLUSTER",
+        "node-ip": "1.2.3.4",
+        "address": "1.2.3.4:6379",
+        "session-dir": "/tmp/ray/session_xxxxxx"
+    }
+  }
+ ```
+ 3. Run your application, such as `raydp-submit --ray-conf=/path/to/ray.conf --conf spark.executor.cores=1 --conf spark.executor.instances=1 --conf spark.executor.memory=500m $SPARK_HOME/examples/src/main/python/pi.py`
 
 ### Placement Group
 RayDP can leverage Ray's placement group feature and schedule executors onto spcecified placement group. It provides better control over the allocation of Spark executors on a Ray cluster, for example spreading the spark executors onto seperate nodes or starting all executors on a single node. You can specify a created placement group when init spark, as shown below:
