@@ -22,6 +22,7 @@ import java.net.URL
 import java.nio.file.Paths
 
 import io.ray.runtime.config.RayConfig
+import com.intel.raydp.shims.SparkShimLoader
 import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf, SparkEnv}
@@ -94,7 +95,9 @@ class RayDPExecutor(
     val createFn: (RpcEnv, SparkEnv, ResourceProfile) =>
       CoarseGrainedExecutorBackend = {
       case (rpcEnv, env, resourceProfile) =>
-        new RayCoarseGrainedExecutorBackend(rpcEnv, driverUrl, executorId,
+        SparkShimLoader.getSparkShims
+                       .getExecutorBackendFactory
+                       .createExecutorBackend(rpcEnv, driverUrl, executorId,
           nodeIp, nodeIp, cores, userClassPath, env, None, resourceProfile)
     }
     executorRunningThread = new Thread() {

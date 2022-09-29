@@ -21,6 +21,8 @@ import java.io.ByteArrayInputStream
 import java.nio.channels.{Channels, ReadableByteChannel}
 import java.util.List
 
+import com.intel.raydp.shims.SparkShimLoader
+
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.raydp.RayDPUtils
 import org.apache.spark.rdd.{RayDatasetRDD, RayObjectRefRDD}
@@ -42,7 +44,7 @@ object ObjectStoreReader {
       sparkSession: SparkSession,
       rdd: RayDatasetRDD,
       schema: String): DataFrame = {
-    ArrowConverters.toDataFrame(JavaRDD.fromRDD(rdd), schema, sparkSession)
+    SparkShimLoader.getSparkShims.toDataFrame(JavaRDD.fromRDD(rdd), schema, sparkSession)
   }
 
   def getBatchesFromStream(
