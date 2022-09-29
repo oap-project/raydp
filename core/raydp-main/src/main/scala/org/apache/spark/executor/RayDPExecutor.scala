@@ -21,8 +21,8 @@ import java.io.File
 import java.net.URL
 import java.nio.file.Paths
 
-import io.ray.runtime.config.RayConfig
 import com.intel.raydp.shims.SparkShimLoader
+import io.ray.runtime.config.RayConfig
 import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf, SparkEnv}
