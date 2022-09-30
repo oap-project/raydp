@@ -28,6 +28,11 @@
   <name>RayDP Shims for Spark 3.3.0</name>
   <packaging>jar</packaging>
 
+  <properties>
+    <scala.version>2.12.15</scala.version>
+    <jackson.version>2.13.3</jackson.version>
+  </properties>
+
   <build>
     <plugins>
       <plugin>
@@ -55,7 +60,7 @@
           </execution>
         </executions>
       </plugin>
-      <plugin>
+      <!-- <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.3</version>
@@ -69,7 +74,7 @@
             <arg>-Xlint:all,-serial,-path</arg>
           </compilerArgs>
         </configuration>
-      </plugin>
+      </plugin> -->
     </plugins>
 
     <resources>
@@ -89,6 +94,12 @@
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_${scala.binary.version}</artifactId>
+      <version>${spark330.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-core_2.12</artifactId>
       <version>${spark330.version}</version>
       <scope>provided</scope>
     </dependency>

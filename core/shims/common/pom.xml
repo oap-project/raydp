@@ -43,7 +43,7 @@
                   </execution>
               </executions>
           </plugin>
-          <plugin>
+          <!-- <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-compiler-plugin</artifactId>
               <version>3.3</version>
@@ -57,7 +57,7 @@
                       <arg>-Xlint:all,-serial,-path</arg>
                   </compilerArgs>
               </configuration>
-          </plugin>
+          </plugin> -->
       </plugins>
   </build>
 
@@ -65,7 +65,13 @@
       <dependency>
           <groupId>org.apache.spark</groupId>
           <artifactId>spark-sql_${scala.binary.version}</artifactId>
-          <version>${spark311.version}</version>
+          <version>${spark.version}</version>
+          <scope>provided</scope>
+      </dependency>
+      <dependency>
+          <groupId>org.apache.spark</groupId>
+          <artifactId>spark-core_${scala.binary.version}</artifactId>
+          <version>${spark.version}</version>
           <scope>provided</scope>
       </dependency>
   </dependencies>
