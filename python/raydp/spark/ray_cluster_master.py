@@ -67,13 +67,13 @@ class RayDPSparkMaster():
             cp_list.extend(user_cp.split(os.pathsep))
         # find RayDP core path
         cp_list.append(raydp_cp)
-        # find ray jar path
-        cp_list.append(ray_cp)
         # find pyspark jars path
         self._spark_home = os.environ.get("SPARK_HOME", os.path.dirname(pyspark.__file__))
         spark_jars_dir = os.path.abspath(os.path.join(self._spark_home, "jars/*"))
         spark_jars = [jar for jar in glob.glob(spark_jars_dir) if "slf4j-log4j" not in jar]
         cp_list.extend(spark_jars)
+        # find ray jar path
+        cp_list.append(ray_cp)
         return cp_list
 
     def _launch_gateway(self, class_path, popen_kwargs=None):
