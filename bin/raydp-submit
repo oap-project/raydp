@@ -57,7 +57,7 @@ else
   fi
 fi
 # All classpath used
-RAYDP_CLASS_PATH="-cp $RAYDP_HOME/jars/*:$RAY_HOME/jars/*:$SPARK_HOME/conf:$SPARK_HOME/jars/*"
+RAYDP_CLASS_PATH="-cp $RAYDP_HOME/jars/*:$SPARK_HOME/conf:$SPARK_HOME/jars/*:$RAY_HOME/jars/*"
 
 if [ $1 == "--ray-conf" ]; then
   RAY_CONF=$2
