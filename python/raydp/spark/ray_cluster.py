@@ -88,6 +88,14 @@ class SparkCluster(Cluster):
         else:
             extra_conf[driver_cp_key] = driver_cp
         spark_builder = SparkSession.builder
+        dyn_alloc_key = "spark.dynamicAllocation.enabled"
+        if dyn_alloc_key in extra_conf and extra_conf[dyn_alloc_key] == "true":
+            max_executor_key = "spark.dynamicAllocation.maxExecutors"
+            # set max executors if not set. otherwise spark might request too many actors
+            if max_executor_key not in extra_conf:
+                total_cores = ray.cluster_resources()["CPU"]
+                num_cores = str(executor_cores)
+                extra_conf[max_executor_key] = total_cores // num_cores
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
         if enable_hive:
