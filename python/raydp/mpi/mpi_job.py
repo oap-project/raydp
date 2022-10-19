@@ -252,6 +252,7 @@ class MPIJob:
 
         # append main class
         mpirun_script.append(sys.executable)
+        # make stdout directly to screen without cache
         mpirun_script.append("-u")
         mpirun_script.append(constants.MPI_MAIN_CLASS_PATH)
 
