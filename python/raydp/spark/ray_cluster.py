@@ -17,7 +17,7 @@
 
 import glob
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Union, Optional
 
 import ray
 import ray._private.services
@@ -54,7 +54,7 @@ class SparkCluster(Cluster):
                           app_name: str,
                           num_executors: int,
                           executor_cores: int,
-                          executor_memory: int,
+                          executor_memory: Union[str, int],
                           enable_hive: bool,
                           extra_conf: Dict[str, str] = None) -> SparkSession:
         if self._spark_session is not None:
