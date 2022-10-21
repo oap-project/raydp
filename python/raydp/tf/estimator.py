@@ -240,16 +240,27 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                      stop_spark_after_conversion=False) -> NoReturn:
         super().fit_on_spark(train_df, evaluate_df)
         train_df = self._check_and_convert(train_df)
-        train_ds = spark_dataframe_to_ray_dataset(train_df,
+        if fs_directory is not None:
+            train_df.write.parquet(fs_directory, compression=compression)
+            train_ds = ray.data.read_parquet(fs_directory)
+        else:
+            train_ds = spark_dataframe_to_ray_dataset(train_df,
+                                                  parallelism=self._num_workers,
                                                   _use_owner=stop_spark_after_conversion)
-        if self._shuffle:
-            train_ds = train_ds.random_shuffle()
         evaluate_ds = None
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
-            evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
+            if fs_directory is not None:
+                evaluate_df.write.parquet(fs_directory, compression=compression)
+                evaluate_ds = ray.data.read_parquet(fs_directory)
+            else:
+                evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
+                                                         parallelism=self._num_workers,
                                                          _use_owner=stop_spark_after_conversion)
-            if self._shuffle:
+
+        if self._shuffle:
+            train_ds = train_ds.random_shuffle()
+            if evaluate_df is not None:
                 evaluate_ds = evaluate_ds.random_shuffle()
 
         if stop_spark_after_conversion:
