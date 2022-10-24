@@ -21,6 +21,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from tensorflow.keras.callbacks import Callback
+import ray
 from ray import train
 from ray.train import Trainer
 from ray.train.tensorflow import prepare_dataset_shard

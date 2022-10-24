@@ -28,6 +28,7 @@ from raydp.torch.torch_metrics import TorchMetric
 from raydp import stop_spark
 from raydp.spark import spark_dataframe_to_ray_dataset
 
+import ray
 from ray import train
 from ray.train import Trainer, TrainingCallback, get_dataset_shard
 from ray.data.dataset import Dataset
