@@ -246,7 +246,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_ds = ray.data.read_parquet(fs_directory)
         else:
             train_ds = spark_dataframe_to_ray_dataset(train_df,
-                                                  parallelism=self._num_workers,
                                                   _use_owner=stop_spark_after_conversion)
         evaluate_ds = None
         if evaluate_df is not None:
@@ -256,7 +255,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                 evaluate_ds = ray.data.read_parquet(fs_directory)
             else:
                 evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
-                                                         parallelism=self._num_workers,
                                                          _use_owner=stop_spark_after_conversion)
 
         if self._shuffle:
