@@ -94,9 +94,9 @@ class SparkCluster(Cluster):
             max_executor_key = "spark.dynamicAllocation.maxExecutors"
             # set max executors if not set. otherwise spark might request too many actors
             if max_executor_key not in extra_conf:
-                print(f"Warning: spark.dynamicAllocation.maxExecutors is not set.\n" \
-                      f"Consider to set it to match the cluster configuration. " \
-                      f"If used with autoscaling, calculate it from max_workers.",
+                print("Warning: spark.dynamicAllocation.maxExecutors is not set.\n" \
+                      "Consider to set it to match the cluster configuration. " \
+                      "If used with autoscaling, calculate it from max_workers.",
                       file=sys.stderr)
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
