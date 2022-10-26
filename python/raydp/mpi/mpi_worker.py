@@ -131,7 +131,10 @@ class MPIWorker:
 
     def _start_network_service(self):
         assert self.node_ip_address is not None
-        options = (("grpc.enable_http_proxy", 0),)
+        MAX_MESSAGE_LENGTH = 50*1024*1024
+        options = (("grpc.enable_http_proxy", 0),
+                   ("grpc.max_send_message_length", MAX_MESSAGE_LENGTH),
+                   ("grpc.max_receive_message_length", MAX_MESSAGE_LENGTH), )
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1),
                                   options=options)
         network_pb2_grpc.add_WorkerServiceServicer_to_server(WorkerService(self), self.server)

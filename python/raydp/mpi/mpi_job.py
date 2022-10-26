@@ -223,7 +223,10 @@ class MPIJob:
         return self.node_addresses
 
     def _start_network_service(self):
-        options = (("grpc.enable_http_proxy", 0), )
+        MAX_MESSAGE_LENGTH = 50*1024*1024
+        options = (("grpc.enable_http_proxy", 0),
+                   ("grpc.max_send_message_length", MAX_MESSAGE_LENGTH),
+                   ("grpc.max_receive_message_length", MAX_MESSAGE_LENGTH), )
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1),
                                   options=options)
         network_pb2_grpc.add_DriverServiceServicer_to_server(DriverService(self), self.server)
@@ -249,6 +252,8 @@ class MPIJob:
 
         # append main class
         mpirun_script.append(sys.executable)
+        # make stdout directly to screen without cache
+        mpirun_script.append("-u")
         mpirun_script.append(constants.MPI_MAIN_CLASS_PATH)
 
         # prepare the mpirun env

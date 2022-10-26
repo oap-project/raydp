@@ -59,7 +59,7 @@ def spark_on_ray_small(request):
         ray.init(address="local", num_cpus=4, include_dashboard=False)
     else:
         ray.init(address=request.param)
-    spark = raydp.init_spark("test", 1, 1, "500 M")
+    spark = raydp.init_spark("test", 1, 1, "500M")
 
     def stop_all():
         raydp.stop_spark()
@@ -98,7 +98,7 @@ def spark_on_ray_fractional_cpu(request):
     ray.init(address=cluster.address)
 
     spark = raydp.init_spark(app_name="test_cpu_fraction",
-                             num_executors=1, executor_cores=3, executor_memory="500 M",
+                             num_executors=1, executor_cores=3, executor_memory="500M",
                              configs={"spark.ray.actor.resource.cpu": "0.1"})
 
     def stop_all():
