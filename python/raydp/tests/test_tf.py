@@ -17,8 +17,9 @@
 
 import pyspark
 import pytest
-import sys
 import os
+import sys
+import shutil
 
 import tensorflow.keras as keras
 
@@ -63,11 +64,13 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
                             num_epochs=2,
                             use_gpu=False)
 
-    fs_directory = None
     if use_fs_directory:
-        fs_directory = "file://" + os.path.dirname(__file__) + "/test_tf"
-    estimator.fit_on_spark(train_df, test_df)
-
+        dir = os.path.dirname(__file__) + "/test_tf"
+        uri = "file://" + dir
+        estimator.fit_on_spark(train_df, test_df, fs_directory=uri)
+        shutil.rmtree(dir)
+    else:
+        estimator.fit_on_spark(train_df, test_df)
     estimator.shutdown()
 
 

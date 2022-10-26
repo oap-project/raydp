@@ -16,8 +16,9 @@
 #
 
 import pytest
-import sys
 import os
+import sys
+import shutil
 import torch
 
 import databricks.koalas as ks
@@ -75,11 +76,13 @@ def test_torch_estimator(spark_on_ray_small, use_fs_directory):
                                use_gpu=False)
 
     # train the model
-    fs_directory = None
     if use_fs_directory:
-        fs_directory = "file://" + os.path.dirname(__file__) + "/test_torch"
-    estimator.fit_on_spark(train_df, test_df, fs_directory=fs_directory)
-
+        dir = os.path.dirname(__file__) + "/test_torch"
+        uri = "file://" + dir
+        estimator.fit_on_spark(train_df, test_df, fs_directory=uri)
+        shutil.rmtree(dir)
+    else:
+        estimator.fit_on_spark(train_df, test_df)
     estimator.shutdown()
 
 
