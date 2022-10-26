@@ -18,6 +18,7 @@
 import pyspark
 import pytest
 import sys
+import os
 
 import tensorflow.keras as keras
 
@@ -26,8 +27,8 @@ from pyspark.sql.functions import rand
 from raydp.tf import TFEstimator
 from raydp.utils import random_split
 
-
-def test_tf_estimator(spark_on_ray_small):
+@pytest.mark.parametrize("use_fs_directory", [True, False])
+def test_tf_estimator(spark_on_ray_small, use_fs_directory):
     spark = spark_on_ray_small
 
     # ---------------- data process with Spark ------------
@@ -62,6 +63,9 @@ def test_tf_estimator(spark_on_ray_small):
                             num_epochs=2,
                             use_gpu=False)
 
+    fs_directory = None
+    if use_fs_directory:
+        fs_directory = "file://" + os.path.dirname(__file__) + "/test_tf"
     estimator.fit_on_spark(train_df, test_df)
 
     estimator.shutdown()

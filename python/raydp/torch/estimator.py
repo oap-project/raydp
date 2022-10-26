@@ -323,8 +323,9 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         super().fit_on_spark(train_df, evaluate_df)
         train_df = self._check_and_convert(train_df)
         if fs_directory is not None:
-            train_df.write.parquet(fs_directory, compression=compression)
-            train_ds = ray.data.read_parquet(fs_directory)
+            path = fs_directory.rstrip("/") + "/train"
+            train_df.write.parquet(path, compression=compression)
+            train_ds = ray.data.read_parquet(path)
         else:
             train_ds = spark_dataframe_to_ray_dataset(train_df,
                                                   parallelism=self._num_workers,
@@ -333,8 +334,9 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
             if fs_directory is not None:
-                evaluate_df.write.parquet(fs_directory, compression=compression)
-                evaluate_ds = ray.data.read_parquet(fs_directory)
+                path = fs_directory.rstrip("/") + "/test"
+                evaluate_df.write.parquet(path, compression=compression)
+                evaluate_ds = ray.data.read_parquet(path)
             else:
                 evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
                                                          parallelism=self._num_workers,
