@@ -4,7 +4,10 @@ Here are a few examples showing how RayDP works together with other libraries, s
 In order to run these examples, you may need to install corresponding dependencies. For installation guides, please refer to their homepages. Notice that we need to install [xgboost_ray](https://github.com/ray-project/xgboost_ray) to run the xgboost example. In addition, if you are running the examples in a ray cluster, all nodes should have the dependecies installed.
 
 ## NYC Taxi Fare Prediction Dataset
-We have a few examples which use this dataset. The dataset can be downloaded [here](https://www.kaggle.com/c/new-york-city-taxi-fare-prediction/data). After you download it, please modify the variable `NYC_TRAIN_CSV` in `data_process.py` and point it to where `train.csv` is saved. You can use `head` to create a subset if the original one is too large. We also provide a script `random_nyctaxi.py` to generate a fake nyctaxi dataset. If you just want to try our examples and do not care about the model, you can have a try.
+We have a few examples which use this dataset.
+You can run our examples right away after you clone our repo, because we include a small example dataset generated randomly using `examples/random_nyctaxi.py`. Generated datasets just demonstrates that our examples can work, but the trained models might not be meaningful.
+
+The original dataset can be downloaded [here](https://www.kaggle.com/c/new-york-city-taxi-fare-prediction/data). After you download it, please modify the variable `NYC_TRAIN_CSV` in `data_process.py` and point it to where `train.csv` is saved.
 
 ## Horovod
 To run the example, please intall horovod via `pip install horovod[pytorch, ray]`. In addtion, `HOROVOD_WITH_PYTORCH` and `HOROVOD_WITH_GLOO` should be set to `1` before pip. Notice that macOS users need to first install `libuv` via `brew install libuv`. Please refer to [here](https://horovod.readthedocs.io/en/stable/install_include.html) for details.
