@@ -17,6 +17,7 @@
 
 import glob
 import os
+import sys
 from typing import Any, Dict, Union, Optional
 
 import ray
@@ -88,6 +89,15 @@ class SparkCluster(Cluster):
         else:
             extra_conf[driver_cp_key] = driver_cp
         spark_builder = SparkSession.builder
+        dyn_alloc_key = "spark.dynamicAllocation.enabled"
+        if dyn_alloc_key in extra_conf and extra_conf[dyn_alloc_key] == "true":
+            max_executor_key = "spark.dynamicAllocation.maxExecutors"
+            # set max executors if not set. otherwise spark might request too many actors
+            if max_executor_key not in extra_conf:
+                print("Warning: spark.dynamicAllocation.maxExecutors is not set.\n" \
+                      "Consider to set it to match the cluster configuration. " \
+                      "If used with autoscaling, calculate it from max_workers.",
+                      file=sys.stderr)
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
         if enable_hive:
