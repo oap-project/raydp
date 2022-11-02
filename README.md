@@ -1,9 +1,41 @@
-# RayDP
+# [RayDP]()
+RayDP provides simple APIs for running Spark on [Ray](https://github.com/ray-project/ray) and integrating Spark with AI libraries, making it simple to build distributed data and AI pipeline in a single python program.
 
-RayDP is a distributed data processing library that provides simple APIs for running Spark on [Ray](https://github.com/ray-project/ray) and integrating Spark with distributed deep learning and machine learning frameworks. RayDP makes it simple to build distributed end-to-end data analytics and AI pipeline. Instead of using lots of glue code or an orchestration framework to stitch multiple distributed programs, RayDP allows you to write Spark, PyTorch, Tensorflow, XGBoost code in a single python program with increased productivity and performance. You can build an end-to-end pipeline on a single Ray cluster by using Spark for data preprocessing, Ray Train or Horovod for distributed deep learning, RayTune for hyperparameter tuning and RayServe for model serving.
+# INTRODUCTION 
+
+## Problem Statement
+
+A large-scale AI workflow usually involves multiple systems, for example Spark for data processing and PyTorch or Tensorflow for distributed training. A common setup is to use two separate clusters and stitch together multiple programs using glue code or a workflow orchestrator such as AirFlow or KubeFlow. However, in many cases this adds costs in terms of system efficiency and operations. The setup overhead of the workflow tasks adds latency. Data exchange among frameworks has to rely on external storage system which also adds latency. On operation side, managing two separate clusters introduces additional cost. Writing the pipeline using workflow orchestrator usually is also more complex than writing a single python program. 
+
+
+
+## Solution with Ray and RayDP
+To solve the above challenges, more and more companies have adopted Ray as a single substrate for data processing, model training, serving and more. Ray makes it simple to build the data and AI pipeline in a single python program and scale from laptop to a cluster seamlessly. Ray has built a rich ecosystem by providing high quality libraries and integrating with other popular ones. 
+
+Spark as a popular big data framework plays an important role in data and AI pipelines. RayDP brings Spark to the Ray ecosystem by supporting running Spark on top of Ray. By using RayDP, you can easily write pySpark code together with other Ray libraries in the same python program which improves productivity and expressivity. RayDP makes it simple to build distributed end-to-end data analytics and AI pipeline. RayDP supports exchanging data between Spark and other frameworks using Ray's in-memory object to provide best performance.
+
+
+## Who will use RayDP
+* ML infrastructure team can build a modern ML platform on top of Ray, utilize RayDP to run Spark on Ray and unify with other AI components.
+* Data scientists can use RayDP to write pySpark code together with other AI libraries, scale from laptop to cloud seamlessly.
+* Data engineers can use RayDP to run on-demand Spark job in cloud without a need to setup a Spark cluster manually. The Ray cluster launcher helps to start a Ray cluster in cloud and RayDP allows you to run Spark in that cluster with auto scaling.
+
+## Presentations
+* Data + AI Summit 2021: [Build Large-Scale Data Analytics and AI Pipeline Using RayDP](https://www.youtube.com/watch?v=B4iXQtxX2cs)
+* Ray Summit 2021: [RayDP: Build Large-scale End-to-end Data Analytics and AI Pipelines Using Spark and Ray](https://www.youtube.com/watch?v=ELSrR1Geqg4)
+
+
+# ARCHITECTURE
+RayDP provides simple APIs for running Spark on Ray and APIs for converting a Spark DataFrame to a Ray Dataset which can be consumed by XGBoost, Ray Train, Horovod on Ray, etc. RayDP also provides high level scikit-learn style Estimator APIs for distributed training with PyTorch or Tensorflow.
+
+RayDP supports Ray as a Spark resource manager and runs Spark executors in Ray actors. The communication between Spark executors still uses Spark's internal protocol. 
+
+![image](https://user-images.githubusercontent.com/9278199/199454034-5a87fb0b-069a-47dd-97ba-58e08edd4bb9.png)
+
+
+# QUICK START
 
 ## Installation
-
 
 You can install latest RayDP using pip. RayDP requires Ray and PySpark. Please also make sure java is installed and JAVA_HOME is set properly.
 
@@ -24,9 +56,9 @@ If you'd like to build and install the latest master, use the following command:
 pip install dist/raydp*.whl
 ```
 
-## Spark on Ray
+## Spark on Ray API
 
-RayDP provides an API for starting a Spark job on Ray without a need to setup a Spark cluster separately. RayDP supports Ray as a Spark resource manager and runs Spark executors in Ray actors. To create a Spark session, call the `raydp.init_spark` API. For example:
+RayDP provides an API for starting a Spark job on Ray. To create a Spark session, call the `raydp.init_spark` API. After that, you can use any Spark API as you want. For example:
 
 ```python
 import ray
@@ -53,42 +85,17 @@ raydp.stop_spark()
 
 Spark features such as dynamic resource allocation, spark-submit script, etc are also supported. Please refer to [Spark on Ray](./doc/spark_on_ray.md) for more details.
 
-### Ray Client
 
-RayDP works the same way when using ray client. However, spark driver would be on the local machine. This is convenient if you want to do some experiment in an interactive environment. If this is not desired, e.g. due to performance, you can define an ray actor, which calls `init_spark` and performs all the calculation in its method. This way, spark driver will be in the ray cluster, and is rather similar to spark cluster deploy mode.
+## Spark + AI Pipeline on Ray
 
-## Pandas on Spark
-
-PySpark 3.2.0 provides Pandas API on Spark(originally Koalas). Users familiar with Pandas can use it to scale current pandas workloads on RayDP.
-
-```python
-import ray
-import raydp
-import pyspark.pandas as ps
-
-# connect to ray cluster
-ray.init(address='auto')
-
-# create a Spark cluster with specified resource requirements
-spark = raydp.init_spark(app_name='RayDP Example',
-                         num_executors=2,
-                         executor_cores=2,
-                         executor_memory='4GB')
-
-# Use pandas on spark to create a dataframe and aggregate
-psdf = ps.range(100)
-print(psdf.count())
-
-# stop the spark cluster
-raydp.stop_spark()
-```
-
-## Machine Learning and Deep Learning With a Spark DataFrame
-
-RayDP provides APIs for converting a Spark DataFrame to a Ray Dataset which can be consumed by XGBoost, Ray Train or Horovod on Ray. RayDP also provides high level scikit-learn style Estimator APIs for distributed training with PyTorch or Tensorflow.
+RayDP provides APIs for converting a Spark DataFrame to a Ray Dataset which can be consumed by XGBoost, Ray Train, Horovod on Ray, etc. RayDP also provides high level scikit-learn style Estimator APIs for distributed training with PyTorch or Tensorflow. To get started with end-to-end Spark + AI pipeline, the easiest way is to run the following tutorials on Google Collab. More examples are also available in the `examples` folder.
+* [Spark + Ray Train Tutorial on Google Collab](https://colab.research.google.com/github/oap-project/raydp/blob/master/tutorials/raytrain_example.ipynb)
+* [Spark + TorchEstimator Tutorial on Google Collab](https://colab.research.google.com/github/oap-project/raydp/blob/master/tutorials/pytorch_example.ipynb)
 
 
-***Spark DataFrame <=> Ray Dataset***
+***Spark DataFrame & Ray Dataset conversion***
+
+You can use `ray.data.from_spark` and `ds.to_spark` to convert between Spark DataFrame and Ray Dataset.
 ```python
 import ray
 import raydp
@@ -139,13 +146,6 @@ raydp.stop_spark()
 ```
 Please refer to [NYC Taxi PyTorch Estimator](./examples/pytorch_nyctaxi.py) and [NYC Taxi Tensorflow Estimator](./examples/tensorflow_nyctaxi.py) for full examples.
 
-## MPI on Ray
 
-RayDP also provides an API for running MPI job on Ray. We support three types of MPI: `intel_mpi`, `openmpi` and `MPICH`. You can refer to [doc/mpi.md](./doc/mpi.md) for more details.
-
-## More Examples
-### Examples
-Not sure how to use RayDP? Check the `examples` folder. We have added many examples showing how RayDP works together with PyTorch, TensorFlow, XGBoost, Horovod, and so on. If you still cannot find what you want, feel free to post an issue to ask us!
-### Google Colab Notebook
-You can easily run code on Google Colab with a google account. Maybe this is the easiest way to get started with raydp, you can have a try. Here are two demos: [Raytrain example](https://colab.research.google.com/github/oap-project/raydp/blob/master/tutorials/raytrain_example.ipynb), [Pytorch example](https://colab.research.google.com/github/oap-project/raydp/blob/master/tutorials/pytorch_example.ipynb).
-
+## Getting Involved
+To report bugs or request new features, please open a github issue.
