@@ -56,7 +56,7 @@ If you'd like to build and install the latest master, use the following command:
 pip install dist/raydp*.whl
 ```
 
-## Spark on Ray API
+## Spark on Ray
 
 RayDP provides an API for starting a Spark job on Ray. To create a Spark session, call the `raydp.init_spark` API. After that, you can use any Spark API as you want. For example:
 
