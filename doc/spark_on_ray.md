@@ -74,6 +74,9 @@ Or you can just specify the placement group strategy. RayDP will create a corees
 raydp.init_spark(..., placement_group_strategy="SPREAD")
 ```
 
+### Ray Client
+
+RayDP works the same way when using ray client. However, spark driver would be on the local machine. This is convenient if you want to do some experiment in an interactive environment. If this is not desired, e.g. due to performance, you can define an ray actor, which calls `init_spark` and performs all the calculation in its method. This way, spark driver will be in the ray cluster, and is rather similar to spark cluster deploy mode.
 
 ### RayDP Hive Support
 RayDP can read or write Hive, which might be useful if the data is stored in HDFS.If you want to enable this feature, please configure your environment as following:
