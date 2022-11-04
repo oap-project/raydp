@@ -245,7 +245,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                 loss_results.append(evaluate_loss)
 
         session.report({}, checkpoint=Checkpoint.from_dict({
-            "state_dict": model.module.state_dict()
+            "state_dict": model.state_dict()
         }))
 
     @staticmethod

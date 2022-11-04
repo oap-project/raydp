@@ -82,7 +82,3 @@ def test_torch_estimator(spark_on_ray_small):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))
-    # import ray,raydp
-    # ray.init(address="local")
-    # spark = raydp.init_spark('a', 2, 1, '500m')
-    # test_torch_estimator(spark)
