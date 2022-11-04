@@ -239,12 +239,14 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                                                 optimizer, metrics, lr_scheduler)
             session.report(dict(epoch=epoch, train_res=train_res, train_loss=train_loss))
             if config["evaluate"]:
-                evaluate_res, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
+                eval_res, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
                                                                             model, loss, metrics)
-                session.report(dict(epoch=epoch, evaluate_res=evaluate_res, test_loss=evaluate_loss))
+                session.report(dict(epoch=epoch, eval_res=eval_res, test_loss=evaluate_loss))
                 loss_results.append(evaluate_loss)
-        
-        session.report({}, checkpoint=Checkpoint.from_dict(dict(state_dict=model.module.state_dict())))
+
+        session.report({}, checkpoint=Checkpoint.from_dict({
+            "state_dict": model.module.state_dict()
+        }))
 
     @staticmethod
     def train_epoch(dataset, model, criterion, optimizer, metrics, scheduler=None):
