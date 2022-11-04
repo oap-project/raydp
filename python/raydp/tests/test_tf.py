@@ -19,6 +19,7 @@ import pyspark
 import pytest
 import sys
 
+import tensorflow as tf
 import tensorflow.keras as keras
 
 from pyspark.sql.functions import rand
@@ -63,7 +64,8 @@ def test_tf_estimator(spark_on_ray_small):
                             use_gpu=False)
 
     estimator.fit_on_spark(train_df, test_df)
-
+    model = estimator.get_model()
+    result = model(tf.constant([[1, 1]]))
     estimator.shutdown()
 
 
