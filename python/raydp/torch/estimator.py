@@ -243,9 +243,13 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                                                             model, loss, metrics)
                 session.report(dict(epoch=epoch, eval_res=eval_res, test_loss=evaluate_loss))
                 loss_results.append(evaluate_loss)
-
+        if hasattr(model, "module"):
+            states = model.module.state_dict()
+        else:
+            # if num_workers = 1, model is not wrapped
+            states = model.state_dict()
         session.report({}, checkpoint=Checkpoint.from_dict({
-            "state_dict": model.state_dict()
+            "state_dict": states
         }))
 
     @staticmethod
