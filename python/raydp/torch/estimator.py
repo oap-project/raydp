@@ -88,7 +88,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  num_epochs: int = None,
                  shuffle: bool = False,
                  num_processes_for_data_loader: int = 0,
-                 callbacks: Optional[List[TrainingCallback]] = None,
                  metrics_name: Optional[List[Union[str, Callable]]] = None,
                  metrics_config: Optional[Dict[str,Dict[str, Any]]] = None,
                  **extra_config):
@@ -124,7 +123,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param shuffle: whether shuffle the data
                Note: Now the value can only be False
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
-        :param callbacks: which will be executed during training.
         :param metrics_name: the name of metrics' classes used to evaluate model. The full name list
                is available at: https://torchmetrics.readthedocs.io/en/latest/. For example:
                for classification tasks, it can be "Accuracy", "Precision" and "Recall";
@@ -150,7 +148,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._drop_last = drop_last
         self._num_epochs = num_epochs
         self._num_processes_for_data_loader = num_processes_for_data_loader
-        self._callbacks = callbacks
         self._metrics = TorchMetric(metrics_name, metrics_config)
         self._extra_config = extra_config
 
@@ -360,14 +357,3 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                 "or a function(dict -> model)")
         model.load_state_dict(states)
         return model
-
-    def save(self, checkpoint):
-        assert self._trainer is not None, "Must call fit first"
-        self._trainer.save(checkpoint)
-
-    def restore(self, checkpoint):
-        assert self._trainer is not None, "Must call fit first"
-        self._trainer.load(checkpoint)
-
-    def shutdown(self):
-        pass

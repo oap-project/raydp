@@ -266,14 +266,3 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         model = keras.models.model_from_json(self._serialized_model)
         model.set_weights(self._results.checkpoint.to_dict()["model_weights"])
         return model
-
-    def save(self, file_path) -> NoReturn:
-        assert self._trainer, "Trainer has not been created"
-        self._trainer.save(file_path)
-
-    def restore(self, file_path) -> NoReturn:
-        assert self._trainer, "Trainer has not been created"
-        self._trainer.restore(file_path)
-
-    def shutdown(self) -> NoReturn:
-        pass
