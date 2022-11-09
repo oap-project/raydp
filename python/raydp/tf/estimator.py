@@ -25,7 +25,7 @@ from ray import train
 from ray.train import Trainer
 from ray.train.tensorflow import TensorflowTrainer, prepare_dataset_shard
 from ray.air import session
-from ray.air.config import ScalingConfig
+from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.air.checkpoint import Checkpoint
 from ray.data.dataset import Dataset
 from raydp.estimator import EstimatorInterface
@@ -172,7 +172,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         results = []
         for _ in range(config["num_epochs"]):
             features_len = len(config["feature_columns"])
-            # train_dataset = next(train_dataset_iterator)
             train_tf_dataset = prepare_dataset_shard(
                 train_dataset.to_tf(
                     label_column=config["label_column"],
@@ -187,7 +186,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_history = multi_worker_model.fit(train_tf_dataset, callbacks=callbacks)
             results.append(train_history.history)
             if config["evaluate"]:
-                # eval_dataset = next(eval_dataset_iterator)
                 eval_tf_dataset = prepare_dataset_shard(
                     eval_dataset.to_tf(
                         label_column=config["label_column"],
@@ -223,15 +221,19 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         }
         scaling_config = ScalingConfig(num_workers=self._num_workers,
                                        resources_per_worker=self._resources_per_worker)
-        # train_ds_pipeline = train_ds.repeat()
+        run_config = RunConfig(failure_config=FailureConfig(max_failures=max_retries))
+        if self._shuffle:
+            train_ds = train_ds.random_shuffle()
+            if evaluate_ds:
+                evaluate_ds = evaluate_ds.random_shuffle()
         datasets = {"train": train_ds}
         if evaluate_ds is not None:
             train_loop_config["evaluate"] = True
-            # evaluate_ds_pipeline = evaluate_ds.repeat()
             datasets["evaluate"] = evaluate_ds
         self._trainer = TensorflowTrainer(TFEstimator.train_func,
                                           train_loop_config=train_loop_config,
                                           scaling_config=scaling_config,
+                                          run_config=run_config,
                                           datasets=datasets)
         self._results = self._trainer.fit()
 
@@ -246,16 +248,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         train_df = self._check_and_convert(train_df)
         train_ds = spark_dataframe_to_ray_dataset(train_df,
                                                   _use_owner=stop_spark_after_conversion)
-        # if self._shuffle:
-        #     train_ds = train_ds.random_shuffle()
         evaluate_ds = None
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
             evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
                                                          _use_owner=stop_spark_after_conversion)
-            # if self._shuffle:
-            #     evaluate_ds = evaluate_ds.random_shuffle()
-
         if stop_spark_after_conversion:
             stop_spark(del_obj_holder=False)
         return self.fit(

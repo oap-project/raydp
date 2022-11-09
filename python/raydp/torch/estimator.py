@@ -30,7 +30,7 @@ from raydp.spark import spark_dataframe_to_ray_dataset
 
 from ray import train
 from ray.train.torch import TorchTrainer
-from ray.air.config import ScalingConfig
+from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.air.checkpoint import Checkpoint
 from ray.air import session
 from ray.train import Trainer, TrainingCallback, get_dataset_shard
@@ -310,6 +310,11 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         }
         scaling_config = ScalingConfig(num_workers=self._num_workers,
                                        resources_per_worker=self._resources_per_worker)
+        run_config = RunConfig(failure_config=FailureConfig(max_failures=max_retries))
+        if self._shuffle:
+            train_ds = train_ds.random_shuffle()
+            if evaluate_ds:
+                evaluate_ds = evaluate_ds.random_shuffle()
         datasets = {"train": train_ds}
         if evaluate_ds is None:
             train_loop_config["evaluate"] = False
@@ -318,6 +323,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._trainer = TorchTrainer(TorchEstimator.train_func,
                                      train_loop_config=train_loop_config,
                                      scaling_config=scaling_config,
+                                     run_config=run_config,
                                      datasets=datasets)
 
         result = self._trainer.fit()
