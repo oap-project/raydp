@@ -28,7 +28,6 @@
     <scala.version>2.12.15</scala.version>
     <jackson.version>2.13.4</jackson.version>
     <scala.binary.version>2.12</scala.binary.version>
-    <ray.version>1.9.0</ray.version>
   </properties>
 
   <dependencyManagement>
@@ -116,7 +115,6 @@
         <artifactId>maven-jar-plugin</artifactId>
         <version>3.2.0</version>
       </plugin>
-
     </plugins>
   </build>
 
