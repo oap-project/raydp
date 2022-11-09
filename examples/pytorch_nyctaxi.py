@@ -80,7 +80,8 @@ estimator = TorchEstimator(num_workers=1, model=nyc_model, optimizer=optimizer, 
                            metrics_name = ["MeanAbsoluteError", "MeanSquaredError"])
 # Train the model
 estimator.fit_on_spark(train_df, test_df)
+# Get the trained model
+model = estimator.get_model()
 # shutdown raydp and ray
-estimator.shutdown()
 raydp.stop_spark()
 ray.shutdown()

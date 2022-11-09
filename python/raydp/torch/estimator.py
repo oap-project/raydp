@@ -147,6 +147,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._batch_size = batch_size
         self._drop_last = drop_last
         self._num_epochs = num_epochs
+        self._shuffle = shuffle
         self._num_processes_for_data_loader = num_processes_for_data_loader
         self._metrics = TorchMetric(metrics_name, metrics_config)
         self._extra_config = extra_config
