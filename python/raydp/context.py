@@ -71,13 +71,7 @@ class _SparkContext(ContextDecorator):
         self._executor_cores = executor_cores
         self._enable_hive = enable_hive
         self._fault_tolerant_mode = fault_tolerant_mode
-
-        if isinstance(executor_memory, str):
-            # If this is human readable str(like: 10KB, 10MB..), parse it
-            executor_memory = parse_memory_size(executor_memory)
-
         self._executor_memory = executor_memory
-
         self._placement_group_strategy = placement_group_strategy
         self._placement_group = placement_group
         self._placement_group_bundle_indexes = placement_group_bundle_indexes
@@ -96,9 +90,12 @@ class _SparkContext(ContextDecorator):
     def _prepare_placement_group(self):
         if self._placement_group_strategy is not None:
             bundles = []
+            if isinstance(self._executor_memory, str):
+                # If this is human readable str(like: 10KB, 10MB..), parse it
+                memory = parse_memory_size(self._executor_memory)
             for _ in range(self._num_executors):
                 bundles.append({"CPU": self._executor_cores,
-                                "memory": self._executor_memory})
+                                "memory": memory})
             pg = ray.util.placement_group(bundles, strategy=self._placement_group_strategy)
             ray.get(pg.ready())
             self._placement_group = pg

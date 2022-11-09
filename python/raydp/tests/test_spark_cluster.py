@@ -50,7 +50,7 @@ def test_spark_on_fractional_cpu(spark_on_ray_fractional_cpu):
 def test_spark_on_fractional_custom_resource(spark_on_ray_fraction_custom_resource):
     try:
         spark = raydp.init_spark(app_name="test_custom_resource_fraction",
-                                 num_executors=1, executor_cores=3, executor_memory="500 M",
+                                 num_executors=1, executor_cores=3, executor_memory="500M",
                                  configs={"spark.executor.resource.CUSTOM.amount": "0.1"})
         spark.range(0, 10).count()
     except Exception:
@@ -125,7 +125,7 @@ def test_ray_dataset_to_spark(spark_on_ray_small):
 
 def test_placement_group(ray_cluster):
     for pg_strategy in ["PACK", "STRICT_PACK", "SPREAD", "STRICT_SPREAD"]:
-        spark = raydp.init_spark("test_strategy", 1, 1, "500 M",
+        spark = raydp.init_spark(f"test_strategy_{pg_strategy}_1", 1, 1, "500M",
                                  placement_group_strategy=pg_strategy)
         result = spark.range(0, 10, numPartitions=10).count()
         assert result == 10
@@ -134,10 +134,10 @@ def test_placement_group(ray_cluster):
         time.sleep(3)
 
         # w/ existing placement group w/ bundle indexes
-        pg = ray.util.placement_group([{"CPU": 1, "memory": utils.parse_memory_size("500 M")}],
+        pg = ray.util.placement_group([{"CPU": 1, "memory": utils.parse_memory_size("500M")}],
                                       strategy=pg_strategy)
         ray.get(pg.ready())
-        spark = raydp.init_spark("test_bundle", 1, 1, "500 M",
+        spark = raydp.init_spark(f"test_bundle_{pg_strategy}_2", 1, 1, "500M",
                                  placement_group=pg,
                                  placement_group_bundle_indexes=[0])
         result = spark.range(0, 10, numPartitions=10).count()
@@ -147,7 +147,7 @@ def test_placement_group(ray_cluster):
         time.sleep(5)
 
         # w/ existing placement group w/o bundle indexes
-        spark = raydp.init_spark("test_bundle", 1, 1, "500 M",
+        spark = raydp.init_spark(f"test_bundle_{pg_strategy}_3", 1, 1, "500M",
                                  placement_group=pg)
         result = spark.range(0, 10, numPartitions=10).count()
         assert result == 10
@@ -205,7 +205,7 @@ def test_custom_installed_spark(custom_spark_dir):
 
     ray.init(address=cluster.address)
     app_name = "custom_install_test"
-    spark = raydp.init_spark(app_name, 1, 1, "500 M")
+    spark = raydp.init_spark(app_name, 1, 1, "500M")
     spark_master_actor = ray.get_actor(name=app_name + RAYDP_SPARK_MASTER_SUFFIX)
     spark_home = ray.get(spark_master_actor.get_spark_home.remote())
 
@@ -220,7 +220,7 @@ def start_spark(barrier, i, results):
     try:
         # connect to the cluster started before pytest
         ray.init(address="auto")
-        spark = raydp.init_spark(f"spark-{i}", 1, 1, "500 M")
+        spark = raydp.init_spark(f"spark-{i}", 1, 1, "500M")
         # wait on barrier to ensure 2 spark sessions
         # are active on the same ray cluster at the same time
         barrier.wait()

@@ -17,7 +17,8 @@
 
 import glob
 import os
-from typing import Any, Dict, Optional
+import sys
+from typing import Any, Dict, Union, Optional
 
 import ray
 import ray._private.services
@@ -63,7 +64,7 @@ class SparkCluster(Cluster):
                           app_name: str,
                           num_executors: int,
                           executor_cores: int,
-                          executor_memory: int,
+                          executor_memory: Union[str, int],
                           enable_hive: bool,
                           extra_conf: Dict[str, str] = None) -> SparkSession:
         if self._spark_session is not None:
@@ -83,18 +84,29 @@ class SparkCluster(Cluster):
         # Ray's jar. Without this, the driver produces INFO logs and the level cannot be changed.
         spark_home = os.environ.get("SPARK_HOME", os.path.dirname(pyspark.__file__))
         log4j_path = os.path.abspath(os.path.join(spark_home, "jars/slf4j-log4j*.jar"))
+        commons_path = os.path.abspath(os.path.join(spark_home, "jars/commons-lang3-*.jar"))
         try:
             extra_jars = [extra_conf["spark.jars"]]
         except KeyError:
             extra_jars = []
         extra_conf["spark.jars"] = ",".join(glob.glob(RAYDP_CP) + extra_jars)
         driver_cp_key = "spark.driver.extraClassPath"
-        driver_cp = ":".join(glob.glob(log4j_path) + glob.glob(RAYDP_CP) + glob.glob(RAY_CP))
+        driver_cp = ":".join(glob.glob(log4j_path) + glob.glob(commons_path)
+                + glob.glob(RAYDP_CP) + glob.glob(RAY_CP))
         if driver_cp_key in extra_conf:
             extra_conf[driver_cp_key] = driver_cp + ":" + extra_conf[driver_cp_key]
         else:
             extra_conf[driver_cp_key] = driver_cp
         spark_builder = SparkSession.builder
+        dyn_alloc_key = "spark.dynamicAllocation.enabled"
+        if dyn_alloc_key in extra_conf and extra_conf[dyn_alloc_key] == "true":
+            max_executor_key = "spark.dynamicAllocation.maxExecutors"
+            # set max executors if not set. otherwise spark might request too many actors
+            if max_executor_key not in extra_conf:
+                print("Warning: spark.dynamicAllocation.maxExecutors is not set.\n" \
+                      "Consider to set it to match the cluster configuration. " \
+                      "If used with autoscaling, calculate it from max_workers.",
+                      file=sys.stderr)
         for k, v in extra_conf.items():
             spark_builder.config(k, v)
         if enable_hive:

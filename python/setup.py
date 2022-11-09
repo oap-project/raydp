@@ -29,7 +29,7 @@ package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
 if package_name == 'raydp_nightly':
     VERSION = datetime.today().strftime("%Y.%m.%d.dev1")
 else:
-    VERSION = "0.5.0.dev0"
+    VERSION = "0.6.0.dev0"
 
 ROOT_DIR = os.path.dirname(__file__)
 
@@ -37,7 +37,7 @@ TEMP_PATH = "deps"
 CORE_DIR = os.path.abspath("../core")
 BIN_DIR = os.path.abspath("../bin")
 
-JARS_PATH = glob.glob(os.path.join(CORE_DIR, f"target/raydp-*.jar"))
+JARS_PATH = glob.glob(os.path.join(CORE_DIR, f"**/raydp-*.jar"), recursive=True)
 JARS_TARGET = os.path.join(TEMP_PATH, "jars")
 
 SCRIPT_PATH = os.path.join(BIN_DIR, f"raydp-submit")
@@ -47,8 +47,6 @@ if len(JARS_PATH) == 0:
     print("Can't find core module jars, you need to build the jars with 'mvn clean package'"
           " under core directory first.", file=sys.stderr)
     sys.exit(-1)
-else:
-    JARS_PATH = JARS_PATH[0]
 
 # build the temp dir
 try:
@@ -86,7 +84,8 @@ class CustomBuildPackageProtos(Command):
 
 
 try:
-    copy2(JARS_PATH, JARS_TARGET)
+    for jar_path in JARS_PATH:
+        copy2(jar_path, JARS_TARGET)
     copy2(SCRIPT_PATH, SCRIPT_TARGET)
 
     install_requires = [
@@ -96,7 +95,7 @@ try:
         "psutil",
         "pyarrow >= 4.0.1, < 7.0.0",
         "ray >= 1.9.0",
-        "pyspark >= 3.1.0, < 3.3.0",
+        "pyspark >= 3.1.1, <= 3.3.0",
         "netifaces"
     ]
 

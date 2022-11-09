@@ -27,7 +27,39 @@ raydp.init_spark(..., configs={"raydp.executor.extraClassPath": "/your/extra/jar
 
 ### Spark Submit
 
-RayDP provides a substitute for spark-submit in Apache Spark. You can run your java or scala application on RayDP cluster by using `bin/raydp-submit`. You can add it to `PATH` for convenience. When using `raydp-submit`, you should specify number of executors, number of cores and memory each executor by Spark properties, such as `--conf spark.executor.cores=1`, `--conf spark.executor.instances=1` and `--conf spark.executor.memory=500m`. `raydp-submit` only supports Ray cluster. Spark standalone, Apache Mesos, Apache Yarn are not supported, please use traditional `spark-submit` in that case. For the same reason, you do not need to specify `--master` in the command. Besides, RayDP does not support cluster as deploy-mode.
+RayDP provides a substitute for spark-submit in Apache Spark. You can run your java or scala application on RayDP cluster by using `bin/raydp-submit`. You can add it to `PATH` for convenience. When using `raydp-submit`, you should specify number of executors, number of cores and memory each executor by Spark properties, such as `--conf spark.executor.cores=1`, `--conf spark.executor.instances=1` and `--conf spark.executor.memory=500m`. `raydp-submit` only supports Ray cluster. Spark standalone, Apache Mesos, Apache Yarn are not supported, please use traditional `spark-submit` in that case. Besides, RayDP does not support cluster as deploy-mode.
+
+Here is an example:
+
+1. To use `raydp-submit`, you need to start your ray cluster in advance. Let's say your ray address is `1.2.3.4:6379`
+2. You should use a ray config file to provide your ray cluster configuration to `raydp-submit`. You can create it using this script: 
+```python
+ray.init(address="auto")
+node = ray.worker.global_worker.node
+options = {}
+options["ray"] = {}
+options["ray"]["run-mode"] = "CLUSTER"
+options["ray"]["node-ip"] = node.node_ip_address
+options["ray"]["address"] = node.address
+options["ray"]["session-dir"] = node.get_session_dir_path()
+
+ray.shutdown()
+conf_path = "ray.conf"
+with open(conf_path, "w") as f:
+    json.dump(options, f)
+ ```
+ The file should look like this:
+ ```json
+ {
+    "ray": {
+        "run-mode": "CLUSTER",
+        "node-ip": "1.2.3.4",
+        "address": "1.2.3.4:6379",
+        "session-dir": "/tmp/ray/session_xxxxxx"
+    }
+  }
+ ```
+ 3. Run your application, such as `raydp-submit --ray-conf /path/to/ray.conf --class org.apache.spark.examples.SparkPi --conf spark.executor.cores=1 --conf spark.executor.instances=1 --conf spark.executor.memory=500m $SPARK_HOME/examples/jars/spark-examples.jar`. Note that `--ray-conf` must be specified right after raydp-submit, and before any spark arguments.
 
 ### Placement Group
 RayDP can leverage Ray's placement group feature and schedule executors onto spcecified placement group. It provides better control over the allocation of Spark executors on a Ray cluster, for example spreading the spark executors onto seperate nodes or starting all executors on a single node. You can specify a created placement group when init spark, as shown below:
@@ -42,6 +74,9 @@ Or you can just specify the placement group strategy. RayDP will create a corees
 raydp.init_spark(..., placement_group_strategy="SPREAD")
 ```
 
+### Ray Client
+
+RayDP works the same way when using ray client. However, spark driver would be on the local machine. This is convenient if you want to do some experiment in an interactive environment. If this is not desired, e.g. due to performance, you can define an ray actor, which calls `init_spark` and performs all the calculation in its method. This way, spark driver will be in the ray cluster, and is rather similar to spark cluster deploy mode.
 
 ### RayDP Hive Support
 RayDP can read or write Hive, which might be useful if the data is stored in HDFS.If you want to enable this feature, please configure your environment as following:
@@ -59,6 +94,11 @@ ray.init("auto")
 spark = raydp.init_spark(...,enable_hive=True)
 spark.sql("select * from db.xxx").show()
 ```
+
+
+### Autoscaling
+You can use RayDP with Ray autoscaling. When you call `raydp.init_spark`, the autoscaler will try to increase the number of worker nodes if the current capacity of the cluster can't meet the resource demands. However currently there is a known issue [#20476](https://github.com/ray-project/ray/issues/20476) in Ray autoscaling. The autoscaler's default strategy is to avoid launching GPU nodes if there aren't any GPU tasks at all. So if you configure a single worker node type with GPU, by default the autoscaler will not launch nodes to start Spark executors on them. To resolve the issue, you can either set the environment variable "AUTOSCALER_CONSERVE_GPU_NODES" to 0 or configure multiple node types that at least one is CPU only node. 
+
 
 ### Logging
 + Driver Log: By default, the spark driver log level is WARN. After getting a Spark session by running `spark = raydp.init_spark`, you can change the log level for example `spark.sparkContext.setLogLevel("INFO")`. You will also see some AppMaster INFO logs on the driver. This is because Ray redirects the actor logs to driver by default. To disable logging to driver, you can set it in Ray init `ray.init(log_to_driver=False)`

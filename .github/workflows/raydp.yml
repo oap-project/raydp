@@ -31,7 +31,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
         python-version: [3.7, 3.8, 3.9]
-        spark-version: [3.1.3, 3.2.1]
+        spark-version: [3.1.3, 3.2.2, 3.3.1]
 
     runs-on: ${{ matrix.os }}
 
@@ -109,7 +109,6 @@ jobs:
           ray start --head
           python examples/raydp-submit.py
           ray stop
-          python examples/random_nyctaxi.py
           python examples/pytorch_nyctaxi.py
           python examples/tensorflow_nyctaxi.py
           python examples/horovod_nyctaxi.py
