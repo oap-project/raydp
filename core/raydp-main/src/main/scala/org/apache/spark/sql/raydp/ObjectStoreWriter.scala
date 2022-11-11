@@ -35,7 +35,7 @@ import org.apache.arrow.vector.types.pojo.Schema
 
 import org.apache.spark.RayDPException
 import org.apache.spark.deploy.raydp._
-import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
+import org.apache.spark.executor.RayDPExecutor
 import org.apache.spark.raydp.{RayDPUtils, RayExecutorUtils}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.DataFrame
@@ -251,7 +251,7 @@ object ObjectStoreWriter {
     val handles = executorIds.map {id =>
       Ray.getActor("raydp-executor-" + id)
          .get
-         .asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]]
+         .asInstanceOf[ActorHandle[RayDPExecutor]]
     }
     val handlesMap = (executorIds zip handles).toMap
     val locations = RayExecutorUtils.getBlockLocations(

@@ -77,27 +77,27 @@ public class RayExecutorUtils {
   }
 
   public static String[] getBlockLocations(
-      ActorHandle<RayCoarseGrainedExecutorBackend> handler,
+      ActorHandle<RayDPExecutor> handler,
       int rddId,
       int numPartitions) {
-    return handler.task(RayCoarseGrainedExecutorBackend::getBlockLocations,
+    return handler.task(RayDPExecutor::getBlockLocations,
         rddId, numPartitions).remote().get();
   }
 
   public static ObjectRef<byte[]> getRDDPartition(
-      ActorHandle<RayCoarseGrainedExecutorBackend> handle,
+      ActorHandle<RayDPExecutor> handle,
       int rddId,
       int partitionId,
       String schema,
       String driverAgentUrl) {
     return (ObjectRefImpl<byte[]>) handle.task(
-        RayCoarseGrainedExecutorBackend::getRDDPartition,
+        RayDPExecutor::getRDDPartition,
         rddId, partitionId, schema, driverAgentUrl).remote();
   }
 
   public static void exitExecutor(
-    ActorHandle<RayCoarseGrainedExecutorBackend> handle
+    ActorHandle<RayDPExecutor> handle
   ) {
-    handle.task(RayCoarseGrainedExecutorBackend::stop).remote();
+    handle.task(RayDPExecutor::stop).remote();
   }
 }

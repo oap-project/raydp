@@ -33,7 +33,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
-import org.apache.spark.executor.RayCoarseGrainedExecutorBackend
+import org.apache.spark.executor.RayDPExecutor
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.{RayExecutorUtils, SparkOnRayConfigs}
 import org.apache.spark.rpc._
@@ -194,7 +194,7 @@ class RayAppMaster(host: String,
             context.reply(AddPendingRestartedExecutorReply(None))
           } else {
             val newExecutorId = s"${appInfo.getNextExecutorId()}"
-            val handler = handlerOpt.get.asInstanceOf[ActorHandle[RayCoarseGrainedExecutorBackend]]
+            val handler = handlerOpt.get.asInstanceOf[ActorHandle[RayDPExecutor]]
             appInfo.addPendingRegisterExecutor(newExecutorId, handler, cores, memory)
             restartedExecutors(newExecutorId) = executorId
             context.reply(AddPendingRestartedExecutorReply(Some(newExecutorId)))
