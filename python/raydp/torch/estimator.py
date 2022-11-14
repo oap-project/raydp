@@ -86,7 +86,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  batch_size: int = None,
                  drop_last: bool = False,
                  num_epochs: int = None,
-                 shuffle: bool = False,
+                 shuffle: bool = True,
                  num_processes_for_data_loader: int = 0,
                  metrics_name: Optional[List[Union[str, Callable]]] = None,
                  metrics_config: Optional[Dict[str,Dict[str, Any]]] = None,

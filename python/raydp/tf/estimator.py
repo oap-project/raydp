@@ -49,7 +49,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  label_shape: Optional[tf.TensorShape] = None,
                  batch_size: int = 128,
                  num_epochs: int = 1,
-                 shuffle: bool = False,
+                 shuffle: bool = True,
                  callbacks: Optional[List[Callback]] = None,
                  **extra_config):
         """A scikit-learn like API to distributed training Tensorflow Keras model.
