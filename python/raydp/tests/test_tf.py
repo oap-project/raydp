@@ -65,8 +65,8 @@ def test_tf_estimator(spark_on_ray_small):
 
     estimator.fit_on_spark(train_df, test_df)
     model = estimator.get_model()
-    result = model(tf.constant([[1, 1]]))
-
+    result = model(tf.constant([[0, 0], [1, 1]]))
+    assert result.shape == (2, 1)
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))
