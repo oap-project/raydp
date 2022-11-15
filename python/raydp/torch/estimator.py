@@ -17,7 +17,6 @@
 
 import inspect
 from typing import Any, Callable, List, NoReturn, Optional, Union, Dict
-from numpy import outer
 
 import torch
 from torch.nn.modules.loss import _Loss as TLoss
@@ -33,7 +32,6 @@ from ray.train.torch import TorchTrainer
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.air.checkpoint import Checkpoint
 from ray.air import session
-from ray.train import Trainer, TrainingCallback, get_dataset_shard
 from ray.data.dataset import Dataset
 
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
@@ -98,9 +96,9 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                override the number of CPU/GPUs used by each worker.
         :param model: the torch model instance or a function(dict -> Models) to create a model
         :param optimizer: the optimizer instance or a function((models, dict) -> optimizer) to
-               create the optimizer in the ray.train.Trainer
+               create the optimizer in the ray.train.torch.TorchTrainer
         :param loss: the loss instance or loss class or a function(dict -> loss) to create the
-               loss in the ray.train.Trainer
+               loss in the ray.train.torch.TorchTrainer
         :param lr_scheduler_creator: a function((optimizers, config) -> lr_scheduler) to create
                the lr scheduler
         :param scheduler_step_freq: "batch", "epoch", or None. This will
@@ -132,7 +130,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param metrics_config: the optional config for the metrics. Its format is:
                {"metric_name_1": {"param1": value1, "param2": value2}, "metric_name_2":{}}, where
                param is the parameter corresponding to a concrete metric class of TorchMetrics.
-        :param extra_config: the extra config will be set to ray.train.Trainer
+        :param extra_config: the extra config will be set to ray.train.torch.TorchTrainer
         """
         self._num_workers = num_workers
         self._resources_per_worker = resources_per_worker
@@ -155,7 +153,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         if self._num_processes_for_data_loader > 0:
             raise TypeError("multiple processes for data loader has not supported")
 
-        self._trainer: Trainer = None
+        self._trainer: TorchTrainer = None
 
         self._check()
 

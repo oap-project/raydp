@@ -21,8 +21,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from tensorflow.keras.callbacks import Callback
-from ray import train
-from ray.train import Trainer
+
 from ray.train.tensorflow import TensorflowTrainer, prepare_dataset_shard
 from ray.air import session
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
@@ -54,7 +53,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  **extra_config):
         """A scikit-learn like API to distributed training Tensorflow Keras model.
 
-        In the backend it leverage the ray.sgd.TorchTrainer.
+        In the backend it leverage the ray.train.tensorflow.TensorflowTrainer.
         :param num_workers: the number of workers for distributed model training
         :param resources_per_worker: the resources defined in this Dict will be reserved for
                each worker. The ``CPU`` and ``GPU`` keys (case-sensitive) can be defined to
@@ -147,7 +146,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._shuffle = shuffle
         self._callbacks = callbacks
         self._extra_config = extra_config
-        self._trainer: Trainer = None
+        self._trainer: TensorflowTrainer = None
 
     @staticmethod
     def build_and_compile_model(config):
