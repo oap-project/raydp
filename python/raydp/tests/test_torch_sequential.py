@@ -53,7 +53,5 @@ def test_torch_estimator(spark_on_ray_small):
     )
     estimator.fit_on_spark(df)
 
-    estimator.shutdown()
-
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))

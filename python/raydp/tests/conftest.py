@@ -46,7 +46,7 @@ def spark_session(request):
 def ray_cluster(request):
     ray.shutdown()
     if request.param == "local":
-        ray.init(address="local", num_cpus=4, include_dashboard=False)
+        ray.init(address="local", num_cpus=6, include_dashboard=False)
     else:
         ray.init(address=request.param)
     request.addfinalizer(lambda: ray.shutdown())
@@ -56,7 +56,7 @@ def ray_cluster(request):
 def spark_on_ray_small(request):
     ray.shutdown()
     if request.param == "local":
-        ray.init(address="local", num_cpus=4, include_dashboard=False)
+        ray.init(address="local", num_cpus=6, include_dashboard=False)
     else:
         ray.init(address=request.param)
     spark = raydp.init_spark("test", 1, 1, "500M")

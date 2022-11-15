@@ -70,8 +70,8 @@ estimator = TFEstimator(num_workers=2, model=model, optimizer=adam, loss=loss,
 
 # Train the model
 estimator.fit_on_spark(train_df, test_df)
-
+# Get the model
+model = estimator.get_model()
 # shudown raydp and ray
-estimator.shutdown()
 raydp.stop_spark()
 ray.shutdown()

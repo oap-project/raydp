@@ -80,10 +80,13 @@ def test_torch_estimator(spark_on_ray_small, use_fs_directory):
         dir = os.path.dirname(__file__) + "/test_torch"
         uri = "file://" + dir
         estimator.fit_on_spark(train_df, test_df, fs_directory=uri)
-        shutil.rmtree(dir)
     else:
         estimator.fit_on_spark(train_df, test_df)
-    estimator.shutdown()
+    model = estimator.get_model()
+    result = model(torch.Tensor([[0, 0], [1, 1]]))
+    assert result.shape == (2, 1)
+    if use_fs_directory:
+        shutil.rmtree(dir)
 
 
 if __name__ == "__main__":
