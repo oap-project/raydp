@@ -357,10 +357,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                 evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
                                                          parallelism=self._num_workers,
                                                          _use_owner=stop_spark_after_conversion)
-        if self._shuffle:
-            train_ds = train_ds.random_shuffle()
-            if evaluate_ds is not None:
-                evaluate_ds = evaluate_ds.random_shuffle()
         if stop_spark_after_conversion:
             stop_spark(del_obj_holder=False)
         return self.fit(
