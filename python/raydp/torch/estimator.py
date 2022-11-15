@@ -17,7 +17,6 @@
 
 import inspect
 from typing import Any, Callable, List, NoReturn, Optional, Union, Dict
-from numpy import outer
 
 import torch
 from torch.nn.modules.loss import _Loss as TLoss
@@ -29,7 +28,10 @@ from raydp import stop_spark
 from raydp.spark import spark_dataframe_to_ray_dataset
 
 from ray import train
-from ray.train import Trainer, TrainingCallback, get_dataset_shard
+from ray.train.torch import TorchTrainer
+from ray.air.config import ScalingConfig, RunConfig, FailureConfig
+from ray.air.checkpoint import Checkpoint
+from ray.air import session
 from ray.data.dataset import Dataset
 
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
@@ -82,9 +84,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  batch_size: int = None,
                  drop_last: bool = False,
                  num_epochs: int = None,
-                 shuffle: bool = False,
+                 shuffle: bool = True,
                  num_processes_for_data_loader: int = 0,
-                 callbacks: Optional[List[TrainingCallback]] = None,
                  metrics_name: Optional[List[Union[str, Callable]]] = None,
                  metrics_config: Optional[Dict[str,Dict[str, Any]]] = None,
                  **extra_config):
@@ -95,9 +96,9 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                override the number of CPU/GPUs used by each worker.
         :param model: the torch model instance or a function(dict -> Models) to create a model
         :param optimizer: the optimizer instance or a function((models, dict) -> optimizer) to
-               create the optimizer in the ray.train.Trainer
+               create the optimizer in the ray.train.torch.TorchTrainer
         :param loss: the loss instance or loss class or a function(dict -> loss) to create the
-               loss in the ray.train.Trainer
+               loss in the ray.train.torch.TorchTrainer
         :param lr_scheduler_creator: a function((optimizers, config) -> lr_scheduler) to create
                the lr scheduler
         :param scheduler_step_freq: "batch", "epoch", or None. This will
@@ -120,7 +121,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param shuffle: whether shuffle the data
                Note: Now the value can only be False
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
-        :param callbacks: which will be executed during training.
         :param metrics_name: the name of metrics' classes used to evaluate model. The full name list
                is available at: https://torchmetrics.readthedocs.io/en/latest/. For example:
                for classification tasks, it can be "Accuracy", "Precision" and "Recall";
@@ -130,7 +130,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param metrics_config: the optional config for the metrics. Its format is:
                {"metric_name_1": {"param1": value1, "param2": value2}, "metric_name_2":{}}, where
                param is the parameter corresponding to a concrete metric class of TorchMetrics.
-        :param extra_config: the extra config will be set to ray.train.Trainer
+        :param extra_config: the extra config will be set to ray.train.torch.TorchTrainer
         """
         self._num_workers = num_workers
         self._resources_per_worker = resources_per_worker
@@ -145,15 +145,15 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._batch_size = batch_size
         self._drop_last = drop_last
         self._num_epochs = num_epochs
+        self._shuffle = shuffle
         self._num_processes_for_data_loader = num_processes_for_data_loader
-        self._callbacks = callbacks
         self._metrics = TorchMetric(metrics_name, metrics_config)
         self._extra_config = extra_config
 
         if self._num_processes_for_data_loader > 0:
             raise TypeError("multiple processes for data loader has not supported")
 
-        self._trainer: Trainer = None
+        self._trainer: TorchTrainer = None
 
         self._check()
 
@@ -211,7 +211,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         metrics = config["metrics"]
 
         # create dataset
-        train_data_shard = get_dataset_shard("train")
+        train_data_shard = session.get_dataset_shard("train")
         train_dataset = train_data_shard.to_torch(feature_columns=config["feature_columns"],
                                                 feature_column_dtypes=config["feature_types"],
                                                 label_column=config["label_column"],
@@ -219,7 +219,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                                 batch_size=config["batch_size"],
                                                 drop_last=config["drop_last"])
         if config["evaluate"]:
-            evaluate_data_shard = get_dataset_shard("evaluate")
+            evaluate_data_shard = session.get_dataset_shard("evaluate")
             evaluate_dataset = evaluate_data_shard.to_torch(
                                                     feature_columns=config["feature_columns"],
                                                     label_column=config["label_column"],
@@ -233,12 +233,20 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         for epoch in range(config["num_epochs"]):
             train_res, train_loss = TorchEstimator.train_epoch(train_dataset, model, loss,
                                                                 optimizer, metrics, lr_scheduler)
-            train.report(epoch=epoch, train_res=train_res, train_loss=train_loss)
+            session.report(dict(epoch=epoch, train_res=train_res, train_loss=train_loss))
             if config["evaluate"]:
-                evaluate_res, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
+                eval_res, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
                                                                             model, loss, metrics)
-                train.report(epoch=epoch, evaluate_res=evaluate_res, test_loss=evaluate_loss)
+                session.report(dict(epoch=epoch, eval_res=eval_res, test_loss=evaluate_loss))
                 loss_results.append(evaluate_loss)
+        if hasattr(model, "module"):
+            states = model.module.state_dict()
+        else:
+            # if num_workers = 1, model is not wrapped
+            states = model.state_dict()
+        session.report({}, checkpoint=Checkpoint.from_dict({
+            "state_dict": states
+        }))
 
     @staticmethod
     def train_epoch(dataset, model, criterion, optimizer, metrics, scheduler=None):
@@ -284,32 +292,41 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_ds: Dataset,
             evaluate_ds: Optional[Dataset] = None,
             max_retries=3) -> NoReturn:
-        super().fit(train_ds, evaluate_ds)
-
-        self._trainer = Trainer(backend="torch", num_workers=self._num_workers,
-                                resources_per_worker=self._resources_per_worker,
-                                max_retries=max_retries, **self._extra_config)
-
-        config = {"num_workers": self._num_workers, "model": self._model,
-                  "optimizer": self._optimizer, "loss": self._loss,
-                  "lr_scheduler_creator": self._lr_scheduler_creator,
-                  "feature_columns": self._feature_columns, "feature_types": self._feature_types,
-                  "label_column": self._label_column, "label_type": self._label_type,
-                  "batch_size": self._batch_size, "num_epochs": self._num_epochs,
-                  "drop_last": self._drop_last, "evaluate": True,
-                  "metrics": self._metrics}
-        dataset = {"train": train_ds}
+        train_loop_config = {
+            "model": self._model,
+            "optimizer": self._optimizer,
+            "loss": self._loss,
+            "lr_scheduler_creator": self._lr_scheduler_creator,
+            "feature_columns": self._feature_columns,
+            "feature_types": self._feature_types,
+            "label_column": self._label_column,
+            "label_type": self._label_type,
+            "batch_size": self._batch_size,
+            "num_epochs": self._num_epochs,
+            "drop_last": self._drop_last,
+            "evaluate": True,
+            "metrics": self._metrics
+        }
+        scaling_config = ScalingConfig(num_workers=self._num_workers,
+                                       resources_per_worker=self._resources_per_worker)
+        run_config = RunConfig(failure_config=FailureConfig(max_failures=max_retries))
+        if self._shuffle:
+            train_ds = train_ds.random_shuffle()
+            if evaluate_ds:
+                evaluate_ds = evaluate_ds.random_shuffle()
+        datasets = {"train": train_ds}
         if evaluate_ds is None:
-            config["evaluate"] = False
+            train_loop_config["evaluate"] = False
         else:
-            dataset["evaluate"] = evaluate_ds
-        self._trainer.start()
-        results = self._trainer.run(
-            TorchEstimator.train_func, config=config,
-            callbacks=self._callbacks,
-            dataset=dataset
-        )
-        return results
+            datasets["evaluate"] = evaluate_ds
+        self._trainer = TorchTrainer(TorchEstimator.train_func,
+                                     train_loop_config=train_loop_config,
+                                     scaling_config=scaling_config,
+                                     run_config=run_config,
+                                     datasets=datasets)
+
+        result = self._trainer.fit()
+        self._trained_results = result
 
     def fit_on_spark(self,
                      train_df: DF,
@@ -334,17 +351,14 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
 
     def get_model(self):
         assert self._trainer is not None, "Must call fit first"
-        return self._trainer.get_model()
-
-    def save(self, checkpoint):
-        assert self._trainer is not None, "Must call fit first"
-        self._trainer.save(checkpoint)
-
-    def restore(self, checkpoint):
-        assert self._trainer is not None, "Must call fit first"
-        self._trainer.load(checkpoint)
-
-    def shutdown(self):
-        if self._trainer is not None:
-            self._trainer.shutdown()
-            self._trainer = None
+        states = self._trained_results.checkpoint.to_dict()["state_dict"]
+        if isinstance(self._model, torch.nn.Module):
+            model = self._model
+        elif callable(self._model):
+            model = self._model()
+        else:
+            raise Exception(
+                "Unsupported parameter, we only support torch.nn.Model instance "
+                "or a function(dict -> model)")
+        model.load_state_dict(states)
+        return model
