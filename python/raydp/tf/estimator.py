@@ -15,15 +15,17 @@
 # limitations under the License.
 #
 
-from typing import Any, List, NoReturn, Optional, Union
+from typing import Any, List, NoReturn, Optional, Union, Dict
 
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from tensorflow.keras.callbacks import Callback
-from ray import train
-from ray.train import Trainer
-from ray.train.tensorflow import prepare_dataset_shard
+
+from ray.train.tensorflow import TensorflowTrainer, prepare_dataset_shard
+from ray.air import session
+from ray.air.config import ScalingConfig, RunConfig, FailureConfig
+from ray.air.checkpoint import Checkpoint
 from ray.data.dataset import Dataset
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
@@ -33,6 +35,7 @@ from raydp.spark import spark_dataframe_to_ray_dataset
 class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def __init__(self,
                  num_workers: int = 1,
+                 resources_per_worker: Optional[Dict[str, float]] = None,
                  model: keras.Model = None,
                  optimizer: Union[keras.optimizers.Optimizer, str] = None,
                  loss: Union[keras.losses.Loss, str] = None,
@@ -50,8 +53,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  **extra_config):
         """A scikit-learn like API to distributed training Tensorflow Keras model.
 
-        In the backend it leverage the ray.sgd.TorchTrainer.
+        In the backend it leverage the ray.train.tensorflow.TensorflowTrainer.
         :param num_workers: the number of workers for distributed model training
+        :param resources_per_worker: the resources defined in this Dict will be reserved for
+               each worker. The ``CPU`` and ``GPU`` keys (case-sensitive) can be defined to
+               override the number of CPU/GPUs used by each worker.
         :param model: the model, it should be instance of tensorflow.keras.Model. We do not support
                       multiple output models.
         :param optimizer: the optimizer, it should be keras.optimizers.Optimizer instance or str.
@@ -79,7 +85,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param extra_config: extra config will fit into Trainer.
         """
         self._num_workers: int = num_workers
-
+        self._resources_per_worker = resources_per_worker
         # model
         assert model is not None, "model must be not be None"
         if isinstance(model, keras.Model):
@@ -140,7 +146,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._shuffle = shuffle
         self._callbacks = callbacks
         self._extra_config = extra_config
-        self._trainer: Trainer = None
+        self._trainer: TensorflowTrainer = None
 
     @staticmethod
     def build_and_compile_model(config):
@@ -158,16 +164,13 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             # Model building/compiling need to be within `strategy.scope()`.
             multi_worker_model = TFEstimator.build_and_compile_model(config)
 
-        train_dataset_pipeline = train.get_dataset_shard("train")
-        train_dataset_iterator = train_dataset_pipeline.iter_epochs()
+        train_dataset = session.get_dataset_shard("train")
         if config["evaluate"]:
-            eval_dataset_pipeline = train.get_dataset_shard("evaluate")
-            eval_dataset_iterator = eval_dataset_pipeline.iter_epochs()
+            eval_dataset = session.get_dataset_shard("evaluate")
 
         results = []
         for _ in range(config["num_epochs"]):
             features_len = len(config["feature_columns"])
-            train_dataset = next(train_dataset_iterator)
             train_tf_dataset = prepare_dataset_shard(
                 train_dataset.to_tf(
                     label_column=config["label_column"],
@@ -182,7 +185,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_history = multi_worker_model.fit(train_tf_dataset, callbacks=callbacks)
             results.append(train_history.history)
             if config["evaluate"]:
-                eval_dataset = next(eval_dataset_iterator)
                 eval_tf_dataset = prepare_dataset_shard(
                     eval_dataset.to_tf(
                         label_column=config["label_column"],
@@ -195,41 +197,44 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                 )
                 test_history = multi_worker_model.evaluate(eval_tf_dataset, callbacks=callbacks)
                 results.append(test_history)
-        return results
+        session.report({}, checkpoint=Checkpoint.from_dict({
+            "model_weights": multi_worker_model.get_weights()
+        }))
 
     def fit(self,
             train_ds: Dataset,
             evaluate_ds: Optional[Dataset] = None,
             max_retries=3) -> NoReturn:
-        super().fit(train_ds, evaluate_ds)
-        self._trainer = Trainer(backend="tensorflow", num_workers=self._num_workers,
-                                max_retries=max_retries, **self._extra_config)
-
-        config = {"num_workers": self._num_workers,
-                  "model": self._serialized_model,
-                  "optimizer": self._serialized_optimizer,
-                  "loss": self._serialized_loss,
-                  "feature_columns": self._feature_columns,
-                  "label_column": self._label_column,
-                  "batch_size": self._batch_size,
-                  "num_epochs": self._num_epochs,
-                  "evaluate": False,
-                  "metrics": self._serialized_metrics,
-                  "callbacks": self._callbacks}
-
-        train_ds_pipeline = train_ds.repeat()
-        dataset = {"train": train_ds_pipeline}
+        # super().fit(train_ds, evaluate_ds)
+        train_loop_config = {
+            "model": self._serialized_model,
+            "optimizer": self._serialized_optimizer,
+            "loss": self._serialized_loss,
+            "feature_columns": self._feature_columns,
+            "label_column": self._label_column,
+            "batch_size": self._batch_size,
+            "num_epochs": self._num_epochs,
+            "evaluate": False,
+            "metrics": self._serialized_metrics,
+            "callbacks": self._callbacks
+        }
+        scaling_config = ScalingConfig(num_workers=self._num_workers,
+                                       resources_per_worker=self._resources_per_worker)
+        run_config = RunConfig(failure_config=FailureConfig(max_failures=max_retries))
+        if self._shuffle:
+            train_ds = train_ds.random_shuffle()
+            if evaluate_ds:
+                evaluate_ds = evaluate_ds.random_shuffle()
+        datasets = {"train": train_ds}
         if evaluate_ds is not None:
-            config["evaluate"] = True
-            evaluate_ds_pipeline = evaluate_ds.repeat()
-            dataset["evaluate"] = evaluate_ds_pipeline
-        self._trainer.start()
-        results = self._trainer.run(
-            train_func=TFEstimator.train_func,
-            dataset=dataset,
-            config=config,
-        )
-        return results
+            train_loop_config["evaluate"] = True
+            datasets["evaluate"] = evaluate_ds
+        self._trainer = TensorflowTrainer(TFEstimator.train_func,
+                                          train_loop_config=train_loop_config,
+                                          scaling_config=scaling_config,
+                                          run_config=run_config,
+                                          datasets=datasets)
+        self._results = self._trainer.fit()
 
     def fit_on_spark(self,
                      train_df: DF,
@@ -242,16 +247,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         train_df = self._check_and_convert(train_df)
         train_ds = spark_dataframe_to_ray_dataset(train_df,
                                                   _use_owner=stop_spark_after_conversion)
-        if self._shuffle:
-            train_ds = train_ds.random_shuffle()
         evaluate_ds = None
         if evaluate_df is not None:
             evaluate_df = self._check_and_convert(evaluate_df)
             evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
                                                          _use_owner=stop_spark_after_conversion)
-            if self._shuffle:
-                evaluate_ds = evaluate_ds.random_shuffle()
-
         if stop_spark_after_conversion:
             stop_spark(del_obj_holder=False)
         return self.fit(
@@ -259,17 +259,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
 
     def get_model(self) -> Any:
         assert self._trainer, "Trainer has not been created"
-        return self._trainer.get_model()
-
-    def save(self, file_path) -> NoReturn:
-        assert self._trainer, "Trainer has not been created"
-        self._trainer.save(file_path)
-
-    def restore(self, file_path) -> NoReturn:
-        assert self._trainer, "Trainer has not been created"
-        self._trainer.restore(file_path)
-
-    def shutdown(self) -> NoReturn:
-        if self._trainer is not None:
-            self._trainer.shutdown()
-            del self._trainer
+        model = keras.models.model_from_json(self._serialized_model)
+        model.set_weights(self._results.checkpoint.to_dict()["model_weights"])
+        return model
