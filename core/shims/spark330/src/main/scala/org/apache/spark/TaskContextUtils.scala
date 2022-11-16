@@ -15,25 +15,16 @@
  * limitations under the License.
  */
 
-package com.intel.raydp.shims
+package org.apache.spark.spark330
 
-import org.apache.spark.{SparkEnv, TaskContext}
-import org.apache.spark.api.java.JavaRDD
-import org.apache.spark.executor.RayDPExecutorBackendFactory
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import java.util.Properties
 
-sealed abstract class ShimDescriptor
+import org.apache.spark.{SparkEnv, TaskContext, TaskContextImpl}
+import org.apache.spark.memory.TaskMemoryManager
 
-case class SparkShimDescriptor(major: Int, minor: Int, patch: Int) extends ShimDescriptor {
-  override def toString(): String = s"$major.$minor.$patch"
-}
-
-trait SparkShims {
-  def getShimDescriptor: ShimDescriptor
-
-  def toDataFrame(rdd: JavaRDD[Array[Byte]], schema: String, session: SparkSession): DataFrame
-
-  def getExecutorBackendFactory(): RayDPExecutorBackendFactory
-
-  def getDummyTaskContext(partitionId: Int, env: SparkEnv): TaskContext
+object TaskContextUtils {
+  def getDummyTaskContext(partitionId: Int, env: SparkEnv): TaskContext = {
+    new TaskContextImpl(0, 0, partitionId, -1024, 0,
+        new TaskMemoryManager(env.memoryManager, 0), new Properties(), env.metricsSystem)
+  }
 }

@@ -17,9 +17,11 @@
 
 package com.intel.raydp.shims.spark330
 
+import org.apache.spark.{SparkEnv, TaskContext}
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.executor.RayDPExecutorBackendFactory
 import org.apache.spark.executor.spark330._
+import org.apache.spark.spark330.TaskContextUtils
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.spark330.SparkSqlUtils
 
@@ -37,5 +39,9 @@ class Spark330Shims extends SparkShims {
 
   override def getExecutorBackendFactory(): RayDPExecutorBackendFactory = {
     new RayDPSpark330ExecutorBackendFactory()
+  }
+
+  override def getDummyTaskContext(partitionId: Int, env: SparkEnv): TaskContext = {
+    TaskContextUtils.getDummyTaskContext(partitionId, env)
   }
 }

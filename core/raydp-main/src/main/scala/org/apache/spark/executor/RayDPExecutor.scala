@@ -38,7 +38,6 @@ import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
-import org.apache.spark.memory.TaskMemoryManager
 import org.apache.spark.resource.ResourceProfile
 import org.apache.spark.rpc.{RpcEndpointRef, RpcEnv}
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{RetrieveSparkAppConfig, SparkAppConfig}
@@ -347,8 +346,7 @@ class RayDPExecutor(
       }
     }
     val env = SparkEnv.get
-    val context = new TaskContextImpl(0, 0, partitionId, -1024, 0,
-        new TaskMemoryManager(env.memoryManager, 0), new Properties(), env.metricsSystem)
+    val context = SparkShimLoader.getSparkShims.getDummyTaskContext(partitionId, env)
     TaskContext.setTaskContext(context)
     val schema = Schema.fromJSON(schemaStr)
     val blockId = BlockId.apply("rdd_" + rddId + "_" + partitionId)
