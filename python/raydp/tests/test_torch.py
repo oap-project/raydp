@@ -16,7 +16,9 @@
 #
 
 import pytest
+import os
 import sys
+import shutil
 import torch
 
 import databricks.koalas as ks
@@ -24,8 +26,8 @@ import databricks.koalas as ks
 from raydp.torch import TorchEstimator
 from raydp.utils import random_split
 
-
-def test_torch_estimator(spark_on_ray_small):
+@pytest.mark.parametrize("use_fs_directory", [True, False])
+def test_torch_estimator(spark_on_ray_small, use_fs_directory):
     # ---------------- data process with koalas ------------
     spark = spark_on_ray_small
 
@@ -74,10 +76,17 @@ def test_torch_estimator(spark_on_ray_small):
                                use_gpu=False)
 
     # train the model
-    estimator.fit_on_spark(train_df, test_df)
+    if use_fs_directory:
+        dir = os.path.dirname(__file__) + "/test_torch"
+        uri = "file://" + dir
+        estimator.fit_on_spark(train_df, test_df, fs_directory=uri)
+    else:
+        estimator.fit_on_spark(train_df, test_df)
     model = estimator.get_model()
     result = model(torch.Tensor([[0, 0], [1, 1]]))
     assert result.shape == (2, 1)
+    if use_fs_directory:
+        shutil.rmtree(dir)
 
 
 if __name__ == "__main__":
