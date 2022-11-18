@@ -20,10 +20,10 @@ package org.apache.spark.deploy.raydp
 import java.io.{DataOutputStream, File, FileOutputStream}
 import java.net.InetAddress
 import java.nio.file.Files
-
 import py4j.GatewayServer
-
 import org.apache.spark.internal.Logging
+
+import scala.util.Try
 
 class AppMasterEntryPoint {
   private val appMaster: AppMasterJavaBridge = new AppMasterJavaBridge()
@@ -38,41 +38,57 @@ object AppMasterEntryPoint extends Logging {
 
   initializeLogIfNecessary(true)
 
-  def main(args: Array[String]): Unit = {
-    val server = new GatewayServer.GatewayServerBuilder()
+  def getGatewayServer(): GatewayServer = {
+    new GatewayServer.GatewayServerBuilder()
       .javaPort(0)
       .javaAddress(localhost)
       .entryPoint(new AppMasterEntryPoint())
       .build()
+  }
 
-    server.start()
-    val boundPort: Int = server.getListeningPort()
-    if (boundPort == -1) {
-      logError(s"${server.getClass} failed to bind; exiting")
-      System.exit(1)
-    } else {
-      logDebug(s"Started PythonGatewayServer on port $boundPort")
+  def main(args: Array[String]): Unit = {
+
+    var server = getGatewayServer()
+
+    while(true) {
+      if (!Try(server.start()).isFailure) {
+        val boundPort: Int = server.getListeningPort()
+        if (boundPort == -1) {
+          logError(s"${server.getClass} failed to bind; exiting")
+          System.exit(1)
+        } else {
+          logDebug(s"Started PythonGatewayServer on port $boundPort")
+        }
+
+
+        val connectionInfoPath = new File(sys.env("_RAYDP_APPMASTER_CONN_INFO_PATH"))
+        val tmpPath = Files.createTempFile(connectionInfoPath.getParentFile().toPath(),
+          "connection", ".info").toFile()
+
+        val dos = new DataOutputStream(new FileOutputStream(tmpPath))
+        dos.writeInt(boundPort)
+        dos.close()
+
+        if (!tmpPath.renameTo(connectionInfoPath)) {
+          logError(s"Unable to write connection information to $connectionInfoPath.")
+          System.exit(1)
+        }
+
+        // Exit on EOF or broken pipe to ensure that this process dies when the Python driver dies:
+        while (System.in.read() != -1) {
+          // Do nothing
+        }
+        logDebug("Exiting due to broken pipe from Python driver")
+        System.exit(0)
+      } else {
+        server.shutdown()
+        logError(s"${server.getClass} failed to bind; retrying...")
+        Thread.sleep(1000)
+        server = getGatewayServer()
+      }
     }
 
 
-    val connectionInfoPath = new File(sys.env("_RAYDP_APPMASTER_CONN_INFO_PATH"))
-    val tmpPath = Files.createTempFile(connectionInfoPath.getParentFile().toPath(),
-      "connection", ".info").toFile()
 
-    val dos = new DataOutputStream(new FileOutputStream(tmpPath))
-    dos.writeInt(boundPort)
-    dos.close()
-
-    if (!tmpPath.renameTo(connectionInfoPath)) {
-      logError(s"Unable to write connection information to $connectionInfoPath.")
-      System.exit(1)
-    }
-
-    // Exit on EOF or broken pipe to ensure that this process dies when the Python driver dies:
-    while (System.in.read() != -1) {
-      // Do nothing
-    }
-    logDebug("Exiting due to broken pipe from Python driver")
-    System.exit(0)
   }
 }

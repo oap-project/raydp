@@ -106,11 +106,32 @@ class _SparkContext(ContextDecorator):
                 else self._placement_group_bundle_indexes
             self._configs[self._BUNDLE_INDEXES_CONF] = ",".join(map(str, bundle_indexes))
 
+    def _get_object_holder_resources(self) -> Dict[str, float]:
+        resources = {}
+        object_holder_config_prefix = 'spark.ray.raydp_obj_holder.resource.'
+        for key in self._configs:
+            if key.startswith(object_holder_config_prefix):
+                resource_name = key[len(object_holder_config_prefix):]
+                resources[resource_name] = float(self._configs[key])
+
+        return resources
+
     def get_or_create_session(self):
         if self._spark_session is not None:
             return self._spark_session
         obj_holder_name = self._app_name + RAYDP_OBJ_HOLDER_SUFFIX
-        self.handle = RayDPConversionHelper.options(name=obj_holder_name).remote()
+        object_holder_resource = self._get_object_holder_resources()
+
+        if object_holder_resource:
+            if 'CPU' in object_holder_resource:
+                num_cpu = object_holder_resource['CPU']
+                object_holder_resource.pop('CPU', None)
+            self.handle = RayDPConversionHelper.options(name=obj_holder_name,
+                                                        num_cpus=num_cpu,
+                                                        resources=object_holder_resource).remote()
+        else:
+            self.handle = RayDPConversionHelper.options(name=obj_holder_name).remote()
+
         self._prepare_placement_group()
         spark_cluster = self._get_or_create_spark_cluster()
         self._spark_session = spark_cluster.get_spark_session(
