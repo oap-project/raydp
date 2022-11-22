@@ -108,7 +108,7 @@ class _SparkContext(ContextDecorator):
 
     def _get_object_holder_resources(self) -> Dict[str, float]:
         resources = {}
-        object_holder_config_prefix = 'spark.ray.raydp_obj_holder.resource.'
+        object_holder_config_prefix = "spark.ray.raydp_obj_holder.resource."
         for key in self._configs:
             if key.startswith(object_holder_config_prefix):
                 resource_name = key[len(object_holder_config_prefix):]
@@ -123,9 +123,9 @@ class _SparkContext(ContextDecorator):
         object_holder_resource = self._get_object_holder_resources()
 
         if object_holder_resource:
-            if 'CPU' in object_holder_resource:
-                num_cpu = object_holder_resource['CPU']
-                object_holder_resource.pop('CPU', None)
+            if "CPU" in object_holder_resource:
+                num_cpu = object_holder_resource["CPU"]
+                object_holder_resource.pop("CPU", None)
             self.handle = RayDPConversionHelper.options(name=obj_holder_name,
                                                         num_cpus=num_cpu,
                                                         resources=object_holder_resource).remote()

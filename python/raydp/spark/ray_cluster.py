@@ -44,9 +44,9 @@ class SparkCluster(Cluster):
 
         if resources:
             num_cpu = 1
-            if 'CPU' in resources:
-                num_cpu = resources['CPU']
-                resources.pop('CPU', None)
+            if "CPU" in resources:
+                num_cpu = resources["CPU"]
+                resources.pop("CPU", None)
             self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name,
                                                                  num_cpus=num_cpu,
                                                                  resources=resources) \
@@ -59,7 +59,7 @@ class SparkCluster(Cluster):
 
     def _get_master_resources(self, configs: Dict[str, str]) -> Dict[str, float]:
         resources = {}
-        object_holder_config_prefix = 'spark.ray.raydp_spark_master.resource.'
+        object_holder_config_prefix = "spark.ray.raydp_spark_master.resource."
         for key in configs:
             if key.startswith(object_holder_config_prefix):
                 resource_name = key[len(object_holder_config_prefix):]
