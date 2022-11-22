@@ -44,12 +44,12 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
     train_df, test_df = random_split(df, [0.7, 0.3])
 
     # create model
-    model = keras.Sequential(
-        [
-            keras.layers.InputLayer(input_shape=(2,)),
-            keras.layers.Dense(1, activation='sigmoid')
-        ]
-    )
+    inputs_1 = keras.Input(shape=(1,), name="x")
+    inputs_2 = keras.Input(shape=(1,), name="y")
+    concat = keras.layers.concatenate([inputs_1, inputs_2])
+    dense = keras.layers.Dense(1, activation='sigmoid')(concat)
+    model = keras.Model(inputs=[inputs_1, inputs_2], outputs=dense)
+
 
     optimizer = keras.optimizers.Adam(0.01)
     loss = keras.losses.MeanSquaredError()
@@ -60,7 +60,7 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
                             loss=loss,
                             metrics=["accuracy", "mse"],
                             feature_columns=["x", "y"],
-                            label_column="z",
+                            label_columns="z",
                             batch_size=1000,
                             num_epochs=2,
                             use_gpu=False)
@@ -79,4 +79,8 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(["-v", __file__]))
+    # sys.exit(pytest.main(["-v", __file__]))
+    import ray, raydp
+    ray.init()
+    spark = raydp.init_spark('a', 6, 1, '500m')
+    test_tf_estimator(spark, False)

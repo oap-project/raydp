@@ -65,7 +65,7 @@ class PrintingCallback(Callback):
 adam = keras.optimizers.Adam(learning_rate=0.001)
 loss = keras.losses.MeanSquaredError()
 estimator = TFEstimator(num_workers=2, model=model, optimizer=adam, loss=loss,
-                        metrics=["mae"], feature_columns=features, label_column="fare_amount",
+                        metrics=["mae"], feature_columns=features, label_columns="fare_amount",
                         batch_size=256, num_epochs=10, callbacks=[PrintingCallback()])
 
 # Train the model
