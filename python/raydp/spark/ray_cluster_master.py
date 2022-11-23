@@ -185,7 +185,7 @@ class RayDPSparkMaster():
     def get_spark_home(self) -> str:
         assert self._started_up
         return self._spark_home
-    
+
     def add_objects(self, timestamp, objects):
         self._objects[timestamp] = objects
 
