@@ -42,6 +42,8 @@ class RayDPSparkMaster():
         self._started_up = False
         self._configs = configs
         self._spark_home = None
+        self._objects = {}
+        self._actor_id = None
 
     def start_up(self, popen_kwargs=None):
         if self._started_up:
@@ -183,11 +185,23 @@ class RayDPSparkMaster():
     def get_spark_home(self) -> str:
         assert self._started_up
         return self._spark_home
+    
+    def add_objects(self, timestamp, objects):
+        self._objects[timestamp] = objects
 
-    def stop(self):
-        if not self._started_up:
-            return
+    def get_object(self, timestamp, idx):
+        return self._objects[timestamp][idx]
 
+    def get_ray_address(self):
+        return ray.worker.global_worker.node.address
+
+    def get_actor_id(self):
+        if self._actor_id is None:
+            self._actor_id = ray.get_runtime_context().actor_id
+        return self._actor_id
+
+    def stop(self, del_obj_holder):
+        self._started_up = False
         if self._app_master_java_bridge is not None:
             self._app_master_java_bridge.stop()
             self._app_master_java_bridge = None
@@ -196,6 +210,5 @@ class RayDPSparkMaster():
             self._gateway.shutdown()
             self._gateway.proc.terminate()
             self._gateway = None
-
-        self._started_up = False
-        ray.actor.exit_actor()
+        if del_obj_holder:
+            ray.actor.exit_actor()

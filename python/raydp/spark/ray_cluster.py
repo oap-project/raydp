@@ -106,11 +106,12 @@ class SparkCluster(Cluster):
             spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
         return self._spark_session
 
-    def stop(self):
+    def stop(self, del_obj_holder):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
 
         if self._spark_master_handle is not None:
-            self._spark_master_handle.stop.remote()
-            self._spark_master_handle = None
+            self._spark_master_handle.stop.remote(del_obj_holder)
+            if del_obj_holder:
+                self._spark_master_handle = None

@@ -41,6 +41,7 @@ except ImportError:
     HAS_MLDATASET = False
 from raydp.spark.parallel_iterator_worker import ParallelIteratorWorkerWithLen
 from raydp.utils import divide_blocks
+from raydp.spark.ray_cluster_master import RAYDP_SPARK_MASTER_SUFFIX
 
 
 logger = logging.getLogger(__name__)
@@ -150,7 +151,7 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
     jvm = df.sql_ctx.sparkSession.sparkContext._jvm
     jdf = df._jdf
     object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
-    obj_holder_name = df.sql_ctx.sparkSession.sparkContext.appName + RAYDP_OBJ_HOLDER_SUFFIX
+    obj_holder_name = df.sql_ctx.sparkSession.sparkContext.appName + RAYDP_SPARK_MASTER_SUFFIX
     if _use_owner is True:
         records = object_store_writer.save(use_batch, obj_holder_name)
     else:
@@ -178,35 +179,12 @@ def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
     blocks, _ = _save_spark_df_to_object_store(df, False, _use_owner)
     return from_arrow_refs(blocks)
 
-@ray.remote
-class RayDPConversionHelper():
-    def __init__(self):
-        self.objects = {}
-        self.this_actor_id = None
-
-    def add_objects(self, timestamp, objects):
-        self.objects[timestamp] = objects
-
-    def get_object(self, timestamp, idx):
-        return self.objects[timestamp][idx]
-
-    def get_ray_address(self):
-        return ray.worker.global_worker.node.address
-
-    def terminate(self):
-        ray.actor.exit_actor()
-
-    def get_actor_id(self):
-        self.this_actor_id = ray.get_runtime_context().actor_id
-        return self.this_actor_id
-
-RAYDP_OBJ_HOLDER_SUFFIX = "_OBJ_HOLDER"
 
 def _convert_by_udf(spark: sql.SparkSession,
                     blocks: List[ObjectRef],
                     locations: List[bytes],
                     schema: StructType) -> DataFrame:
-    holder_name  = spark.sparkContext.appName + RAYDP_OBJ_HOLDER_SUFFIX
+    holder_name  = spark.sparkContext.appName + RAYDP_SPARK_MASTER_SUFFIX
     holder = ray.get_actor(holder_name)
     df_id = uuid.uuid4()
     ray.get(holder.add_objects.remote(df_id, blocks))
