@@ -200,7 +200,7 @@ class RayDPSparkMaster():
             self._actor_id = ray.get_runtime_context().actor_id
         return self._actor_id
 
-    def stop(self, del_obj_holder):
+    def stop(self, cleanup_data):
         self._started_up = False
         if self._app_master_java_bridge is not None:
             self._app_master_java_bridge.stop()
@@ -210,5 +210,5 @@ class RayDPSparkMaster():
             self._gateway.shutdown()
             self._gateway.proc.terminate()
             self._gateway = None
-        if del_obj_holder:
+        if cleanup_data:
             ray.actor.exit_actor()

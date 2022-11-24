@@ -119,13 +119,13 @@ class _SparkContext(ContextDecorator):
             self._configs)
         return self._spark_session
 
-    def stop(self, del_obj_holder=True):
+    def stop(self, cleanup_data=True):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
         if self._spark_cluster is not None:
-            self._spark_cluster.stop(del_obj_holder)
-            if del_obj_holder:
+            self._spark_cluster.stop(cleanup_data)
+            if cleanup_data:
                 self._spark_cluster = None
         if self._placement_group_strategy is not None:
             if self._placement_group is not None:
@@ -202,12 +202,12 @@ def init_spark(app_name: str,
             raise Exception("The spark environment has inited.")
 
 
-def stop_spark(del_obj_holder=True):
+def stop_spark(cleanup_data=True):
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is not None:
-            _global_spark_context.stop(del_obj_holder)
-            if del_obj_holder is True:
+            _global_spark_context.stop(cleanup_data)
+            if cleanup_data is True:
                 _global_spark_context = None
 
 
