@@ -109,7 +109,7 @@ def test_data_ownership_transfer(ray_cluster):
   ds.show(5)
 
   # release resource by shutting down spark Java process
-  raydp.stop_spark(del_obj_holder=False)
+  raydp.stop_spark(cleanup_data=False)
   ray_gc() # ensure GC kicked in
   time.sleep(3)
 

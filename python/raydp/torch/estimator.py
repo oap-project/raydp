@@ -358,7 +358,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                                          parallelism=self._num_workers,
                                                          _use_owner=stop_spark_after_conversion)
         if stop_spark_after_conversion:
-            stop_spark(del_obj_holder=False)
+            stop_spark(cleanup_data=False)
         return self.fit(
             train_ds, evaluate_ds, max_retries)
 

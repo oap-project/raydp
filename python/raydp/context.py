@@ -26,7 +26,6 @@ from pyspark.sql import SparkSession
 from ray.util.placement_group import PlacementGroup
 
 from raydp.spark import SparkCluster
-from raydp.spark.dataset import RayDPConversionHelper, RAYDP_OBJ_HOLDER_SUFFIX
 from raydp.utils import parse_memory_size
 
 
@@ -106,32 +105,9 @@ class _SparkContext(ContextDecorator):
                 else self._placement_group_bundle_indexes
             self._configs[self._BUNDLE_INDEXES_CONF] = ",".join(map(str, bundle_indexes))
 
-    def _get_object_holder_resources(self) -> Dict[str, float]:
-        resources = {}
-        object_holder_config_prefix = "spark.ray.raydp_obj_holder.resource."
-        for key in self._configs:
-            if key.startswith(object_holder_config_prefix):
-                resource_name = key[len(object_holder_config_prefix):]
-                resources[resource_name] = float(self._configs[key])
-
-        return resources
-
     def get_or_create_session(self):
         if self._spark_session is not None:
             return self._spark_session
-        obj_holder_name = self._app_name + RAYDP_OBJ_HOLDER_SUFFIX
-        object_holder_resource = self._get_object_holder_resources()
-
-        if object_holder_resource:
-            if "CPU" in object_holder_resource:
-                num_cpu = object_holder_resource["CPU"]
-                object_holder_resource.pop("CPU", None)
-            self.handle = RayDPConversionHelper.options(name=obj_holder_name,
-                                                        num_cpus=num_cpu,
-                                                        resources=object_holder_resource).remote()
-        else:
-            self.handle = RayDPConversionHelper.options(name=obj_holder_name).remote()
-
         self._prepare_placement_group()
         spark_cluster = self._get_or_create_spark_cluster()
         self._spark_session = spark_cluster.get_spark_session(
@@ -143,16 +119,14 @@ class _SparkContext(ContextDecorator):
             self._configs)
         return self._spark_session
 
-    def stop(self, del_obj_holder=True):
+    def stop(self, cleanup_data=True):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
-        if self.handle is not None and del_obj_holder is True:
-            self.handle.terminate.remote()
-            self.handle = None
         if self._spark_cluster is not None:
-            self._spark_cluster.stop()
-            self._spark_cluster = None
+            self._spark_cluster.stop(cleanup_data)
+            if cleanup_data:
+                self._spark_cluster = None
         if self._placement_group_strategy is not None:
             if self._placement_group is not None:
                 ray.util.remove_placement_group(self._placement_group)
@@ -228,12 +202,12 @@ def init_spark(app_name: str,
             raise Exception("The spark environment has inited.")
 
 
-def stop_spark(del_obj_holder=True):
+def stop_spark(cleanup_data=True):
     with _spark_context_lock:
         global _global_spark_context
         if _global_spark_context is not None:
-            _global_spark_context.stop(del_obj_holder)
-            if del_obj_holder is True:
+            _global_spark_context.stop(cleanup_data)
+            if cleanup_data is True:
                 _global_spark_context = None
 
 
