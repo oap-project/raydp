@@ -59,10 +59,10 @@ class SparkCluster(Cluster):
 
     def _get_master_resources(self, configs: Dict[str, str]) -> Dict[str, float]:
         resources = {}
-        object_holder_config_prefix = "spark.ray.raydp_spark_master.resource."
+        spark_master_config_prefix = "spark.ray.raydp_spark_master.resource."
         for key in configs:
-            if key.startswith(object_holder_config_prefix):
-                resource_name = key[len(object_holder_config_prefix):]
+            if key.startswith(spark_master_config_prefix):
+                resource_name = key[len(spark_master_config_prefix):]
                 resources[resource_name] = float(configs[key])
 
         return resources
