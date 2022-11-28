@@ -16,7 +16,9 @@
 #
 
 import pytest
-import databricks.koalas as ks
+import pyspark
+import numpy as np
+from pyspark.sql.functions import rand
 
 from raydp.xgboost import XGBoostEstimator
 from raydp.utils import random_split
@@ -26,16 +28,17 @@ def test_xgb_estimator(spark_on_ray_small, use_fs_directory):
     spark = spark_on_ray_small
 
     # calculate z = 3 * x + 4 * y + 5
-    df: ks.DataFrame = ks.range(0, 100000)
-    df["x"] = df["id"] + 100
-    df["y"] = df["id"] + 1000
-    df["z"] = df["x"] * 3 + df["y"] * 4 + 5
-    df = df.astype("float")
+    df: pyspark.sql.DataFrame = spark.range(0, 100000)
+    df = df.withColumn("x", rand() * 100)  # add x column
+    df = df.withColumn("y", rand() * 1000)  # ad y column
+    df = df.withColumn("z", df.x * 3 + df.y * 4 + rand() + 5)  # ad z column
+    df = df.select(df.x, df.y, df.z)
 
     train_df, test_df = random_split(df, [0.7, 0.3])
     params = {}
     estimator = XGBoostEstimator(params, "z", resources_per_worker={"CPU": 1})
     estimator.fit_on_spark(train_df=train_df, evaluate_df=test_df)
+    print(estimator.get_model().inplace_predict(np.asarray([[1,2]])))
 
 if __name__ == '__main__':
     import ray, raydp
