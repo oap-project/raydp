@@ -93,7 +93,7 @@ try:
         "typing",
         "pandas >= 1.1.4",
         "psutil",
-        "pyarrow >= 4.0.1, < 7.0.0",
+        "pyarrow >= 4.0.1",
         "ray >= 1.9.0",
         "pyspark >= 3.1.1, <= 3.3.0",
         "netifaces"
