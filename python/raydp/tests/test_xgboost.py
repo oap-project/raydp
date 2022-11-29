@@ -15,6 +15,9 @@
 # limitations under the License.
 #
 
+import os
+import sys
+import shutil
 import pytest
 import pyspark
 import numpy as np
@@ -37,11 +40,15 @@ def test_xgb_estimator(spark_on_ray_small, use_fs_directory):
     train_df, test_df = random_split(df, [0.7, 0.3])
     params = {}
     estimator = XGBoostEstimator(params, "z", resources_per_worker={"CPU": 1})
-    estimator.fit_on_spark(train_df=train_df, evaluate_df=test_df)
+    if use_fs_directory:
+        dir = os.path.dirname(__file__) + "/test_tf"
+        uri = "file://" + dir
+        estimator.fit_on_spark(train_df, test_df, fs_directory=uri)
+    else:
+        estimator.fit_on_spark(train_df, test_df)
     print(estimator.get_model().inplace_predict(np.asarray([[1,2]])))
+    if use_fs_directory:
+        shutil.rmtree(dir)
 
 if __name__ == '__main__':
-    import ray, raydp
-    ray.init()
-    spark = raydp.init_spark('a', 1, 1, '500m')
-    test_xgb_estimator(spark, False)
+    sys.exit(pytest.main(["-v", __file__]))
