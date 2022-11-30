@@ -1,4 +1,4 @@
-### How to schedule Spark Master to a designated node
+### Spark master node affinity
 
 RayDP will create a ray actor called `RayDPSparkMaster`, which will then launch the java process, acting like a Master in a tradtional Spark cluster. By default, this actor could be scheduled to any node in the ray cluster. If you want it to be on a particular node, you can assign some custom resources to that node, and request those resources when starting `RayDPSparkMaster` by setting `spark.ray.raydp_spark_master.resource.*` in `init_spark`.
 
@@ -18,7 +18,7 @@ In cluster config yaml:
 available_node_types:
   ray.head.default:
     resources:
-      CPU: 0    # We intentionally set this to 0 so not executors are on headnode
+      CPU: 0    # We intentionally set this to 0 so no executor is on headnode
       spark_master: 100  # Just gave it a large enough number so all drivers are there
 ```
 
