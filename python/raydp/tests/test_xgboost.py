@@ -51,4 +51,7 @@ def test_xgb_estimator(spark_on_ray_small, use_fs_directory):
         shutil.rmtree(dir)
 
 if __name__ == '__main__':
-    sys.exit(pytest.main(["-v", __file__]))
+    import ray, raydp
+    ray.init(address="auto")
+    spark = raydp.init_spark('test_xgboost', 1, 1, '500m')
+    test_xgb_estimator(spark, False)

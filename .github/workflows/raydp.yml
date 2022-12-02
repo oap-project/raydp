@@ -101,8 +101,9 @@ jobs:
       - name: Test with pytest
         run: |
           ray start --head --num-cpus 6
-          pytest python/raydp/tests/ -m"not error_on_custom_resource"
-          pytest python/raydp/tests/ -m"error_on_custom_resource"
+          python python/raydp/tests/test_xgboost.py
+          # pytest python/raydp/tests/ -m"not error_on_custom_resource"
+          # pytest python/raydp/tests/ -m"error_on_custom_resource"
           ray stop --force
       - name: Test Examples
         run: |
