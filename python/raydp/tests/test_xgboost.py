@@ -54,4 +54,4 @@ if __name__ == '__main__':
     import ray, raydp
     ray.init(address="auto")
     spark = raydp.init_spark('test_xgboost', 1, 1, '500m')
-    test_xgb_estimator(spark, False)
+    test_xgb_estimator(spark, True)
