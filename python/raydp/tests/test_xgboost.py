@@ -41,7 +41,7 @@ def test_xgb_estimator(spark_on_ray_small, use_fs_directory):
     params = {}
     estimator = XGBoostEstimator(params, "z", resources_per_worker={"CPU": 1})
     if use_fs_directory:
-        dir = os.path.dirname(__file__) + "/test_tf"
+        dir = os.path.dirname(os.path.realpath(__file__)) + "/test_xgboost"
         uri = "file://" + dir
         estimator.fit_on_spark(train_df, test_df, fs_directory=uri)
     else:
