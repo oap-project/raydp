@@ -167,6 +167,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         )
         if config["evaluate"]:
             eval_dataset = session.get_dataset_shard("evaluate")
+            eval_dataset.fully_executed()
             eval_tf_dataset = eval_dataset.to_tf(
                 feature_columns=config["feature_columns"],
                 label_columns=config["label_columns"],
