@@ -26,6 +26,7 @@ from ray.train.tensorflow import TensorflowTrainer, prepare_dataset_shard
 from ray.air import session
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.air.checkpoint import Checkpoint
+from ray.data import read_parquet
 from ray.data.dataset import Dataset
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
@@ -176,7 +177,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             )
         results = []
         callbacks = config["callbacks"]
-        for _ in range(config["num_epochs"]):    
+        for _ in range(config["num_epochs"]):
             train_history = multi_worker_model.fit(train_tf_dataset, callbacks=callbacks)
             results.append(train_history.history)
             if config["evaluate"]:
@@ -237,11 +238,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             app_id = train_df.sql_ctx.sparkSession.sparkContext.applicationId
             path = fs_directory.rstrip("/") + f"/{app_id}"
             train_df.write.parquet(path+"/train", compression=compression)
-            train_ds = ray.data.read_parquet(path+"/train")
+            train_ds = read_parquet(path+"/train")
             if evaluate_df is not None:
                 evaluate_df = self._check_and_convert(evaluate_df)
                 evaluate_df.write.parquet(path+"/test", compression=compression)
-                evaluate_ds = ray.data.read_parquet(path+"/test")
+                evaluate_ds = read_parquet(path+"/test")
         else:
             train_ds = spark_dataframe_to_ray_dataset(train_df,
                                                     _use_owner=stop_spark_after_conversion)
