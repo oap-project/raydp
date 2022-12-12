@@ -168,6 +168,8 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         train_dataset = session.get_dataset_shard("train")
         if config["evaluate"]:
             eval_dataset = session.get_dataset_shard("evaluate")
+            # work-around for a issue (ray #30465)
+            eval_dataset.fully_executed()
 
         results = []
         for _ in range(config["num_epochs"]):
