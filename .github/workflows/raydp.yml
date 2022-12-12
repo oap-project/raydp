@@ -76,7 +76,7 @@ jobs:
           else
             pip install torch
           fi
-          pip install ray[default]==2.1.0 pytest koalas tensorflow tabulate xgboost_ray[default] grpcio-tools wget
+          pip install pyarrow==6.0.1 ray[default]==2.1.0 pytest koalas tensorflow tabulate xgboost_ray[default] grpcio-tools wget
           pip install torchmetrics
           HOROVOD_WITH_GLOO=1
           HOROVOD_WITH_PYTORCH=1
