@@ -19,3 +19,6 @@ examples/.ipynb_checkpoints/
 # Vim temp files
 *.swp
 *.swo
+*.parquet
+*.crc
+_SUCCESS

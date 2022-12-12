@@ -35,15 +35,37 @@ class SparkCluster(Cluster):
         self._app_name = app_name
         self._spark_master = None
         self._configs = configs
-        self._set_up_master(None, None)
+        self._set_up_master(resources=self._get_master_resources(configs), kwargs=None)
         self._spark_session: SparkSession = None
 
     def _set_up_master(self, resources: Dict[str, float], kwargs: Dict[Any, Any]):
         # TODO: specify the app master resource
         spark_master_name = self._app_name + RAYDP_SPARK_MASTER_SUFFIX
-        self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name) \
-                                                    .remote(self._configs)
+
+        if resources:
+            num_cpu = 1
+            if "CPU" in resources:
+                num_cpu = resources["CPU"]
+                resources.pop("CPU", None)
+            self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name,
+                                                                 num_cpus=num_cpu,
+                                                                 resources=resources) \
+                                                        .remote(self._configs)
+        else:
+            self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name) \
+                .remote(self._configs)
+
         ray.get(self._spark_master_handle.start_up.remote())
+
+    def _get_master_resources(self, configs: Dict[str, str]) -> Dict[str, float]:
+        resources = {}
+        spark_master_config_prefix = "spark.ray.raydp_spark_master.resource."
+        for key in configs:
+            if key.startswith(spark_master_config_prefix):
+                resource_name = key[len(spark_master_config_prefix):]
+                resources[resource_name] = float(configs[key])
+
+        return resources
 
     def _set_up_worker(self, resources: Dict[str, float], kwargs: Dict[str, str]):
         raise Exception("Unsupported operation")
@@ -115,10 +137,11 @@ class SparkCluster(Cluster):
             spark_builder.appName(app_name).master(self.get_cluster_url()).getOrCreate()
         return self._spark_session
 
-    def stop(self):
+    def stop(self, cleanup_data):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
         if self._spark_master_handle is not None:
-            self._spark_master_handle.stop.remote()
-            self._spark_master_handle = None
+            self._spark_master_handle.stop.remote(cleanup_data)
+            if cleanup_data:
+                self._spark_master_handle = None

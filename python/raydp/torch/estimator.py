@@ -27,6 +27,7 @@ from raydp.torch.torch_metrics import TorchMetric
 from raydp import stop_spark
 from raydp.spark import spark_dataframe_to_ray_dataset
 
+import ray
 from ray import train
 from ray.train.torch import TorchTrainer
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
@@ -332,20 +333,32 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                      train_df: DF,
                      evaluate_df: OPTIONAL_DF = None,
                      max_retries=3,
+                     fs_directory: Optional[str] = None,
+                     compression: Optional[str] = None,
                      stop_spark_after_conversion=False):
         super().fit_on_spark(train_df, evaluate_df)
         train_df = self._check_and_convert(train_df)
-        train_ds = spark_dataframe_to_ray_dataset(train_df,
+        evaluate_ds = None
+        if fs_directory is not None:
+            app_id = train_df.sql_ctx.sparkSession.sparkContext.applicationId
+            path = fs_directory.rstrip("/") + f"/{app_id}"
+            train_df.write.parquet(path+"/train", compression=compression)
+            train_ds = ray.data.read_parquet(path+"/train")
+            if evaluate_df is not None:
+                evaluate_df = self._check_and_convert(evaluate_df)
+                evaluate_df.write.parquet(path+"/test", compression=compression)
+                evaluate_ds = ray.data.read_parquet(path+"/test")
+        else:
+            train_ds = spark_dataframe_to_ray_dataset(train_df,
                                                   parallelism=self._num_workers,
                                                   _use_owner=stop_spark_after_conversion)
-        evaluate_ds = None
-        if evaluate_df is not None:
-            evaluate_df = self._check_and_convert(evaluate_df)
-            evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
+            if evaluate_df is not None:
+                evaluate_df = self._check_and_convert(evaluate_df)
+                evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
                                                          parallelism=self._num_workers,
                                                          _use_owner=stop_spark_after_conversion)
         if stop_spark_after_conversion:
-            stop_spark(del_obj_holder=False)
+            stop_spark(cleanup_data=False)
         return self.fit(
             train_ds, evaluate_ds, max_retries)
 

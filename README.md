@@ -114,6 +114,9 @@ ds1 = ray.data.from_spark(df1)
 ds2 = ray.data.from_items([{"id": i} for i in range(1000)])
 df2 = ds2.to_spark(spark)
 ```
+
+Ray dataset converted from Spark dataframe this way will be no longer accessible after `raydp.stop_spark()`. If you want to access the data after spark is shutdown, please use `raydp.stop_spark(cleanup_data=False)`. 
+
 Please refer to [Spark+XGBoost on Ray](./examples/xgboost_ray_nyctaxi.py) for a full example.
 
 ***Estimator API***

@@ -29,7 +29,7 @@ package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
 if package_name == 'raydp_nightly':
     VERSION = datetime.today().strftime("%Y.%m.%d.dev1")
 else:
-    VERSION = "0.6.0.dev0"
+    VERSION = "0.7.0.dev0"
 
 ROOT_DIR = os.path.dirname(__file__)
 
@@ -93,9 +93,9 @@ try:
         "typing",
         "pandas >= 1.1.4",
         "psutil",
-        "pyarrow >= 4.0.1, < 7.0.0",
+        "pyarrow >= 4.0.1",
         "ray >= 2.1.0",
-        "pyspark >= 3.1.1, <= 3.3.0",
+        "pyspark >= 3.1.1, <= 3.3.1",
         "netifaces"
     ]
 
