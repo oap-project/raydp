@@ -72,11 +72,10 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
     else:
         estimator.fit_on_spark(train_df, test_df)
     model = estimator.get_model()
-    result = model(tf.constant([[0, 0], [1, 1]]))
+    result = model([tf.constant([[0], [1]]), tf.constant([[0], [1]])])
     assert result.shape == (2, 1)
     if use_fs_directory:
         shutil.rmtree(dir)
-
 
 if __name__ == "__main__":
     # sys.exit(pytest.main(["-v", __file__]))
