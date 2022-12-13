@@ -17,7 +17,7 @@ ray.init(address="local", num_cpus=6)
 
 # After initialize ray cluster, you can use the raydp api to get a spark session
 app_name = "NYC Taxi Fare Prediction with RayDP"
-num_executors = 2
+num_executors = 1
 cores_per_executor = 1
 memory_per_executor = "500M"
 spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
@@ -41,7 +41,7 @@ features = [field.name for field in list(train_df.schema) if field.name != "fare
 # Define the keras model
 model = keras.Sequential(
     [
-        keras.layers.InputLayer(input_shape=(len(features),)),
+        keras.Input(shape=(len(features),)),
         keras.layers.Dense(256, activation="relu"),
         keras.layers.BatchNormalization(),
         keras.layers.Dense(128, activation="relu"),
