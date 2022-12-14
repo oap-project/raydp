@@ -44,12 +44,12 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
     train_df, test_df = random_split(df, [0.7, 0.3])
 
     # create model
-    inputs_1 = keras.Input(shape=(1,), name="x")
-    inputs_2 = keras.Input(shape=(1,), name="y")
-    concat = keras.layers.concatenate([inputs_1, inputs_2])
-    dense = keras.layers.Dense(1, activation='sigmoid')(concat)
-    model = keras.Model(inputs=[inputs_1, inputs_2], outputs=dense)
-
+    model = keras.Sequential(
+        [
+            keras.layers.InputLayer(input_shape=(2,)),
+            keras.layers.Dense(1, activation='sigmoid')
+        ]
+    )
 
     optimizer = keras.optimizers.Adam(0.01)
     loss = keras.losses.MeanSquaredError()
@@ -72,7 +72,7 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
     else:
         estimator.fit_on_spark(train_df, test_df)
     model = estimator.get_model()
-    result = model([tf.constant([[0], [1]]), tf.constant([[0], [1]])])
+    result = model(tf.constant([[0, 0], [1, 1]]))
     assert result.shape == (2, 1)
     if use_fs_directory:
         shutil.rmtree(dir)

@@ -28,6 +28,7 @@ from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.air.checkpoint import Checkpoint
 from ray.data import read_parquet
 from ray.data.dataset import Dataset
+from ray.data.preprocessors import Concatenator
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
 from raydp import stop_spark
@@ -43,6 +44,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  metrics: Union[List[keras.metrics.Metric], List[str]] = None,
                  feature_columns: Union[str, List[str]] = None,
                  label_columns: Union[str, List[str]] = None,
+                 merge_feature_columns: bool = True,
                  batch_size: int = 128,
                  drop_last: bool = False,
                  num_epochs: int = 1,
@@ -135,6 +137,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
 
         self._feature_columns = feature_columns
         self._label_columns = label_columns
+        self._merge_feature_columns = merge_feature_columns
         self._batch_size = batch_size
         self._drop_last = drop_last
         self._num_epochs = num_epochs
@@ -216,12 +219,18 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         if evaluate_ds is not None:
             train_loop_config["evaluate"] = True
             datasets["evaluate"] = evaluate_ds
-        print(train_ds.schema(), evaluate_ds.schema())
+        preprocessor = None
+        if self._merge_feature_columns:
+            if isinstance(self._feature_columns, list) and len(self._feature_columns) > 1:
+                preprocessor = Concatenator(output_column_name="features",
+                                            exclude=self._label_columns)
+                train_loop_config["feature_columns"] = "features"
         self._trainer = TensorflowTrainer(TFEstimator.train_func,
                                           train_loop_config=train_loop_config,
                                           scaling_config=scaling_config,
                                           run_config=run_config,
-                                          datasets=datasets)
+                                          datasets=datasets,
+                                          preprocessor=preprocessor)
         self._results = self._trainer.fit()
 
     def fit_on_spark(self,
