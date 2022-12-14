@@ -5,8 +5,9 @@ import torch.nn.functional as F
 
 import horovod.torch as hvd
 import raydp
-from ray.train import Trainer, get_dataset_shard
-
+from ray.train.horovod import HorovodTrainer
+from ray.air import session
+from ray.air.config import ScalingConfig
 from data_process import nyc_taxi_preprocess, NYC_TRAIN_CSV
 
 # Training settings
@@ -91,7 +92,7 @@ def train_fn(config):
     hvd.init()
     features = config.get("features")
     rank = hvd.rank()
-    train_data_shard = ray.train.get_dataset_shard("train")
+    train_data_shard = session.get_dataset_shard("train")
     train_data =train_data_shard.to_torch(feature_columns=features,
                                           label_column="fare_amount",
                                           label_column_dtype=torch.float,
@@ -126,9 +127,10 @@ if __name__ == "__main__":
     import ray
     ray.init(address="local", num_cpus=4)
     ds, features = process_data(args.num_workers)
-    trainer = Trainer(backend="horovod", num_workers=args.num_workers)
-    trainer.start()
-    trainer.run(train_fn, dataset={"train": ds}, config={"features": features})
-    trainer.shutdown()
+    trainer = HorovodTrainer(train_loop_per_worker=train_fn,
+                             train_loop_config={"features": features},
+                             scaling_config=ScalingConfig(num_workers=args.num_workers),
+                             datasets={"train": ds})
+    trainer.fit()
     raydp.stop_spark()
     ray.shutdown()
