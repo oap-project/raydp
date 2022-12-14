@@ -222,8 +222,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         preprocessor = None
         if self._merge_feature_columns:
             if isinstance(self._feature_columns, list) and len(self._feature_columns) > 1:
+                label_cols = self._label_columns
+                if not isinstance(label_cols, list):
+                    label_cols = [label_cols]
                 preprocessor = Concatenator(output_column_name="features",
-                                            exclude=self._label_columns)
+                                            exclude=label_cols)
                 train_loop_config["feature_columns"] = "features"
         self._trainer = TensorflowTrainer(TFEstimator.train_func,
                                           train_loop_config=train_loop_config,

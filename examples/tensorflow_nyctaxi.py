@@ -41,7 +41,7 @@ features = [field.name for field in list(train_df.schema) if field.name != "fare
 # Define the keras model
 model = keras.Sequential(
     [
-        keras.Input(shape=(len(features),)),
+        keras.layers.InputLayer(input_shape=(len(features),)),
         keras.layers.Dense(256, activation="relu"),
         keras.layers.BatchNormalization(),
         keras.layers.Dense(128, activation="relu"),
