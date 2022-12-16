@@ -17,7 +17,7 @@ ray.init(address="local", num_cpus=6)
 
 # After initialize ray cluster, you can use the raydp api to get a spark session
 app_name = "NYC Taxi Fare Prediction with RayDP"
-num_executors = 2
+num_executors = 1
 cores_per_executor = 1
 memory_per_executor = "500M"
 spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
@@ -65,7 +65,7 @@ class PrintingCallback(Callback):
 adam = keras.optimizers.Adam(learning_rate=0.001)
 loss = keras.losses.MeanSquaredError()
 estimator = TFEstimator(num_workers=2, model=model, optimizer=adam, loss=loss,
-                        metrics=["mae"], feature_columns=features, label_column="fare_amount",
+                        metrics=["mae"], feature_columns=features, label_columns="fare_amount",
                         batch_size=256, num_epochs=10, callbacks=[PrintingCallback()])
 
 # Train the model
