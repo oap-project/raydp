@@ -22,12 +22,13 @@ import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from tensorflow.keras.callbacks import Callback
 
-import ray
 from ray.train.tensorflow import TensorflowTrainer, prepare_dataset_shard
 from ray.air import session
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.air.checkpoint import Checkpoint
+from ray.data import read_parquet
 from ray.data.dataset import Dataset
+from ray.data.preprocessors import Concatenator
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
 from raydp import stop_spark
@@ -42,12 +43,10 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  loss: Union[keras.losses.Loss, str] = None,
                  metrics: Union[List[keras.metrics.Metric], List[str]] = None,
                  feature_columns: Union[str, List[str]] = None,
-                 feature_types: Optional[Union[DType, List[DType]]] = None,
-                 feature_shapes: Optional[Union[TensorShape, List[TensorShape]]] = None,
-                 label_column: str = None,
-                 label_type: Optional[tf.DType] = None,
-                 label_shape: Optional[tf.TensorShape] = None,
+                 label_columns: Union[str, List[str]] = None,
+                 merge_feature_columns: bool = True,
                  batch_size: int = 128,
+                 drop_last: bool = False,
                  num_epochs: int = 1,
                  shuffle: bool = True,
                  callbacks: Optional[List[Callback]] = None,
@@ -137,12 +136,10 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._serialized_metrics = _metrics
 
         self._feature_columns = feature_columns
-        self._feature_types = feature_types
-        self._feature_shapes = feature_shapes
-        self._label_column = label_column
-        self._label_shape = label_shape
-        self._label_type = label_type
+        self._label_columns = label_columns
+        self._merge_feature_columns = merge_feature_columns
         self._batch_size = batch_size
+        self._drop_last = drop_last
         self._num_epochs = num_epochs
         self._shuffle = shuffle
         self._callbacks = callbacks
@@ -166,38 +163,27 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             multi_worker_model = TFEstimator.build_and_compile_model(config)
 
         train_dataset = session.get_dataset_shard("train")
+        train_tf_dataset = train_dataset.to_tf(
+            feature_columns=config["feature_columns"],
+            label_columns=config["label_columns"],
+            batch_size=config["batch_size"],
+            drop_last=config["drop_last"]
+        )
         if config["evaluate"]:
             eval_dataset = session.get_dataset_shard("evaluate")
-            # work-around for a issue (ray #30465)
             eval_dataset.fully_executed()
-
-        results = []
-        for _ in range(config["num_epochs"]):
-            features_len = len(config["feature_columns"])
-            train_tf_dataset = prepare_dataset_shard(
-                train_dataset.to_tf(
-                    label_column=config["label_column"],
-                    output_signature=(
-                        tf.TensorSpec(shape=(None, features_len), dtype=tf.float32),
-                        tf.TensorSpec(shape=(None), dtype=tf.float32)
-                    ),
-                    batch_size=config["batch_size"],
-                )
+            eval_tf_dataset = eval_dataset.to_tf(
+                feature_columns=config["feature_columns"],
+                label_columns=config["label_columns"],
+                batch_size=config["batch_size"],
+                drop_last=config["drop_last"]
             )
-            callbacks = config["callbacks"]
+        results = []
+        callbacks = config["callbacks"]
+        for _ in range(config["num_epochs"]):
             train_history = multi_worker_model.fit(train_tf_dataset, callbacks=callbacks)
             results.append(train_history.history)
             if config["evaluate"]:
-                eval_tf_dataset = prepare_dataset_shard(
-                    eval_dataset.to_tf(
-                        label_column=config["label_column"],
-                        output_signature=(
-                            tf.TensorSpec(shape=(None, features_len), dtype=tf.float32),
-                            tf.TensorSpec(shape=(None), dtype=tf.float32)
-                        ),
-                        batch_size=config["batch_size"],
-                    )
-                )
                 test_history = multi_worker_model.evaluate(eval_tf_dataset, callbacks=callbacks)
                 results.append(test_history)
         session.report({}, checkpoint=Checkpoint.from_dict({
@@ -207,15 +193,16 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def fit(self,
             train_ds: Dataset,
             evaluate_ds: Optional[Dataset] = None,
-            max_retries=3) -> NoReturn:
+            max_retries=0) -> NoReturn:
         # super().fit(train_ds, evaluate_ds)
         train_loop_config = {
             "model": self._serialized_model,
             "optimizer": self._serialized_optimizer,
             "loss": self._serialized_loss,
             "feature_columns": self._feature_columns,
-            "label_column": self._label_column,
+            "label_columns": self._label_columns,
             "batch_size": self._batch_size,
+            "drop_last": self._drop_last,
             "num_epochs": self._num_epochs,
             "evaluate": False,
             "metrics": self._serialized_metrics,
@@ -232,11 +219,21 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
         if evaluate_ds is not None:
             train_loop_config["evaluate"] = True
             datasets["evaluate"] = evaluate_ds
+        preprocessor = None
+        if self._merge_feature_columns:
+            if isinstance(self._feature_columns, list) and len(self._feature_columns) > 1:
+                label_cols = self._label_columns
+                if not isinstance(label_cols, list):
+                    label_cols = [label_cols]
+                preprocessor = Concatenator(output_column_name="features",
+                                            exclude=label_cols)
+                train_loop_config["feature_columns"] = "features"
         self._trainer = TensorflowTrainer(TFEstimator.train_func,
                                           train_loop_config=train_loop_config,
                                           scaling_config=scaling_config,
                                           run_config=run_config,
-                                          datasets=datasets)
+                                          datasets=datasets,
+                                          preprocessor=preprocessor)
         self._results = self._trainer.fit()
 
     def fit_on_spark(self,
@@ -253,14 +250,14 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             app_id = train_df.sql_ctx.sparkSession.sparkContext.applicationId
             path = fs_directory.rstrip("/") + f"/{app_id}"
             train_df.write.parquet(path+"/train", compression=compression)
-            train_ds = ray.data.read_parquet(path+"/train")
+            train_ds = read_parquet(path+"/train")
             if evaluate_df is not None:
                 evaluate_df = self._check_and_convert(evaluate_df)
                 evaluate_df.write.parquet(path+"/test", compression=compression)
-                evaluate_ds = ray.data.read_parquet(path+"/test")
+                evaluate_ds = read_parquet(path+"/test")
         else:
             train_ds = spark_dataframe_to_ray_dataset(train_df,
-                                                  _use_owner=stop_spark_after_conversion)
+                                                    _use_owner=stop_spark_after_conversion)
             if evaluate_df is not None:
                 evaluate_df = self._check_and_convert(evaluate_df)
                 evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
