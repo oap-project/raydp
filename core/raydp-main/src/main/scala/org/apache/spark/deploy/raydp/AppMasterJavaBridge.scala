@@ -17,10 +17,9 @@
 
 package org.apache.spark.deploy.raydp
 
-import scala.collection.JavaConverters._
+import java.util.{ArrayList, Map}
 
-import java.util.ArrayList;
-import java.util.Map;
+import scala.collection.JavaConverters._
 
 import io.ray.api.{ActorHandle, Ray}
 import io.ray.runtime.config.RayConfig
