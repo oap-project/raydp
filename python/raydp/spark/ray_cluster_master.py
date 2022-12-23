@@ -176,7 +176,7 @@ class RayDPSparkMaster():
     def _create_app_master(self, extra_classpath: str):
         if self._started_up:
             return
-        self._app_master_java_bridge.startUpAppMaster(extra_classpath)
+        self._app_master_java_bridge.startUpAppMaster(extra_classpath, self._configs)
 
     def get_master_url(self):
         assert self._started_up

@@ -26,7 +26,9 @@ import io.ray.api.call.ActorCreator;
 
 public class RayAppMasterUtils {
   public static ActorHandle<RayAppMaster> createAppMaster(
-      String cp, String name, List<String> jvmOptions) {
+      String cp,
+      String name,
+      List<String> jvmOptions) {
     ActorCreator<RayAppMaster> creator = Ray.actor(RayAppMaster::new, cp);
     if (name != null) {
       creator.setName(name);

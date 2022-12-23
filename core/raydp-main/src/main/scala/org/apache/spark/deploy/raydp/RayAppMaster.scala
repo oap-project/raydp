@@ -41,7 +41,7 @@ import org.apache.spark.util.Utils
 
 class RayAppMaster(host: String,
                    port: Int,
-                   actor_extra_classpath: String) extends Serializable with Logging {
+                   actorExtraClasspath: String) extends Serializable with Logging {
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
   private val conf: SparkConf = new SparkConf()
@@ -53,8 +53,8 @@ class RayAppMaster(host: String,
     this(RayConfig.create().nodeIp, 0, "")
   }
 
-  def this(actor_extra_classpath: String) = {
-    this(RayConfig.create().nodeIp, 0, actor_extra_classpath)
+  def this(actorExtraClasspath: String) = {
+    this(RayConfig.create().nodeIp, 0, actorExtraClasspath)
   }
 
   def init(): Unit = {
@@ -293,10 +293,10 @@ class RayAppMaster(host: String,
             s"Found ${javaOpts(i - 1)} while not classpath url in executor java opts")
         }
 
-        javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actor_extra_classpath)
+        javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actorExtraClasspath)
       } else {
         // user has not set, we append the actor extra classpath in the end
-        javaOpts ++ Seq("-cp", actor_extra_classpath)
+        javaOpts ++ Seq("-cp", actorExtraClasspath)
       }
     }
 

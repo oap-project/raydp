@@ -17,7 +17,10 @@
 
 package org.apache.spark.deploy.raydp
 
+import scala.collection.JavaConverters._
+
 import java.util.ArrayList;
+import java.util.Map;
 
 import io.ray.api.{ActorHandle, Ray}
 import io.ray.runtime.config.RayConfig
@@ -27,12 +30,14 @@ import org.apache.spark.deploy.raydp.RayAppMasterUtils
 class AppMasterJavaBridge {
   private var handle: ActorHandle[RayAppMaster] = null
 
-  def startUpAppMaster(extra_cp: String): Unit = {
+  def startUpAppMaster(extra_cp: String, sparkProps: Map[String, String]): Unit = {
     if (handle == null) {
       // init ray, we should set the config by java properties
       Ray.init()
       val name = RayAppMaster.ACTOR_NAME
-      handle = RayAppMasterUtils.createAppMaster(extra_cp, name, new ArrayList[String]());
+      val shuffleOptions = RayExternalShuffleService.getShuffleConfFromMap(sparkProps.asScala.toMap)
+      handle = RayAppMasterUtils.createAppMaster(
+          extra_cp, name, shuffleOptions.toBuffer.asJava)
     }
   }
 
