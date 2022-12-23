@@ -50,6 +50,12 @@ popd # core dir
 # build python part
 RAYDP_PACKAGE_NAME=${RAYDP_PACKAGE_NAME:-raydp}
 PYTHON_DIR="${CURRENT_DIR}/python"
+
+if [[ -d "${PYTHON_DIR}/build" ]];
+then
+  rm -rf "${PYTHON_DIR}/build"
+fi
+
 pushd ${PYTHON_DIR}
 python setup.py bdist_wheel
 cp ${PYTHON_DIR}/dist/${RAYDP_PACKAGE_NAME}-* ${DIST_PATH}

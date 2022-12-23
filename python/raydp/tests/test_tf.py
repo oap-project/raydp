@@ -60,7 +60,7 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
                             loss=loss,
                             metrics=["accuracy", "mse"],
                             feature_columns=["x", "y"],
-                            label_column="z",
+                            label_columns="z",
                             batch_size=1000,
                             num_epochs=2,
                             use_gpu=False)
@@ -77,6 +77,9 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
     if use_fs_directory:
         shutil.rmtree(dir)
 
-
 if __name__ == "__main__":
-    sys.exit(pytest.main(["-v", __file__]))
+    # sys.exit(pytest.main(["-v", __file__]))
+    import ray, raydp
+    ray.init()
+    spark = raydp.init_spark('a', 6, 1, '500m')
+    test_tf_estimator(spark, False)
