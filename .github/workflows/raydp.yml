@@ -104,7 +104,6 @@ jobs:
           ray start --head --num-cpus 6
           pytest python/raydp/tests/ -v -m"not error_on_custom_resource"
           pytest python/raydp/tests/ -v -m"error_on_custom_resource"
-          cat /tmp/ray/session_latest/logs/*
           ray stop --force
       - name: Test Examples
         run: |
