@@ -18,6 +18,7 @@
 import os
 import sys
 import shutil
+import platform
 import pytest
 import pyspark
 import numpy as np
@@ -28,6 +29,8 @@ from raydp.utils import random_split
 
 @pytest.mark.parametrize("use_fs_directory", [True, False])
 def test_xgb_estimator(spark_on_ray_small, use_fs_directory):
+    if platform.system() == "Darwin":
+        pytest.skip("Skip MPI test on MacOS")
     spark = spark_on_ray_small
 
     # calculate z = 3 * x + 4 * y + 5
