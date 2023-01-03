@@ -25,6 +25,7 @@ import io.ray.api.ActorHandle
 
 import org.apache.spark.executor.RayDPExecutor
 import org.apache.spark.internal.Logging
+import org.apache.spark.raydp.RayExecutorUtils
 import org.apache.spark.resource.ResourceInformation
 import org.apache.spark.rpc.{RpcAddress, RpcEndpointRef}
 
@@ -55,8 +56,6 @@ private[spark] class ApplicationInfo(
   private var nextExecutorId: Int = _
   // this only count those registered executors and minus removed executors
   private var registeredExecutors: Int = 0
-  // this only count pending registered and minus
-  private var totalRequestedExecutors: Int = 0
 
   init()
 
@@ -117,7 +116,12 @@ private[spark] class ApplicationInfo(
       removedExecutors += executors(executorId)
       executors -= executorId
       coresGranted -= exec.cores
-      executorIdToHandler(executorId).kill(true) // kill the executor
+      // Previously we use Ray.kill(true) here, which prevents executors from restarting.
+      // But we want executors died accidentally to restart, so we use Ray.exitActor now.
+      // Because if ray actor is already dead, it probably died from node failure,
+      // and this method won't be executed, so it can restart.
+      // Otherwise, it exits intentionally here and won't restart.
+      RayExecutorUtils.exitExecutor(executorIdToHandler(executorId))
       executorIdToHandler -= executorId
       true
     } else {

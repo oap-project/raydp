@@ -15,7 +15,7 @@
   <name>raydp</name>
 
   <properties>
-    <ray.version>1.9.0</ray.version>
+    <ray.version>2.1.0</ray.version>
   </properties>
 
   <repositories>

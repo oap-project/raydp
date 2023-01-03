@@ -25,12 +25,15 @@ import javax.xml.bind.DatatypeConverter
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 
-import io.ray.api.{ActorHandle, PlacementGroups}
+import io.ray.api.{ActorHandle, PlacementGroups, Ray}
 import io.ray.api.id.PlacementGroupId
 import io.ray.api.placementgroup.PlacementGroup
 import io.ray.runtime.config.RayConfig
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
+import org.apache.spark.executor.RayDPExecutor
 import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.{RayExecutorUtils, SparkOnRayConfigs}
 import org.apache.spark.rpc._
@@ -38,10 +41,11 @@ import org.apache.spark.util.Utils
 
 class RayAppMaster(host: String,
                    port: Int,
-                   actor_extra_classpath: String) extends Serializable with Logging {
+                   actorExtraClasspath: String) extends Serializable with Logging {
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
   private val conf: SparkConf = new SparkConf()
+  private val restartedExecutors = new HashMap[String, String]()
 
   init()
 
@@ -49,8 +53,8 @@ class RayAppMaster(host: String,
     this(RayConfig.create().nodeIp, 0, "")
   }
 
-  def this(actor_extra_classpath: String) = {
-    this(RayConfig.create().nodeIp, 0, actor_extra_classpath)
+  def this(actorExtraClasspath: String) = {
+    this(RayConfig.create().nodeIp, 0, actorExtraClasspath)
   }
 
   def init(): Unit = {
@@ -76,6 +80,8 @@ class RayAppMaster(host: String,
   def getAppMasterEndpointUrl(): String = {
     RpcEndpointAddress(rpcEnv.address, RayAppMaster.ENDPOINT_NAME).toString
   }
+
+  def getRestartedExecutors(): java.util.Map[String, String] = restartedExecutors.asJava
 
   /**
    * This is used to represent the Spark on Ray cluster URL.
@@ -177,6 +183,25 @@ class RayAppMaster(host: String,
           }
         }
         context.reply(success)
+
+      case RequestAddPendingRestartedExecutor(executorId) =>
+        if (appInfo.remainingUnRegisteredExecutors > 0) {
+          val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
+          val memory = appInfo.desc.memoryPerExecutorMB
+          // ray actor will restart using the old ID
+          val handlerOpt = Ray.getActor("raydp-executor-" + executorId)
+          if (!handlerOpt.isPresent) {
+            context.reply(AddPendingRestartedExecutorReply(None))
+          } else {
+            val newExecutorId = s"${appInfo.getNextExecutorId()}"
+            val handler = handlerOpt.get.asInstanceOf[ActorHandle[RayDPExecutor]]
+            appInfo.addPendingRegisterExecutor(newExecutorId, handler, cores, memory)
+            restartedExecutors(newExecutorId) = executorId
+            context.reply(AddPendingRestartedExecutorReply(Some(newExecutorId)))
+          }
+        } else {
+          context.reply(AddPendingRestartedExecutorReply(None))
+        }
     }
 
     override def onDisconnected(remoteAddress: RpcAddress): Unit = {
@@ -268,10 +293,10 @@ class RayAppMaster(host: String,
             s"Found ${javaOpts(i - 1)} while not classpath url in executor java opts")
         }
 
-        javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actor_extra_classpath)
+        javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actorExtraClasspath)
       } else {
         // user has not set, we append the actor extra classpath in the end
-        javaOpts ++ Seq("-cp", actor_extra_classpath)
+        javaOpts ++ Seq("-cp", actorExtraClasspath)
       }
     }
 
@@ -302,4 +327,19 @@ class RayAppMaster(host: String,
 object RayAppMaster extends Serializable {
   val ENV_NAME = "RAY_RPC_ENV"
   val ENDPOINT_NAME = "RAY_APP_MASTER"
+  val ACTOR_NAME = "RAY_APP_MASTER"
+
+  def setProperties(properties: String): Unit = {
+    implicit val formats: DefaultFormats.type = org.json4s.DefaultFormats
+    val parsed = parse(properties).extract[Map[String, String]]
+    parsed.foreach{ case (key, value) =>
+      System.setProperty(key, value)
+    }
+    // Use the same session dir as the python side
+    RayConfig.create().setSessionDir(System.getProperty("ray.session-dir"))
+  }
+
+  def shutdownRay(): Unit = {
+    Ray.shutdown()
+  }
 }

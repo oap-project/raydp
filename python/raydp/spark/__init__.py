@@ -16,7 +16,8 @@
 #
 
 from .dataset import spark_dataframe_to_ray_dataset, \
-                     ray_dataset_to_spark_dataframe
+                     ray_dataset_to_spark_dataframe, \
+                     from_spark_recoverable
 from .interfaces import SparkEstimatorInterface
 from .ray_cluster import SparkCluster
 
@@ -24,7 +25,8 @@ __all__ = [
   "SparkCluster",
   "SparkEstimatorInterface",
   "spark_dataframe_to_ray_dataset",
-  "ray_dataset_to_spark_dataframe"
+  "ray_dataset_to_spark_dataframe",
+  "from_spark_recoverable"
 ]
 
 try:

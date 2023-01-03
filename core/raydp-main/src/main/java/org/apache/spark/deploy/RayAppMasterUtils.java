@@ -18,21 +18,35 @@
 package org.apache.spark.deploy.raydp;
 
 import java.util.List;
+import java.util.Map;
 
 import io.ray.api.ActorHandle;
 import io.ray.api.Ray;
+import io.ray.api.call.ActorCreator;
 
 public class RayAppMasterUtils {
   public static ActorHandle<RayAppMaster> createAppMaster(
-      String cp, List<String> jvmOptions) {
+      String cp,
+      String name,
+      List<String> jvmOptions) {
+    ActorCreator<RayAppMaster> creator = Ray.actor(RayAppMaster::new, cp);
+    if (name != null) {
+      creator.setName(name);
+    }
     jvmOptions.add("-cp");
     jvmOptions.add(cp);
-    return Ray.actor(RayAppMaster::new, cp).setJvmOptions(jvmOptions).remote();
+    creator.setJvmOptions(jvmOptions);
+    return creator.remote();
   }
 
   public static String getMasterUrl(
       ActorHandle<RayAppMaster> handle) {
     return handle.task(RayAppMaster::getMasterUrl).remote().get();
+  }
+
+  public static Map<String, String> getRestartedExecutors(
+      ActorHandle<RayAppMaster> handle) {
+    return handle.task(RayAppMaster::getRestartedExecutors).remote().get();
   }
 
   public static void stopAppMaster(

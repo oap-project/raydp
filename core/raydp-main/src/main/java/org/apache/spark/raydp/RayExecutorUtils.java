@@ -18,12 +18,14 @@
 package org.apache.spark.raydp;
 
 import io.ray.api.ActorHandle;
+import io.ray.api.ObjectRef;
 import io.ray.api.Ray;
 import io.ray.api.call.ActorCreator;
 import java.util.Map;
 import java.util.List;
 
 import io.ray.api.placementgroup.PlacementGroup;
+import io.ray.runtime.object.ObjectRefImpl;
 import org.apache.spark.executor.RayDPExecutor;
 
 public class RayExecutorUtils {
@@ -47,6 +49,7 @@ public class RayExecutorUtils {
       List<String> javaOpts) {
     ActorCreator<RayDPExecutor> creator = Ray.actor(
             RayDPExecutor::new, executorId, appMasterURL);
+    creator.setName("raydp-executor-" + executorId);
     creator.setJvmOptions(javaOpts);
     creator.setResource("CPU", cores);
     creator.setResource("memory", toMemoryUnits(memoryInMB));
@@ -57,7 +60,9 @@ public class RayExecutorUtils {
     if (placementGroup != null) {
       creator.setPlacementGroup(placementGroup, bundleIndex);
     }
-
+    creator.setMaxRestarts(3);
+    creator.setMaxTaskRetries(3);
+    creator.setMaxConcurrency(2);
     return creator.remote();
   }
 
@@ -69,5 +74,30 @@ public class RayExecutorUtils {
       String classPathEntries) {
     handler.task(RayDPExecutor::startUp,
         appId, driverUrl, cores, classPathEntries).remote();
+  }
+
+  public static String[] getBlockLocations(
+      ActorHandle<RayDPExecutor> handler,
+      int rddId,
+      int numPartitions) {
+    return handler.task(RayDPExecutor::getBlockLocations,
+        rddId, numPartitions).remote().get();
+  }
+
+  public static ObjectRef<byte[]> getRDDPartition(
+      ActorHandle<RayDPExecutor> handle,
+      int rddId,
+      int partitionId,
+      String schema,
+      String driverAgentUrl) {
+    return (ObjectRefImpl<byte[]>) handle.task(
+        RayDPExecutor::getRDDPartition,
+        rddId, partitionId, schema, driverAgentUrl).remote();
+  }
+
+  public static void exitExecutor(
+    ActorHandle<RayDPExecutor> handle
+  ) {
+    handle.task(RayDPExecutor::stop).remote();
   }
 }

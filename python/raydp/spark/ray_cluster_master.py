@@ -52,7 +52,8 @@ class RayDPSparkMaster():
         extra_classpath = os.pathsep.join(self._prepare_jvm_classpath())
         self._gateway = self._launch_gateway(extra_classpath, popen_kwargs)
         self._app_master_java_bridge = self._gateway.entry_point.getAppMasterBridge()
-        self._set_properties()
+        jvm_properties = self._generate_ray_configs()
+        self._gateway.jvm.org.apache.spark.deploy.raydp.RayAppMaster.setProperties(jvm_properties)
         self._host = ray.util.get_node_ip_address()
         self._create_app_master(extra_classpath)
         self._started_up = True
@@ -146,12 +147,12 @@ class RayDPSparkMaster():
 
         return gateway
 
-    def _set_properties(self):
+    def _generate_ray_configs(self):
         assert ray.is_initialized()
         options = copy(self._configs)
 
-        node = ray.worker.global_worker.node
-
+        node = ray._private.worker._global_node
+        print(node.address)
         options["ray.run-mode"] = "CLUSTER"
         options["ray.node-ip"] = node.node_ip_address
         options["ray.address"] = node.address
@@ -166,8 +167,7 @@ class RayDPSparkMaster():
         options["ray.job.namespace"] = ray.get_runtime_context().namespace
 
         # jnius_config.set_option has some bug, we set this options in java side
-        jvm_properties = json.dumps(options)
-        self._app_master_java_bridge.setProperties(jvm_properties)
+        return json.dumps(options)
 
     def get_host(self) -> str:
         assert self._started_up
@@ -176,7 +176,7 @@ class RayDPSparkMaster():
     def _create_app_master(self, extra_classpath: str):
         if self._started_up:
             return
-        self._app_master_java_bridge.startUpAppMaster(extra_classpath)
+        self._app_master_java_bridge.startUpAppMaster(extra_classpath, self._configs)
 
     def get_master_url(self):
         assert self._started_up

@@ -26,6 +26,7 @@ import pyspark.sql as sql
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import StructType
 from pyspark.sql.pandas.types import from_arrow_type
+from pyspark.storagelevel import StorageLevel
 import ray
 from ray.data import Dataset, from_arrow_refs
 from ray.types import ObjectRef
@@ -168,7 +169,6 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
 
     return blocks, block_sizes
 
-
 def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
                                    parallelism: Optional[int] = None,
                                    _use_owner: bool = False):
@@ -179,6 +179,30 @@ def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
     blocks, _ = _save_spark_df_to_object_store(df, False, _use_owner)
     return from_arrow_refs(blocks)
 
+# This is an experimental API for now.
+# If you had any issue using it, welcome to report at our github.
+# This function WILL cache/persist the dataframe!
+def from_spark_recoverable(df: sql.DataFrame,
+                           storage_level: StorageLevel = StorageLevel.MEMORY_AND_DISK,
+                           parallelism: Optional[int] = None):
+    num_part = df.rdd.getNumPartitions()
+    if parallelism is not None:
+        if parallelism != num_part:
+            df = df.repartition(parallelism)
+    sc = df.sql_ctx.sparkSession.sparkContext
+    storage_level = sc._getJavaStorageLevel(storage_level)
+    object_store_writer = sc._jvm.org.apache.spark.sql.raydp.ObjectStoreWriter
+    object_ids = object_store_writer.fromSparkRDD(df._jdf, storage_level)
+    owner = object_store_writer.getAddress()
+    worker = ray.worker.global_worker
+    blocks = []
+    for object_id in object_ids:
+        object_ref = ray.ObjectRef(object_id)
+        # Register the ownership of the ObjectRef
+        worker.core_worker.deserialize_and_register_object_ref(
+            object_ref.binary(), ray.ObjectRef.nil(), owner, "")
+        blocks.append(object_ref)
+    return from_arrow_refs(blocks)
 
 def _convert_by_udf(spark: sql.SparkSession,
                     blocks: List[ObjectRef],

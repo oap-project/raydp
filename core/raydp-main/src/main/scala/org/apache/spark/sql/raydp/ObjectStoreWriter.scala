@@ -19,7 +19,7 @@ package org.apache.spark.sql.raydp
 
 
 import java.io.ByteArrayOutputStream
-import java.util.{List, Optional, UUID}
+import java.util.{List, UUID}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 import java.util.function.{Function => JFunction}
 
@@ -27,17 +27,23 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-import io.ray.api.{ObjectRef, PyActorHandle, Ray}
+import io.ray.api.{ActorHandle, ObjectRef, PyActorHandle, Ray}
 import io.ray.runtime.AbstractRayRuntime
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
+import org.apache.arrow.vector.types.pojo.Schema
 
-import org.apache.spark.raydp.RayDPUtils
+import org.apache.spark.RayDPException
+import org.apache.spark.deploy.raydp._
+import org.apache.spark.executor.RayDPExecutor
+import org.apache.spark.raydp.{RayDPUtils, RayExecutorUtils}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.execution.arrow.ArrowWriter
 import org.apache.spark.sql.execution.python.BatchIterator
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.util.ArrowUtils
+import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.Utils
 
 /**
@@ -184,6 +190,84 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
 
 object ObjectStoreWriter {
   val dfToId = new mutable.HashMap[DataFrame, UUID]()
+  var driverAgent: RayDPDriverAgent = _
+  var driverAgentUrl: String = _
+  var address: Array[Byte] = null
+
+  def connectToRay(): Unit = {
+    if (!Ray.isInitialized) {
+      Ray.init()
+      driverAgent = new RayDPDriverAgent()
+      driverAgentUrl = driverAgent.getDriverAgentEndpointUrl
+    }
+  }
+
+  def getAddress(): Array[Byte] = {
+    if (address == null) {
+      val objectRef = Ray.put(1)
+      val objectRefImpl = RayDPUtils.convert(objectRef)
+      val objectId = objectRefImpl.getId
+      val runtime = Ray.internal.asInstanceOf[AbstractRayRuntime]
+      address = runtime.getObjectStore.getOwnershipInfo(objectId)
+    }
+    address
+  }
+
+  def toArrowSchema(df: DataFrame): Schema = {
+    val conf = df.queryExecution.sparkSession.sessionState.conf
+    val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
+    ArrowUtils.toArrowSchema(df.schema, timeZoneId)
+  }
+
+  def fromSparkRDD(df: DataFrame, storageLevel: StorageLevel): Array[Array[Byte]] = {
+    if (!Ray.isInitialized) {
+      throw new RayDPException(
+        "Not yet connected to Ray! Please set fault_tolerant_mode=True when starting RayDP.")
+    }
+    val uuid = dfToId.getOrElseUpdate(df, UUID.randomUUID())
+    val queue = ObjectRefHolder.getQueue(uuid)
+    val rdd = df.toArrowBatchRdd
+    rdd.persist(storageLevel)
+    rdd.count()
+    var executorIds = df.sqlContext.sparkContext.getExecutorIds.toArray
+    val numExecutors = executorIds.length
+    val appMasterHandle = Ray.getActor(RayAppMaster.ACTOR_NAME)
+                             .get.asInstanceOf[ActorHandle[RayAppMaster]]
+    val restartedExecutors = RayAppMasterUtils.getRestartedExecutors(appMasterHandle)
+    // Check if there is any restarted executors
+    if (!restartedExecutors.isEmpty) {
+      // If present, need to use the old id to find ray actors
+      for (i <- 0 until numExecutors) {
+        if (restartedExecutors.containsKey(executorIds(i))) {
+          val oldId = restartedExecutors.get(executorIds(i))
+          executorIds(i) = oldId
+        }
+      }
+    }
+    val schema = ObjectStoreWriter.toArrowSchema(df).toJson
+    val numPartitions = rdd.getNumPartitions
+    val results = new Array[Array[Byte]](numPartitions)
+    val refs = new Array[ObjectRef[Array[Byte]]](numPartitions)
+    val handles = executorIds.map {id =>
+      Ray.getActor("raydp-executor-" + id)
+         .get
+         .asInstanceOf[ActorHandle[RayDPExecutor]]
+    }
+    val handlesMap = (executorIds zip handles).toMap
+    val locations = RayExecutorUtils.getBlockLocations(
+        handles(0), rdd.id, numPartitions)
+    for (i <- 0 until numPartitions) {
+      // TODO use getPreferredLocs, but we don't have a host ip to actor table now
+      refs(i) = RayExecutorUtils.getRDDPartition(
+          handlesMap(locations(i)), rdd.id, i, schema, driverAgentUrl)
+      queue.add(refs(i))
+    }
+    for (i <- 0 until numPartitions) {
+      results(i) = RayDPUtils.convert(refs(i)).getId.getBytes
+    }
+    results
+  }
+
 }
 
 object ObjectRefHolder {

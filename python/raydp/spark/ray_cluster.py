@@ -33,7 +33,7 @@ class SparkCluster(Cluster):
     def __init__(self, app_name, configs):
         super().__init__(None)
         self._app_name = app_name
-        self._spark_master_handle = None
+        self._spark_master = None
         self._configs = configs
         self._set_up_master(resources=self._get_master_resources(configs), kwargs=None)
         self._spark_session: SparkSession = None
@@ -72,6 +72,15 @@ class SparkCluster(Cluster):
 
     def get_cluster_url(self) -> str:
         return ray.get(self._spark_master_handle.get_master_url.remote())
+
+    def connect_spark_driver_to_ray(self):
+        # provide ray cluster config through jvm properties
+        # this is needed to connect to ray cluster
+        jvm_properties_ref = self._spark_master_handle._generate_ray_configs.remote()
+        jvm_properties = ray.get(jvm_properties_ref)
+        jvm = self._spark_session._jvm
+        jvm.org.apache.spark.deploy.raydp.RayAppMaster.setProperties(jvm_properties)
+        jvm.org.apache.spark.sql.raydp.ObjectStoreWriter.connectToRay()
 
     def get_spark_session(self,
                           app_name: str,
@@ -132,7 +141,6 @@ class SparkCluster(Cluster):
         if self._spark_session is not None:
             self._spark_session.stop()
             self._spark_session = None
-
         if self._spark_master_handle is not None:
             self._spark_master_handle.stop.remote(cleanup_data)
             if cleanup_data:

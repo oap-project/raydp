@@ -17,40 +17,49 @@
 
 package org.apache.spark.executor
 
-import java.io.File
-import java.net.URL
+import java.io.{ByteArrayOutputStream, File}
+import java.nio.channels.Channels
 import java.nio.file.Paths
+import java.util.Properties
+import java.util.concurrent.atomic.AtomicBoolean
+
+import scala.reflect.classTag
 
 import com.intel.raydp.shims.SparkShimLoader
+import io.ray.api.Ray
 import io.ray.runtime.config.RayConfig
+import org.apache.arrow.vector.ipc.{ArrowStreamWriter, WriteChannel}
+import org.apache.arrow.vector.ipc.message.{IpcOption, MessageSerializer}
+import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
 
-import org.apache.spark.{RayDPException, SecurityManager, SparkConf, SparkEnv}
+import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.deploy.raydp.{ExecutorStarted, RegisterExecutor}
+import org.apache.spark.deploy.raydp._
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
 import org.apache.spark.resource.ResourceProfile
 import org.apache.spark.rpc.{RpcEndpointRef, RpcEnv}
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{RetrieveSparkAppConfig, SparkAppConfig}
+import org.apache.spark.storage.{BlockId, BlockManager}
 import org.apache.spark.util.Utils
 
-
 class RayDPExecutor(
-    val executorId: String,
+    var executorId: String,
     val appMasterURL: String) extends Logging {
 
   val nodeIp = RayConfig.create().nodeIp
+  val conf = new SparkConf()
 
   private val temporaryRpcEnvName = "ExecutorTemporaryRpcEnv"
   private var temporaryRpcEnv: Option[RpcEnv] = None
   private var executorRunningThread: Thread = null
   private var workingDir: File = null
+  private val started = new AtomicBoolean(false)
 
   init()
 
   def init(): Unit = {
-    val conf = new SparkConf()
     createTemporaryRpcEnv(temporaryRpcEnvName, conf)
     assert(temporaryRpcEnv.nonEmpty)
     registerToAppMaster()
@@ -72,7 +81,19 @@ class RayDPExecutor(
           }
       }
     }
-
+    // Check if this actor is restarted
+    val ifRestarted = Ray.getRuntimeContext.wasCurrentActorRestarted
+    if (ifRestarted) {
+      val reply = appMaster.askSync[AddPendingRestartedExecutorReply](
+          RequestAddPendingRestartedExecutor(executorId))
+      // this executor might be restarted, use the returned new id and register self
+      if (!reply.newExecutorId.isEmpty) {
+        logInfo(s"Executor: ${executorId} seems to be restarted, registering using new id")
+        executorId = reply.newExecutorId.get
+      } else {
+        throw new RuntimeException(s"Executor ${executorId} restarted, but getActor failed.")
+      }
+    }
     val registeredResult = appMaster.askSync[Boolean](RegisterExecutor(executorId, nodeIp))
     if (registeredResult) {
       logInfo(s"Executor: ${executorId} register to app master success")
@@ -86,6 +107,9 @@ class RayDPExecutor(
       driverUrl: String,
       cores: Int,
       classPathEntries: String): Unit = {
+    if (started.get) {
+      throw new RayDPException("executor is already started")
+    }
     createWorkingDir(appId)
     setUserDir()
     // redirectLog()
@@ -112,6 +136,7 @@ class RayDPExecutor(
       }
     }
     executorRunningThread.start()
+    started.compareAndSet(false, true)
   }
 
   def createWorkingDir(appId: String): Unit = {
@@ -261,5 +286,91 @@ class RayDPExecutor(
       temporaryRpcEnv.get.shutdown()
       temporaryRpcEnv = None
     }
+  }
+
+  def stop(): Unit = {
+    Ray.exitActor
+  }
+
+  def getBlockLocations(rddId: Int, numPartitions: Int): Array[String] = {
+    val env = SparkEnv.get
+    val blockIds = (0 until numPartitions).map(i =>
+      BlockId.apply("rdd_" + rddId + "_" + i)
+    ).toArray
+    val locations = BlockManager.blockIdsToLocations(blockIds, env)
+    var result = new Array[String](numPartitions)
+    for ((key, value) <- locations) {
+      val partitionId = key.name.substring(key.name.lastIndexOf('_') + 1).toInt
+      result(partitionId) = value(0).substring(value(0).lastIndexOf('_') + 1)
+    }
+    result
+  }
+
+  def requestRecacheRDD(rddId: Int, driverAgentUrl: String): Unit = {
+    val env = RpcEnv.create("TEMP_EXECUTOR_" + executorId, nodeIp, nodeIp, -1, conf,
+                            new SecurityManager(conf),
+                            numUsableCores = 0, clientMode = true)
+    var driverAgent: RpcEndpointRef = null
+    val nTries = 3
+    for (i <- 0 until nTries if driverAgent == null) {
+      try {
+        driverAgent = env.setupEndpointRefByURI(driverAgentUrl)
+      } catch {
+        case e: Throwable =>
+          if (i == nTries - 1) {
+            throw e
+          } else {
+            logWarning(
+              s"Executor: ${executorId} register to driver Agent failed(${i + 1}/${nTries}) ")
+          }
+      }
+    }
+    val success = driverAgent.askSync[Boolean](RecacheRDD(rddId))
+    env.shutdown
+  }
+
+  def getRDDPartition(
+      rddId: Int,
+      partitionId: Int,
+      schemaStr: String,
+      driverAgentUrl: String): Array[Byte] = {
+    while (!started.get) {
+      // wait until executor is started
+      // this might happen if executor restarts
+      // and this task get retried
+      try {
+        Thread.sleep(1000)
+      } catch {
+        case e: Exception =>
+          throw e
+      }
+    }
+    val env = SparkEnv.get
+    val context = SparkShimLoader.getSparkShims.getDummyTaskContext(partitionId, env)
+    TaskContext.setTaskContext(context)
+    val schema = Schema.fromJSON(schemaStr)
+    val blockId = BlockId.apply("rdd_" + rddId + "_" + partitionId)
+    val iterator = env.blockManager.get(blockId)(classTag[Array[Byte]]) match {
+      case Some(blockResult) =>
+        blockResult.data.asInstanceOf[Iterator[Array[Byte]]]
+      case None =>
+        logWarning("The cached block has been lost. Cache it again via driver agent")
+        requestRecacheRDD(rddId, driverAgentUrl)
+        env.blockManager.get(blockId)(classTag[Array[Byte]]) match {
+          case Some(blockResult) =>
+            blockResult.data.asInstanceOf[Iterator[Array[Byte]]]
+          case None =>
+            throw new RayDPException("Still cannot get the block after recache!")
+        }
+    }
+    val byteOut = new ByteArrayOutputStream()
+    val writeChannel = new WriteChannel(Channels.newChannel(byteOut))
+    MessageSerializer.serialize(writeChannel, schema)
+    iterator.foreach(writeChannel.write)
+    ArrowStreamWriter.writeEndOfStream(writeChannel, new IpcOption)
+    val result = byteOut.toByteArray
+    writeChannel.close
+    byteOut.close
+    result
   }
 }

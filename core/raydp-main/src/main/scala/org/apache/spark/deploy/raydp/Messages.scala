@@ -35,3 +35,11 @@ case class ExecutorStarted(executorId: String) extends RayDPDeployMessage
 case class RequestExecutors(appId: String, requestedTotal: Int) extends RayDPDeployMessage
 
 case class KillExecutors(appId: String, executorIds: Seq[String]) extends RayDPDeployMessage
+
+case class RequestAddPendingRestartedExecutor(executorId: String)
+  extends RayDPDeployMessage
+
+case class AddPendingRestartedExecutorReply(newExecutorId: Option[String])
+  extends RayDPDeployMessage
+
+case class RecacheRDD(rddId: Int) extends RayDPDeployMessage
