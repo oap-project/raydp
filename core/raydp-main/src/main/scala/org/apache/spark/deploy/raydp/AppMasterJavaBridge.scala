@@ -34,9 +34,12 @@ class AppMasterJavaBridge {
       // init ray, we should set the config by java properties
       Ray.init()
       val name = RayAppMaster.ACTOR_NAME
-      val shuffleOptions = RayExternalShuffleService.getShuffleConfFromMap(sparkProps.asScala.toMap)
+      val sparkJvmOptions = sparkProps.asScala.map {
+        case (k, v) =>
+          "-D" + k + "=" + v
+      }.toBuffer
       handle = RayAppMasterUtils.createAppMaster(
-          extra_cp, name, shuffleOptions.toBuffer.asJava)
+          extra_cp, name, sparkJvmOptions.asJava)
     }
   }
 

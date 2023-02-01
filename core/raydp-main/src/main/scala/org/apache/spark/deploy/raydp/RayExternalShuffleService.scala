@@ -54,16 +54,4 @@ object RayExternalShuffleService {
     }
     shuffleConf
   }
-
-  def getShuffleConfFromMap(conf: Map[String, String]): Array[String] = {
-    // all conf needed by external shuffle service filtered from a map
-    val localDirKey = "spark.local.dir"
-    var shuffleConf = conf.filter {
-      case (k, v) => k.startsWith("spark.shuffle") || k == localDirKey
-    }.map {
-      case (k, v) =>
-      "-D" + k + "=" + v
-    }
-    shuffleConf.toArray
-  }
 }

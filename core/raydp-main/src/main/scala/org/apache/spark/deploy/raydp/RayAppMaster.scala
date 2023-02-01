@@ -290,7 +290,7 @@ class RayAppMaster(host: String,
         // user has set '-cp' or '-classpath'
         if (i == javaOpts.size) {
           throw new RayDPException(
-            s"Found ${javaOpts(i - 1)} while not classpath url in executor java opts")
+            s"Found ${javaOpts(i - 1)} but classpath url not presented in executor java opts")
         }
 
         javaOpts.updated(i, javaOpts(i) + File.pathSeparator + actorExtraClasspath)
