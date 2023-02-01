@@ -41,7 +41,7 @@ class SparkCluster(Cluster):
         self._app_name = app_name
         self._spark_master = None
         self._num_executors = num_executors
-        self._executor_core = executor_cores
+        self._executor_cores = executor_cores
         self._executor_memory = executor_memory
         self._enable_hive = enable_hive
         self._configs = configs
