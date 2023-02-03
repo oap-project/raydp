@@ -247,5 +247,10 @@ def test_init_spark_twice():
     assert results[0] == 10
     assert results[1] == 10
 
+def test_spark_conf(spark_on_ray_small):
+    driver_host = dict(spark_on_ray_small.sparkContext.getConf().getAll())["spark.driver.host"]
+    # test that driver host is set, see #299
+    assert driver_host != "127.0.0.1"
+
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))
