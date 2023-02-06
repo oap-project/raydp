@@ -248,6 +248,7 @@ def test_init_spark_twice():
     assert results[1] == 10
 
 def test_spark_conf(spark_on_ray_small):
+    assert ray.util.get_node_ip_address() != "127.0.0.1"
     driver_host = dict(spark_on_ray_small.sparkContext.getConf().getAll())["spark.driver.host"]
     # test that driver host is set, see #299
     assert driver_host != "127.0.0.1"
