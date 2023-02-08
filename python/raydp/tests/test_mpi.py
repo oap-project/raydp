@@ -19,7 +19,6 @@ import sys
 import platform
 import pytest
 import ray
-import ray._private.services
 from ray.util import placement_group, remove_placement_group
 
 from raydp.mpi import create_mpi_job, MPIJobContext, WorkerContext
@@ -71,7 +70,7 @@ def test_mpi_get_rank_address(ray_cluster):
                         timeout=5,
                         mpi_type="mpich") as job:
 
-        target_address = ray._private.services.get_node_ip_address()
+        target_address = ray.util.get_node_ip_address()
         addresses = job.get_rank_addresses()
         assert len(addresses) == 2
         assert target_address == addresses[0] == addresses[1]

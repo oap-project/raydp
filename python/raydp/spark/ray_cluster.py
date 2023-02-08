@@ -18,10 +18,10 @@
 import glob
 import os
 import sys
+import platform
 from typing import Any, Dict, Union, Optional
 
 import ray
-import ray._private.services
 import pyspark
 from pyspark.sql.session import SparkSession
 
@@ -99,9 +99,11 @@ class SparkCluster(Cluster):
         self._configs["spark.executor.instances"] = str(self._num_executors)
         self._configs["spark.executor.cores"] = str(self._executor_cores)
         self._configs["spark.executor.memory"] = str(self._executor_memory)
-        driver_node_ip = ray._private.services.get_node_ip_address()
-        self._configs["spark.driver.host"] = str(driver_node_ip)
-        self._configs["spark.driver.bindAddress"] = str(driver_node_ip)
+        if platform.system() != "Darwin":
+            driver_node_ip = ray.util.get_node_ip_address()
+            if "spark.driver.host" not in self._configs:
+                self._configs["spark.driver.host"] = str(driver_node_ip)
+                self._configs["spark.driver.bindAddress"] = str(driver_node_ip)
         RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
         RAY_CP = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
         # A workaround for the spark driver to bind to its slf4j-log4j jar instead of the one from
