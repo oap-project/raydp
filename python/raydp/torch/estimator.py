@@ -34,6 +34,7 @@ from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.air.checkpoint import Checkpoint
 from ray.air import session
 from ray.data.dataset import Dataset
+from raydp.torch.torch_ccl_config import CCLConfig
 
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     """
@@ -89,6 +90,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  num_processes_for_data_loader: int = 0,
                  metrics_name: Optional[List[Union[str, Callable]]] = None,
                  metrics_config: Optional[Dict[str,Dict[str, Any]]] = None,
+                 use_ipex: bool = False,
+                 use_ccl: bool = False,
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
@@ -149,6 +152,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._shuffle = shuffle
         self._num_processes_for_data_loader = num_processes_for_data_loader
         self._metrics = TorchMetric(metrics_name, metrics_config)
+        self._use_ipex = use_ipex
+        self._use_ccl = use_ccl
         self._extra_config = extra_config
 
         if self._num_processes_for_data_loader > 0:
@@ -210,6 +215,10 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
 
         # get merics
         metrics = config["metrics"]
+        if config["use_ipex"]:
+            import intel_extension_for_pytorch as ipex
+            model = model.to(memory_format=torch.channels_last)
+            model, optimizer = ipex.optimize(model, optimizer=optimizer)
 
         # create dataset
         train_data_shard = session.get_dataset_shard("train")
@@ -306,7 +315,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             "num_epochs": self._num_epochs,
             "drop_last": self._drop_last,
             "evaluate": True,
-            "metrics": self._metrics
+            "metrics": self._metrics,
+            "use_ipex": self._use_ipex,
         }
         scaling_config = ScalingConfig(num_workers=self._num_workers,
                                        resources_per_worker=self._resources_per_worker)
@@ -320,10 +330,16 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_loop_config["evaluate"] = False
         else:
             datasets["evaluate"] = evaluate_ds
+        
+        if self._use_ccl:
+            torch_config = CCLConfig(backend='ccl')
+        else:
+            torch_config = None
         self._trainer = TorchTrainer(TorchEstimator.train_func,
                                      train_loop_config=train_loop_config,
                                      scaling_config=scaling_config,
                                      run_config=run_config,
+                                     torch_config=torch_config,
                                      datasets=datasets)
 
         result = self._trainer.fit()
