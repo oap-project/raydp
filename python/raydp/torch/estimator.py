@@ -91,6 +91,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  metrics_name: Optional[List[Union[str, Callable]]] = None,
                  metrics_config: Optional[Dict[str,Dict[str, Any]]] = None,
                  use_ipex: bool = False,
+                 use_bf16: bool = False,
+                 use_amp: bool = False,
                  use_ccl: bool = False,
                  **extra_config):
         """
@@ -153,6 +155,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._num_processes_for_data_loader = num_processes_for_data_loader
         self._metrics = TorchMetric(metrics_name, metrics_config)
         self._use_ipex = use_ipex
+        self._use_bf16 = use_bf16
+        self._use_amp = use_amp
         self._use_ccl = use_ccl
         self._extra_config = extra_config
 
@@ -215,10 +219,16 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
 
         # get merics
         metrics = config["metrics"]
-        if config["use_ipex"]:
+
+        # ipex optimize
+        use_ipex = config["use_ipex"]
+        use_bf16 = config["use_bf16"]
+        use_amp =  config["use_amp"]
+        if use_ipex:
             import intel_extension_for_pytorch as ipex
             model = model.to(memory_format=torch.channels_last)
-            model, optimizer = ipex.optimize(model, optimizer=optimizer)
+            dtype = torch.bfloat16 if use_bf16 else None
+            model, optimizer = ipex.optimize(model, optimizer=optimizer, dtype=dtype)
 
         # create dataset
         train_data_shard = session.get_dataset_shard("train")
@@ -242,11 +252,13 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         loss_results = []
         for epoch in range(config["num_epochs"]):
             train_res, train_loss = TorchEstimator.train_epoch(train_dataset, model, loss,
-                                                                optimizer, metrics, lr_scheduler)
+                                                                optimizer, metrics, use_amp,
+                                                                use_bf16, lr_scheduler)
             session.report(dict(epoch=epoch, train_res=train_res, train_loss=train_loss))
             if config["evaluate"]:
                 eval_res, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
-                                                                            model, loss, metrics)
+                                                                        model, loss, metrics,
+                                                                        use_amp, use_bf16)
                 session.report(dict(epoch=epoch, eval_res=eval_res, test_loss=evaluate_loss))
                 loss_results.append(evaluate_loss)
         if hasattr(model, "module"):
@@ -259,13 +271,18 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         }))
 
     @staticmethod
-    def train_epoch(dataset, model, criterion, optimizer, metrics, scheduler=None):
+    def train_epoch(dataset, model, criterion, optimizer, metrics, use_amp, use_bf16, scheduler=None):
         model.train()
         train_loss, data_size, batch_idx = 0, 0, 0
         for batch_idx, (inputs, targets) in enumerate(dataset):
             # Compute prediction error
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            if use_amp and use_bf16:
+                with torch.cpu.amp.autocast():
+                    outputs = model(inputs)
+                    loss = criterion(outputs, targets)
+            else:
+                outputs = model(inputs)
+                loss = criterion(outputs, targets)
             train_loss += loss.item()
             metrics.update(outputs, targets)
             data_size += targets.size(0)
@@ -282,14 +299,19 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         return train_res, train_loss
 
     @staticmethod
-    def evaluate_epoch(dataset, model, criterion, metrics):
+    def evaluate_epoch(dataset, model, criterion, metrics, use_amp, use_bf16):
         model.eval()
         test_loss, data_size, batch_idx = 0, 0, 0
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(dataset):
                 # Compute prediction error
-                outputs = model(inputs)
-                test_loss += criterion(outputs, targets).item()
+                if use_amp and use_bf16:
+                    with torch.cpu.amp.autocast():
+                        outputs = model(inputs)
+                        test_loss += criterion(outputs, targets)
+                else:
+                    outputs = model(inputs)
+                    test_loss += criterion(outputs, targets).item()
                 metrics.update(outputs, targets)
                 data_size += targets.size(0)
 
@@ -317,6 +339,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             "evaluate": True,
             "metrics": self._metrics,
             "use_ipex": self._use_ipex,
+            "use_bf16": self._use_bf16,
+            "use_amp": self._use_amp
         }
         scaling_config = ScalingConfig(num_workers=self._num_workers,
                                        resources_per_worker=self._resources_per_worker)
