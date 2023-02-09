@@ -59,7 +59,11 @@ def spark_on_ray_small(request):
         ray.init(address="local", num_cpus=6, include_dashboard=False)
     else:
         ray.init(address=request.param)
-    spark = raydp.init_spark("test", 1, 1, "500M")
+    node_ip = ray.util.get_node_ip_address()
+    spark = raydp.init_spark("test", 1, 1, "500M", configs= {
+        "spark.driver.host": node_ip,
+        "spark.driver.bindAddress": node_ip
+    })
 
     def stop_all():
         raydp.stop_spark()
