@@ -26,6 +26,7 @@ from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
 from raydp.torch.torch_metrics import TorchMetric
 from raydp import stop_spark
 from raydp.spark import spark_dataframe_to_ray_dataset
+from raydp.torch.torch_ccl_config import CCLConfig
 
 import ray
 from ray import train
@@ -34,7 +35,6 @@ from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.air.checkpoint import Checkpoint
 from ray.air import session
 from ray.data.dataset import Dataset
-from raydp.torch.torch_ccl_config import CCLConfig
 
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     """
@@ -225,6 +225,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         use_bf16 = config["use_bf16"]
         use_amp =  config["use_amp"]
         if use_ipex:
+            # pylint: disable=import-outside-toplevel
             import intel_extension_for_pytorch as ipex
             model = model.to(memory_format=torch.channels_last)
             dtype = torch.bfloat16 if use_bf16 else None
@@ -271,7 +272,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         }))
 
     @staticmethod
-    def train_epoch(dataset, model, criterion, optimizer, metrics, use_amp, use_bf16, scheduler=None):
+    def train_epoch(dataset, model, criterion, optimizer, metrics, use_amp, use_bf16,
+                    scheduler=None):
         model.train()
         train_loss, data_size, batch_idx = 0, 0, 0
         for batch_idx, (inputs, targets) in enumerate(dataset):
@@ -354,9 +356,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_loop_config["evaluate"] = False
         else:
             datasets["evaluate"] = evaluate_ds
-        
         if self._use_ccl:
-            torch_config = CCLConfig(backend='ccl')
+            torch_config = CCLConfig(backend="ccl")
         else:
             torch_config = None
         self._trainer = TorchTrainer(TorchEstimator.train_func,
