@@ -26,10 +26,11 @@ from grpc_tools.command import build_package_protos
 from setuptools import find_packages, setup, Command
 
 package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
+BASE_VERSION = "1.6.0"
 if package_name == 'raydp_nightly':
-    VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
+    VERSION = BASE_VERSION + datetime.today().strftime("%Y%m%d.dev0")
 else:
-    VERSION = "1.6.0.dev0"
+    VERSION = BASE_VERSION + ".dev0"
 
 ROOT_DIR = os.path.dirname(__file__)
 
