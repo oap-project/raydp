@@ -25,10 +25,10 @@ from shutil import copy2, rmtree
 from grpc_tools.command import build_package_protos
 from setuptools import find_packages, setup, Command
 
-package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
+build_mode = os.getenv("RAYDP_BUILD_MODE", "")
 BASE_VERSION = "1.6.0"
-if package_name == 'raydp_nightly':
-    VERSION = BASE_VERSION + datetime.today().strftime("%Y%m%d.dev0")
+if build_mode == "nightly":
+    VERSION = BASE_VERSION + datetime.today().strftime("b%Y%m%d.dev0")
 else:
     VERSION = BASE_VERSION + ".dev0"
 

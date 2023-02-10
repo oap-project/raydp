@@ -50,7 +50,7 @@ jobs:
     - name: Build wheel
       if: env.COMMIT_TODAY == 'true'
       env:
-        RAYDP_PACKAGE_NAME: raydp_nightly
+        RAYDP_BUILD_MODE: nightly
       run: pip install wheel grpcio-tools && ./build.sh
     - name: Upload
       if: env.COMMIT_TODAY == 'true'
