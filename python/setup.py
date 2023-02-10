@@ -27,7 +27,7 @@ from setuptools import find_packages, setup, Command
 
 package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
 if package_name == 'raydp_nightly':
-    VERSION = datetime.today().strftime("%Y.%m.%d.dev1")
+    VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
 else:
     VERSION = "1.6.0.dev0"
 
@@ -103,7 +103,7 @@ try:
     _packages.append("raydp.bin")
 
     setup(
-        name=package_name,
+        name="raydp",
         version=VERSION,
         author="RayDP Developers",
         author_email="raydp-dev@googlegroups.com",
