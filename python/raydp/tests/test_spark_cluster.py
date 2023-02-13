@@ -18,11 +18,10 @@
 import os
 import sys
 import time
-
+import platform
 import pytest
 import pyarrow
 import ray
-import ray._private.services
 
 from multiprocessing import get_context
 
@@ -83,8 +82,10 @@ def test_spark_remote(ray_cluster):
 
 
 def test_spark_driver_and_executor_hostname(spark_on_ray_small):
+    if platform.system() == "Darwin":
+        pytest.skip("Skip this test on mac")
     conf = spark_on_ray_small.conf
-    node_ip_address = ray._private.services.get_node_ip_address()
+    node_ip_address = ray.util.get_node_ip_address()
 
     driver_host_name = conf.get("spark.driver.host")
     assert node_ip_address == driver_host_name

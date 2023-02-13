@@ -28,7 +28,6 @@ from typing import Any, Callable, Dict, List
 
 import grpc
 import ray
-import ray._private.services
 import ray.cloudpickle as cloudpickle
 
 from raydp.mpi import constants
@@ -47,7 +46,7 @@ class MPIType(Enum):
 
 class MPIWorkerPeer:
     def get_node_ip(self):
-        return ray._private.services.get_node_ip_address()
+        return ray.util.get_node_ip_address()
 
 
 class MPIWorkerMeta:
@@ -231,7 +230,7 @@ class MPIJob:
                                   options=options)
         network_pb2_grpc.add_DriverServiceServicer_to_server(DriverService(self), self.server)
         # start network server
-        self.server_host = ray._private.services.get_node_ip_address()
+        self.server_host = ray.util.get_node_ip_address()
         self.server_port = self.server.add_insecure_port(f"{self.server_host}:0")
         self.server.start()
 

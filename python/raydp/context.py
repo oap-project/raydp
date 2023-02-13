@@ -83,7 +83,12 @@ class _SparkContext(ContextDecorator):
     def _get_or_create_spark_cluster(self) -> SparkCluster:
         if self._spark_cluster is not None:
             return self._spark_cluster
-        self._spark_cluster = SparkCluster(self._app_name, self._configs)
+        self._spark_cluster = SparkCluster(self._app_name,
+                                           self._num_executors,
+                                           self._executor_cores,
+                                           self._executor_memory,
+                                           self._enable_hive,
+                                           self._configs)
         return self._spark_cluster
 
     def _prepare_placement_group(self):
@@ -112,13 +117,7 @@ class _SparkContext(ContextDecorator):
             return self._spark_session
         self._prepare_placement_group()
         spark_cluster = self._get_or_create_spark_cluster()
-        self._spark_session = spark_cluster.get_spark_session(
-            self._app_name,
-            self._num_executors,
-            self._executor_cores,
-            self._executor_memory,
-            self._enable_hive,
-            self._configs)
+        self._spark_session = spark_cluster.get_spark_session()
         if self._fault_tolerant_mode:
             spark_cluster.connect_spark_driver_to_ray()
         return self._spark_session

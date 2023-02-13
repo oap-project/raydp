@@ -52,8 +52,8 @@ class RayDPSparkMaster():
         extra_classpath = os.pathsep.join(self._prepare_jvm_classpath())
         self._gateway = self._launch_gateway(extra_classpath, popen_kwargs)
         self._app_master_java_bridge = self._gateway.entry_point.getAppMasterBridge()
-        jvm_properties = self._generate_ray_configs()
-        self._gateway.jvm.org.apache.spark.deploy.raydp.RayAppMaster.setProperties(jvm_properties)
+        ray_properties = self._generate_ray_configs()
+        self._gateway.jvm.org.apache.spark.deploy.raydp.RayAppMaster.setProperties(ray_properties)
         self._host = ray.util.get_node_ip_address()
         self._create_app_master(extra_classpath)
         self._started_up = True
@@ -149,14 +149,12 @@ class RayDPSparkMaster():
 
     def _generate_ray_configs(self):
         assert ray.is_initialized()
-        options = copy(self._configs)
+        options = {}
 
         node = ray._private.worker._global_node
-        print(node.address)
         options["ray.run-mode"] = "CLUSTER"
         options["ray.node-ip"] = node.node_ip_address
         options["ray.address"] = node.address
-        options["ray.redis.password"] = node.redis_password
         options["ray.logging.dir"] = node.get_logs_dir_path()
         options["ray.session-dir"] = node.get_session_dir_path()
         options["ray.raylet.node-manager-port"] = node.node_manager_port
