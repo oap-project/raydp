@@ -46,8 +46,10 @@ pip install raydp
 Or you can install RayDP nightly build:
 
 ```shell
-pip install raydp-nightly
+pip install --pre raydp
 ```
+
+NOTICE: formerly used `raydp-nightly` will no longer be updated.
 
 If you'd like to build and install the latest master, use the following command:
 
