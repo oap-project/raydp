@@ -34,6 +34,7 @@ from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.air.checkpoint import Checkpoint
 from ray.air import session
 from ray.data.dataset import Dataset
+from ray.tune.search.sample import Domain
 
 class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
     """
@@ -87,6 +88,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  num_epochs: int = None,
                  shuffle: bool = True,
                  num_processes_for_data_loader: int = 0,
+                 placement_strategy: Union[str, Union["Domain", Dict[str, List]]] = "PACK",
                  metrics_name: Optional[List[Union[str, Callable]]] = None,
                  metrics_config: Optional[Dict[str,Dict[str, Any]]] = None,
                  **extra_config):
@@ -122,6 +124,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param shuffle: whether shuffle the data
                Note: Now the value can only be False
         :param num_processes_for_data_loader: the number of processes use to speed up data loading
+        :param placement_strategy: the placement strategy to use for the placement group of the
+               Ray actors.
         :param metrics_name: the name of metrics' classes used to evaluate model. The full name list
                is available at: https://torchmetrics.readthedocs.io/en/latest/. For example:
                for classification tasks, it can be "Accuracy", "Precision" and "Recall";
@@ -148,6 +152,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._num_epochs = num_epochs
         self._shuffle = shuffle
         self._num_processes_for_data_loader = num_processes_for_data_loader
+        self._placement_strategy = placement_strategy
         self._metrics = TorchMetric(metrics_name, metrics_config)
         self._extra_config = extra_config
 
@@ -309,7 +314,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             "metrics": self._metrics
         }
         scaling_config = ScalingConfig(num_workers=self._num_workers,
-                                       resources_per_worker=self._resources_per_worker)
+                                       resources_per_worker=self._resources_per_worker,
+                                       placement_strategy=self._placement_strategy)
         run_config = RunConfig(failure_config=FailureConfig(max_failures=max_retries))
         if self._shuffle:
             train_ds = train_ds.random_shuffle()
@@ -350,12 +356,10 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                 evaluate_ds = ray.data.read_parquet(path+"/test")
         else:
             train_ds = spark_dataframe_to_ray_dataset(train_df,
-                                                  parallelism=self._num_workers,
                                                   _use_owner=stop_spark_after_conversion)
             if evaluate_df is not None:
                 evaluate_df = self._check_and_convert(evaluate_df)
                 evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
-                                                         parallelism=self._num_workers,
                                                          _use_owner=stop_spark_after_conversion)
         if stop_spark_after_conversion:
             stop_spark(cleanup_data=False)
