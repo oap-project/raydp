@@ -73,8 +73,8 @@ estimator = TorchEstimator(num_workers=1, model=nyc_model, optimizer=optimizer, 
                            label_column="fare_amount", label_type=torch.float,
                            batch_size=64, num_epochs=30,
                            metrics_name=["MeanAbsoluteError", "MeanSquaredError"],
-                           use_ipex=True, use_bf16=False, use_amp=False,
-                           use_ccl=True, use_jit_trace=True)
+                           use_ipex=False, use_bf16=False, use_amp=False,
+                           use_ccl=False, use_jit_trace=False)
 # Train the model
 estimator.fit_on_spark(train_df, test_df)
 # Get the trained model
