@@ -94,6 +94,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  use_bf16: bool = False,
                  use_amp: bool = False,
                  use_ccl: bool = False,
+                 use_jit_trace: bool = False,
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
@@ -136,6 +137,12 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param metrics_config: the optional config for the metrics. Its format is:
                {"metric_name_1": {"param1": value1, "param2": value2}, "metric_name_2":{}}, where
                param is the parameter corresponding to a concrete metric class of TorchMetrics.
+        :param use_ipex: whether to enable ipex optimization
+        :param use_bf16: whether to cast model parameters to ``torch.bfloat16``
+        :param use_amp: whether to enable auto mixed precision
+        :param use_ccl: whether to use torch_ccl as the backend to initialize default distributed
+               process group
+        :param use_jit_trace: whether to use jit.trace to accelerate the model
         :param extra_config: the extra config will be set to ray.train.torch.TorchTrainer
         """
         self._num_workers = num_workers
@@ -158,6 +165,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._use_bf16 = use_bf16
         self._use_amp = use_amp
         self._use_ccl = use_ccl
+        self._use_jit_trace = use_jit_trace
         self._extra_config = extra_config
 
         if self._num_processes_for_data_loader > 0:
@@ -224,6 +232,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         use_ipex = config["use_ipex"]
         use_bf16 = config["use_bf16"]
         use_amp =  config["use_amp"]
+        use_jit_trace = config["use_jit_trace"]
         if use_ipex:
             # pylint: disable=import-outside-toplevel
             import intel_extension_for_pytorch as ipex
@@ -254,12 +263,13 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         for epoch in range(config["num_epochs"]):
             train_res, train_loss = TorchEstimator.train_epoch(train_dataset, model, loss,
                                                                 optimizer, metrics, use_amp,
-                                                                use_bf16, lr_scheduler)
+                                                                use_bf16, use_jit_trace,
+                                                                lr_scheduler)
             session.report(dict(epoch=epoch, train_res=train_res, train_loss=train_loss))
             if config["evaluate"]:
-                eval_res, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
-                                                                        model, loss, metrics,
-                                                                        use_amp, use_bf16)
+                eval_res, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset, model,
+                                                                        loss, metrics, use_amp,
+                                                                        use_bf16, use_jit_trace)
                 session.report(dict(epoch=epoch, eval_res=eval_res, test_loss=evaluate_loss))
                 loss_results.append(evaluate_loss)
         if hasattr(model, "module"):
@@ -272,19 +282,14 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         }))
 
     @staticmethod
-    def train_epoch(dataset, model, criterion, optimizer, metrics, use_amp, use_bf16,
+    def train_epoch(dataset, model, criterion, optimizer, metrics, use_amp, use_bf16, use_jit_trace,
                     scheduler=None):
         model.train()
         train_loss, data_size, batch_idx = 0, 0, 0
         for batch_idx, (inputs, targets) in enumerate(dataset):
             # Compute prediction error
-            if use_amp and use_bf16:
-                with torch.cpu.amp.autocast():
-                    outputs = model(inputs)
-                    loss = criterion(outputs, targets)
-            else:
-                outputs = model(inputs)
-                loss = criterion(outputs, targets)
+            outputs, loss = TorchEstimator.train_batch(batch_idx, model, inputs, targets, criterion,
+                                                        use_amp, use_bf16, use_jit_trace)
             train_loss += loss.item()
             metrics.update(outputs, targets)
             data_size += targets.size(0)
@@ -301,19 +306,16 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         return train_res, train_loss
 
     @staticmethod
-    def evaluate_epoch(dataset, model, criterion, metrics, use_amp, use_bf16):
+    def evaluate_epoch(dataset, model, criterion, metrics, use_amp, use_bf16, use_jit_trace):
         model.eval()
         test_loss, data_size, batch_idx = 0, 0, 0
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(dataset):
                 # Compute prediction error
-                if use_amp and use_bf16:
-                    with torch.cpu.amp.autocast():
-                        outputs = model(inputs)
-                        test_loss += criterion(outputs, targets)
-                else:
-                    outputs = model(inputs)
-                    test_loss += criterion(outputs, targets).item()
+                outputs, loss = TorchEstimator.train_batch(batch_idx, model, inputs, targets,
+                                                            criterion, use_amp, use_bf16,
+                                                            use_jit_trace, is_eval=True)
+                test_loss += loss.item()
                 metrics.update(outputs, targets)
                 data_size += targets.size(0)
 
@@ -321,6 +323,26 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         eval_res = metrics.compute()
         metrics.reset()
         return eval_res, test_loss
+
+    @staticmethod
+    def train_batch(batch_idx, model, inputs, targets, criterion, use_amp, use_bf16, use_jit_trace,
+                    is_eval=False):
+        if use_amp and use_bf16:
+            with torch.cpu.amp.autocast():
+                if use_jit_trace and batch_idx==0:
+                    model = torch.jit.trace(model, inputs)
+                    if is_eval:
+                        model = torch.jit.freeze(model)
+                outputs = model(inputs)
+                loss = criterion(outputs, targets)
+        else:
+            if use_jit_trace and batch_idx==0:
+                model = torch.jit.trace(model, inputs)
+                if is_eval:
+                    model = torch.jit.freeze(model)
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+        return outputs, loss
 
     def fit(self,
             train_ds: Dataset,
@@ -342,7 +364,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             "metrics": self._metrics,
             "use_ipex": self._use_ipex,
             "use_bf16": self._use_bf16,
-            "use_amp": self._use_amp
+            "use_amp": self._use_amp,
+            "use_jit_trace": self._use_jit_trace
         }
         scaling_config = ScalingConfig(num_workers=self._num_workers,
                                        resources_per_worker=self._resources_per_worker)
