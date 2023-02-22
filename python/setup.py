@@ -95,7 +95,7 @@ try:
         "psutil",
         "pyarrow >= 4.0.1",
         "ray >= 2.1.0",
-        "pyspark >= 3.1.1, <= 3.3.1",
+        "pyspark >= 3.1.1, <= 3.3.2",
         "netifaces"
     ]
 
