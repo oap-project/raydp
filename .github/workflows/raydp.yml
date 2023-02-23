@@ -48,6 +48,7 @@ jobs:
       - name: Install extra dependencies for macOS
         if: matrix.os == 'macos-latest'
         run: |
+          brew install pkg-config
           brew install libuv libomp mpich
       - name: Install extra dependencies for Ubuntu
         if: matrix.os == 'ubuntu-latest'
