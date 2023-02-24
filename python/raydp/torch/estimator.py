@@ -26,7 +26,7 @@ from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
 from raydp.torch.torch_metrics import TorchMetric
 from raydp import stop_spark
 from raydp.spark import spark_dataframe_to_ray_dataset
-from raydp.torch.torch_ccl_config import CCLConfig
+from raydp.torch.config import TorchConfig, check_ipex
 
 import ray
 from ray import train
@@ -170,6 +170,15 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
 
         if self._num_processes_for_data_loader > 0:
             raise TypeError("multiple processes for data loader has not supported")
+
+        if self._use_ipex:
+            torch_version, ipex_version = check_ipex()
+            assert torch_version is not None, "Pytorch is not found. Please install Pytorch."
+            assert ipex_version is not None, "Intel Extension for PyTorch is not found. "\
+                                             "Please install Intel Extension for PyTorch."
+            assert torch_version==ipex_version, "Intel Extension for PyTorch {ipex} needs to "\
+                   "work with PyTorch {ipex}.*, but PyTorch {torch} is found. Please switch to "\
+                   "the matching version.".format(ipex=ipex_version, torch=torch_version)
 
         self._trainer: TorchTrainer = None
 
@@ -380,7 +389,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         else:
             datasets["evaluate"] = evaluate_ds
         if self._use_ccl:
-            torch_config = CCLConfig(backend="ccl")
+            torch_config = TorchConfig(backend="ccl")
         else:
             torch_config = None
         self._trainer = TorchTrainer(TorchEstimator.train_func,
