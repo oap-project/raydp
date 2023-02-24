@@ -147,7 +147,7 @@ def _register_objects(records):
     return blocks, block_sizes
 
 def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
-                                   _use_owner: bool = False):
+                                   _use_owner: bool = False, recover_ray_resources_from_spark=False):
     # call java function from python
     jvm = df.sql_ctx.sparkSession.sparkContext._jvm
     jdf = df._jdf
@@ -161,7 +161,8 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
     record_tuples = [(record.objectId(), record.ownerAddress(), record.numRecords())
                         for record in records]
     blocks, block_sizes = _register_objects(record_tuples)
-
+    if recover_ray_resource_from_spark:
+        df.sql_ctx.sparkSession.stop()
     if _use_owner is True:
         holder = ray.get_actor(obj_holder_name)
         df_id = uuid.uuid4()
