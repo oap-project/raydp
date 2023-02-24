@@ -36,7 +36,7 @@ def check_ipex():
         _ipex_version = importlib_metadata.version("intel_extension_for_pytorch")
     except importlib_metadata.PackageNotFoundError:
         return _torch_version, None
-    
+
     torch_major_and_minor = get_major_and_minor_from_version(_torch_version)
     ipex_major_and_minor = get_major_and_minor_from_version(_ipex_version)
     return torch_major_and_minor , ipex_major_and_minor
