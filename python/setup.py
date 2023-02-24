@@ -26,9 +26,13 @@ from grpc_tools.command import build_package_protos
 from setuptools import find_packages, setup, Command
 
 build_mode = os.getenv("RAYDP_BUILD_MODE", "")
+package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
 BASE_VERSION = "1.6.0"
 if build_mode == "nightly":
     VERSION = BASE_VERSION + datetime.today().strftime("b%Y%m%d.dev0")
+# for legacy raydp_nightly package
+elif package_name == 'raydp_nightly':
+    VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
 else:
     VERSION = BASE_VERSION + ".dev0"
 
@@ -104,7 +108,7 @@ try:
     _packages.append("raydp.bin")
 
     setup(
-        name="raydp",
+        name=package_name,
         version=VERSION,
         author="RayDP Developers",
         author_email="raydp-dev@googlegroups.com",
