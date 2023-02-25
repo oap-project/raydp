@@ -60,4 +60,5 @@ def test_():
     ds2 = ray.data.from_items([{"id": i} for i in range(1000)])
     df2 = ds2.to_spark(spark)
     
-
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-v", __file__]))
