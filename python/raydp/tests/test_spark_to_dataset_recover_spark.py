@@ -39,6 +39,14 @@ df1 = spark.range(0, 1000)
 raydp.stop_spark(False)
 ds1 = from_spark(df1, recover_ray_resources_from_spark=True)
 
+# reinit spark
+
+spark = raydp.init_spark(app_name="RayDP Example1",
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory="4G")
+
+
 # Ray Dataset to Spark Dataframe
 ds2 = ray.data.from_items([{"id": i} for i in range(1000)])
 df2 = ds2.to_spark(spark)
