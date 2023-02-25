@@ -173,13 +173,13 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
 
 def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
                                    parallelism: Optional[int] = None,
-                                   _use_owner: bool = False, 
+                                   _use_owner: bool = False,
                                    recover_ray_resources_from_spark=False):
     num_part = df.rdd.getNumPartitions()
     if parallelism is not None:
         if parallelism != num_part:
             df = df.repartition(parallelism)
-    blocks, _ = _save_spark_df_to_object_store(df, False, _use_owner, 
+    blocks, _ = _save_spark_df_to_object_store(df, False, _use_owner,
                                                recover_ray_resources_from_spark)
     return from_arrow_refs(blocks)
 
