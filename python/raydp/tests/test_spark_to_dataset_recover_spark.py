@@ -7,7 +7,7 @@ from ray.data._internal.arrow_block import ArrowRow
 
 
 def from_spark(
-    df: "pyspark.sql.DataFrame", *,parallelism: Optional[int] = None
+    df: "pyspark.sql.DataFrame", *,parallelism: Optional[int] = None,
     recover_ray_resources_from_spark=False
 ) -> Dataset[ArrowRow]:
     """Create a dataset from a Spark dataframe.
