@@ -26,6 +26,7 @@ from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
 from raydp.torch.torch_metrics import TorchMetric
 from raydp import stop_spark
 from raydp.spark import spark_dataframe_to_ray_dataset
+from raydp.torch.config import TorchConfig
 
 import ray
 from ray import train
@@ -89,6 +90,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                  num_processes_for_data_loader: int = 0,
                  metrics_name: Optional[List[Union[str, Callable]]] = None,
                  metrics_config: Optional[Dict[str,Dict[str, Any]]] = None,
+                 use_ccl: bool = False,
                  **extra_config):
         """
         :param num_workers: the number of workers to do the distributed training
@@ -131,6 +133,8 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         :param metrics_config: the optional config for the metrics. Its format is:
                {"metric_name_1": {"param1": value1, "param2": value2}, "metric_name_2":{}}, where
                param is the parameter corresponding to a concrete metric class of TorchMetrics.
+        :param use_ccl: whether to use torch_ccl as the backend to initialize default distributed
+               process group
         :param extra_config: the extra config will be set to ray.train.torch.TorchTrainer
         """
         self._num_workers = num_workers
@@ -149,6 +153,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         self._shuffle = shuffle
         self._num_processes_for_data_loader = num_processes_for_data_loader
         self._metrics = TorchMetric(metrics_name, metrics_config)
+        self._use_ccl = use_ccl
         self._extra_config = extra_config
 
         if self._num_processes_for_data_loader > 0:
@@ -320,10 +325,15 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_loop_config["evaluate"] = False
         else:
             datasets["evaluate"] = evaluate_ds
+        if self._use_ccl:
+            torch_config = TorchConfig(backend="ccl")
+        else:
+            torch_config = None
         self._trainer = TorchTrainer(TorchEstimator.train_func,
                                      train_loop_config=train_loop_config,
                                      scaling_config=scaling_config,
                                      run_config=run_config,
+                                     torch_config=torch_config,
                                      datasets=datasets)
 
         result = self._trainer.fit()
