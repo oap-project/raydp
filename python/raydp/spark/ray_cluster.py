@@ -73,15 +73,18 @@ class SparkCluster(Cluster):
         deprecated_spark_master_config_prefix = "spark.ray.raydp_spark_master.resource."
         spark_master_actor_resource_prefix = "spark.ray.raydp_spark_master.actor.resource."
 
-        def get_master_actor_resource(key_prefix: str, resource: Dict[str, float]) -> Dict[str, float]:
+        def get_master_actor_resource(key_prefix: str,
+                                      resource: Dict[str, float]) -> Dict[str, float]:
             for key in configs:
                 if key.startswith(key_prefix):
                     resource_name = key[len(key_prefix):]
                     resource[resource_name] = float(configs[key])
             return resource
 
-        resources = get_master_actor_resource(deprecated_spark_master_config_prefix, resources)
-        resources = get_master_actor_resource(spark_master_actor_resource_prefix, resources)
+        resources = get_master_actor_resource(deprecated_spark_master_config_prefix,
+                                              resources)
+        resources = get_master_actor_resource(spark_master_actor_resource_prefix,
+                                              resources)
 
         return resources
 
