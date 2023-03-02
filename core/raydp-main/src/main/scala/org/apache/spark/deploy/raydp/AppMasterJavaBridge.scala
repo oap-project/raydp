@@ -33,7 +33,7 @@ class AppMasterJavaBridge {
       // init ray, we should set the config by java properties
       Ray.init()
       val name = RayAppMaster.ACTOR_NAME
-      val sparkJvmOptions = sparkProps.asScala.map {
+      val sparkJvmOptions = sparkProps.asScala.toMap.map {
         case (k, v) =>
           "-D" + k + "=" + v
       }.toBuffer

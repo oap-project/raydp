@@ -23,6 +23,7 @@ import java.util.Map;
 import io.ray.api.ActorHandle;
 import io.ray.api.Ray;
 import io.ray.api.call.ActorCreator;
+import org.apache.spark.raydp.SparkOnRayConfigs;
 
 public class RayAppMasterUtils {
   public static ActorHandle<RayAppMaster> createAppMaster(
@@ -38,7 +39,9 @@ public class RayAppMasterUtils {
     jvmOptions.add(cp);
     creator.setJvmOptions(jvmOptions);
     for(Map.Entry<String, Double> resource : appMasterResource.entrySet()) {
-      creator.setResource(resource.getKey(), resource.getValue());
+      String resourceName = resource.getKey()
+              .substring(SparkOnRayConfigs.SPARK_MASTER_ACTOR_RESOURCE_PREFIX.length());
+      creator.setResource(resourceName, resource.getValue());
     }
 
     return creator.remote();
