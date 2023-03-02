@@ -40,7 +40,7 @@ public class RayAppMasterUtils {
     creator.setJvmOptions(jvmOptions);
     for(Map.Entry<String, Double> resource : appMasterResource.entrySet()) {
       String resourceName = resource.getKey()
-              .substring(SparkOnRayConfigs.SPARK_MASTER_ACTOR_RESOURCE_PREFIX.length());
+              .substring(SparkOnRayConfigs.SPARK_MASTER_ACTOR_RESOURCE_PREFIX.length() + 1);
       creator.setResource(resourceName, resource.getValue());
     }
 
