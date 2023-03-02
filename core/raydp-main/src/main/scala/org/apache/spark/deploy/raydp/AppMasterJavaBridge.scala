@@ -28,7 +28,7 @@ import org.apache.spark.raydp.SparkOnRayConfigs
 class AppMasterJavaBridge {
   private var handle: ActorHandle[RayAppMaster] = null
 
-  def startUpAppMaster(extra_cp: String, sparkProps: Map[String, String]): Unit = {
+  def startUpAppMaster(extra_cp: String, sparkProps: Map[String, Any]): Unit = {
     if (handle == null) {
       // init ray, we should set the config by java properties
       Ray.init()
@@ -40,7 +40,7 @@ class AppMasterJavaBridge {
 
       val appMasterResources = sparkProps.asScala.filter {
         case (k, v) => k.startsWith(SparkOnRayConfigs.SPARK_MASTER_ACTOR_RESOURCE_PREFIX)
-      }.map{ case (k, v) => k->double2Double(v.toDouble) }.asJava
+      }.map{ case (k, v) => k->double2Double(v.toString.toDouble) }.asJava
 
       handle = RayAppMasterUtils.createAppMaster(
           extra_cp, name, sparkJvmOptions.asJava, appMasterResources)
