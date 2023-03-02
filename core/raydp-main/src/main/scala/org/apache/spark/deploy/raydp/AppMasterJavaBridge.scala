@@ -18,10 +18,11 @@
 package org.apache.spark.deploy.raydp
 
 import java.util.{ArrayList, Map}
+
 import scala.collection.JavaConverters._
+
 import io.ray.api.{ActorHandle, Ray}
-import io.ray.runtime.config.RayConfig
-import org.apache.spark.deploy.raydp.RayAppMasterUtils
+
 import org.apache.spark.raydp.SparkOnRayConfigs
 
 class AppMasterJavaBridge {
