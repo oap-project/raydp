@@ -28,7 +28,8 @@ public class RayAppMasterUtils {
   public static ActorHandle<RayAppMaster> createAppMaster(
       String cp,
       String name,
-      List<String> jvmOptions) {
+      List<String> jvmOptions,
+      Map<String, Double> appMasterResource) {
     ActorCreator<RayAppMaster> creator = Ray.actor(RayAppMaster::new, cp);
     if (name != null) {
       creator.setName(name);
@@ -36,6 +37,10 @@ public class RayAppMasterUtils {
     jvmOptions.add("-cp");
     jvmOptions.add(cp);
     creator.setJvmOptions(jvmOptions);
+    for(Map.Entry<String, Double> resource : appMasterResource.entrySet()) {
+      creator.setResource(resource.getKey(), resource.getValue());
+    }
+
     return creator.remote();
   }
 
