@@ -42,7 +42,7 @@ TEMP_PATH = "deps"
 CORE_DIR = os.path.abspath("../core")
 BIN_DIR = os.path.abspath("../bin")
 
-JARS_PATH = glob.glob(os.path.join(CORE_DIR, f"**/raydp-*.jar"), recursive=True)
+JARS_PATH = glob.glob(os.path.join(CORE_DIR, f"**/target/raydp-*.jar"), recursive=True)
 JARS_TARGET = os.path.join(TEMP_PATH, "jars")
 
 SCRIPT_PATH = os.path.join(BIN_DIR, f"raydp-submit")
@@ -90,6 +90,7 @@ class CustomBuildPackageProtos(Command):
 
 try:
     for jar_path in JARS_PATH:
+        print(f"Copying {jar_path} to {JARS_TARGET}")
         copy2(jar_path, JARS_TARGET)
     copy2(SCRIPT_PATH, SCRIPT_TARGET)
 
