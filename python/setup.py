@@ -42,7 +42,7 @@ TEMP_PATH = "deps"
 CORE_DIR = os.path.abspath("../core")
 BIN_DIR = os.path.abspath("../bin")
 
-JARS_PATH = glob.glob(os.path.join(CORE_DIR, f"**/raydp-*.jar"), recursive=True)
+JARS_PATH = glob.glob(os.path.join(CORE_DIR, f"**/target/raydp-*.jar"), recursive=True)
 JARS_TARGET = os.path.join(TEMP_PATH, "jars")
 
 SCRIPT_PATH = os.path.join(BIN_DIR, f"raydp-submit")
