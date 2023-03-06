@@ -90,6 +90,7 @@ class CustomBuildPackageProtos(Command):
 
 try:
     for jar_path in JARS_PATH:
+        print(f"Copying {jar_path} to {JARS_TARGET}")
         copy2(jar_path, JARS_TARGET)
     copy2(SCRIPT_PATH, SCRIPT_TARGET)
 
