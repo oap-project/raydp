@@ -20,24 +20,23 @@ package org.apache.spark.scheduler.cluster.raydp
 import java.net.URI
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
-
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
-
 import io.ray.api.{ActorHandle, Ray}
-
 import org.apache.spark.{RayDPException, SparkConf, SparkContext}
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.deploy.security.HadoopDelegationTokenManager
-import org.apache.spark.internal.{config, Logging}
+import org.apache.spark.internal.{Logging, config}
 import org.apache.spark.launcher.{LauncherBackend, SparkAppHandle}
-import org.apache.spark.raydp.SparkOnRayConfigs
+import org.apache.spark.raydp.{RayDPConstants, SparkOnRayConfigs}
 import org.apache.spark.resource.{ResourceProfile, ResourceRequirement, ResourceUtils}
 import org.apache.spark.rpc.{RpcEndpointAddress, RpcEndpointRef, RpcEnv, ThreadSafeRpcEndpoint}
 import org.apache.spark.scheduler.TaskSchedulerImpl
 import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
 import org.apache.spark.util.Utils
+
+import java.util.regex.Pattern
 
 /**
  * A SchedulerBackend that request executor from Ray.
@@ -57,6 +56,8 @@ class RayCoarseGrainedSchedulerBackend(
 
   private val registrationBarrier = new Semaphore(0)
 
+  private val sparkMajorVerPat = Pattern.compile("\\d+\\.\\d+")
+
   private val launcherBackend = new LauncherBackend() {
     override protected def conf: SparkConf = sc.conf
     override protected def onStopRequest(): Unit = stop(SparkAppHandle.State.KILLED)
@@ -69,7 +70,8 @@ class RayCoarseGrainedSchedulerBackend(
         // not yet started
         Ray.init()
         val cp = sys.props("java.class.path")
-        val options = RayExternalShuffleService.getShuffleConf(conf)
+        val options = RayExternalShuffleService.getShuffleConf(conf) ++ javaAgentOpt()
+
         masterHandle = RayAppMasterUtils.createAppMaster(cp, null, options.toBuffer.asJava)
         uri = new URI(RayAppMasterUtils.getMasterUrl(masterHandle))
       } else {
@@ -136,7 +138,8 @@ class RayCoarseGrainedSchedulerBackend(
     // add Xmx, it should not be set in java opts, because Spark is not allowed.
     // We also add Xms to ensure the Xmx >= Xms
     val memoryLimit = Seq(s"-Xms${sc.executorMemory}M", s"-Xmx${sc.executorMemory}M")
-    val javaOpts = sparkJavaOpts ++ extraJavaOpts ++ memoryLimit
+
+    val javaOpts = sparkJavaOpts ++ extraJavaOpts ++ memoryLimit ++ javaAgentOpt()
 
     val command = Command(driverUrl, sc.executorEnvs,
       classPathEntries ++ testingClassPath, libraryPathEntries, javaOpts)
@@ -185,6 +188,15 @@ class RayCoarseGrainedSchedulerBackend(
       }
     }
     results
+  }
+
+  private def javaAgentOpt(): Seq[String] = {
+    val agent = "-javaagent:" + conf.get(RayDPConstants.SPARK_JAVAAGENT)
+    // comply to ray's log4j version
+    val log4jVer = "-D" + RayDPConstants.LOG4J_FACTORY_CLASS_KEY + "=log4j2"
+    val log4jConfigFile = "-D" + RayDPConstants.RAY_LOG4J_CONFIG_FILE_NAME + "=" +
+      conf.get(RayDPConstants.RAY_LOG4J_CONFIG_FILE_NAME_KEY)
+    Seq(agent, log4jVer, log4jConfigFile)
   }
 
   def waitForRegistration(): Unit = {

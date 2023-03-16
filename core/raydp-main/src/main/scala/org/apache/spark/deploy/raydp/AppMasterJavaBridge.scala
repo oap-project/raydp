@@ -17,14 +17,10 @@
 
 package org.apache.spark.deploy.raydp
 
-import java.util.{ArrayList, Map}
-
+import java.util.Map
 import scala.collection.JavaConverters._
-
 import io.ray.api.{ActorHandle, Ray}
-import io.ray.runtime.config.RayConfig
-
-import org.apache.spark.deploy.raydp.RayAppMasterUtils
+import org.apache.spark.raydp.RayDPConstants
 
 class AppMasterJavaBridge {
   private var handle: ActorHandle[RayAppMaster] = null
@@ -34,9 +30,15 @@ class AppMasterJavaBridge {
       // init ray, we should set the config by java properties
       Ray.init()
       val name = RayAppMaster.ACTOR_NAME
-      val sparkJvmOptions = sparkProps.asScala.map {
-        case (k, v) =>
-          "-D" + k + "=" + v
+      val sparkJvmOptions = sparkProps.asScala.filter(
+        e => !RayDPConstants.SPARK_DRIVER_EXTRA_JAVA_OPTIONS.equals(e._1))
+        .map  {
+          case (k, v) =>
+            if (!RayDPConstants.SPARK_JAVAAGENT.equals(k)) {
+              "-D" + k + "=" + v
+            } else {
+              "-javaagent:" + v
+            }
       }.toBuffer
       handle = RayAppMasterUtils.createAppMaster(
           extra_cp, name, sparkJvmOptions.asJava)

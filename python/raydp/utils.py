@@ -22,7 +22,9 @@ import signal
 from typing import Dict, List, Tuple
 
 import numpy as np
+import os
 import psutil
+from urllib.parse import urlparse
 
 MEMORY_SIZE_UNITS = {"K": 2**10, "M": 2**20, "G": 2**30, "T": 2**40}
 
@@ -220,3 +222,22 @@ def divide_blocks(
         results[rank] = selected_indexes
 
     return results
+
+
+def validate_classpath(url_str: str) -> str:
+    urls = url_str.split(os.pathsep)
+    result = []
+    for url in urls:
+        r = urlparse(url)
+        if all([r.scheme, r.netloc]):
+            result.append(url)
+            continue
+        # no schema, path should be absolute then
+        if r.path.startswith('/'):
+            result.append("file://" + r.path)
+            continue
+        raise Exception("invalid classpath URL. Expected classpath is either with schema and network location or"
+                        " absolute file path. Your URL is " + url)
+    if len(result) == 0:
+        raise Exception("get no classpath from your url: " + url_str)
+    return ",".join(result)

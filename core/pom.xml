@@ -12,11 +12,6 @@
   <name>RayDP Parent Pom</name>
   <url>https://github.com/oap-project/raydp.git</url>
 
-  <modules>
-    <module>shims</module>
-    <module>raydp-main</module>
-  </modules>
-
   <properties>
     <spark.version>3.2.1</spark.version>
     <spark321.version>3.2.1</spark321.version>
@@ -29,6 +24,12 @@
     <jackson.version>2.13.4</jackson.version>
     <scala.binary.version>2.12</scala.binary.version>
   </properties>
+
+  <modules>
+    <module>agent</module>
+    <module>shims</module>
+    <module>raydp-main</module>
+  </modules>
 
   <dependencyManagement>
     <dependencies>
