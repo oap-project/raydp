@@ -45,7 +45,6 @@ import org.apache.ivy.core.settings.IvySettings
 import org.apache.ivy.plugins.matcher.GlobPatternMatcher
 import org.apache.ivy.plugins.repository.file.FileRepository
 import org.apache.ivy.plugins.resolver.{ChainResolver, FileSystemResolver, IBiblioResolver}
-import org.apache.log4j.Appender
 import org.apache.spark._
 import org.apache.spark.api.r.RUtils
 import org.apache.spark.deploy.rest._
@@ -938,8 +937,6 @@ private[spark] class SparkSubmit extends Logging {
     } else {
       new JavaMainApplication(mainClass)
     }
-
-    println("file manager: " + classOf[Appender].getProtectionDomain.getCodeSource.getLocation.toURI)
 
     @tailrec
     def findCause(t: Throwable): Throwable = t match {

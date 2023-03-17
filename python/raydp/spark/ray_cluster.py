@@ -20,7 +20,7 @@ import logging
 import os
 import sys
 import platform
-from typing import Any, Dict, Union, Optional
+from typing import Any, Dict
 
 import ray
 from pyspark.sql.session import SparkSession
@@ -132,7 +132,7 @@ class SparkCluster(Cluster):
         if SPARK_PREFER_CLASSPATH in self._configs:
             prefer_cp.extend(self._configs[SPARK_PREFER_CLASSPATH].split(os.pathsep))
 
-        raydp_jars = [jar for jar in glob.glob(raydp_cp) if jar != raydp_agent_jar]
+        raydp_jars = glob.glob(raydp_cp)
         driver_cp_key = "spark.driver.extraClassPath"
         driver_cp = ":".join(prefer_cp + raydp_jars + [spark_jars_dir] + glob.glob(ray_cp))
         if driver_cp_key in self._configs:

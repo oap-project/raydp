@@ -28,12 +28,14 @@ import java.lang.management.ManagementFactory;
 
 public class Agent {
 
+    public static final PrintStream DEFAULT_ERR_PS = System.err;
+
+    public static final PrintStream DEFAULT_OUT_PS = System.out;
+
     public static void premain(String agentArgs, Instrumentation inst) throws IOException {
         // redirect system output/error stream so that annoying SLF4J warnings and other logs during binding
         // SLF4J factory don't show in spark-shell
         // Instead, the warnings and logs are kept in <ray session>/logs/slf4j-<worker pid>.log
-        PrintStream defaultErr = System.err;
-        PrintStream defaultOut = System.out;
 
         String pid = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
         String logDir = System.getProperty("ray.logging.dir");
@@ -60,9 +62,8 @@ public class Agent {
             System.out.flush();
             System.err.flush();
             // restore system output/error stream
-            System.setErr(defaultErr);
-            System.setOut(defaultOut);
+            System.setErr(DEFAULT_ERR_PS);
+            System.setOut(DEFAULT_OUT_PS);
         }
-        // re
     }
 }

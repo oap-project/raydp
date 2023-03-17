@@ -17,10 +17,12 @@
 
 package org.slf4j.impl;
 
+import org.apache.spark.raydp.Agent;
 import org.apache.spark.raydp.RayDPConstants;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.spi.LoggerFactoryBinder;
 
+import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -41,7 +43,14 @@ public class StaticLoggerBinder implements LoggerFactoryBinder {
 
     private final static Map<String, String> LOG_FACTORY_CLASSES = new HashMap<>();
 
+    private static PrintStream subSystemErr;
+
+    private static PrintStream subSystemOut;
+
     static {
+        subSystemErr = System.err;
+        subSystemOut = System.out;
+
         LOG_FACTORY_CLASSES.put("log4j", "org.slf4j.impl.Log4jLoggerFactory"); // log4j 1
         LOG_FACTORY_CLASSES.put("log4j2", "org.apache.logging.slf4j.Log4jLoggerFactory"); // log4j 2
 
@@ -56,7 +65,9 @@ public class StaticLoggerBinder implements LoggerFactoryBinder {
             if (mappedClsStr == null) {
                 mappedClsStr = factoryClzStr;
             }
-
+            // restore to system default stream so that log4j console appender can be correctly set
+            System.setErr(Agent.DEFAULT_ERR_PS);
+            System.setOut(Agent.DEFAULT_OUT_PS);
             Class<?> tempClass = null;
             try {
                 tempClass = Class.forName(mappedClsStr);
@@ -78,7 +89,7 @@ public class StaticLoggerBinder implements LoggerFactoryBinder {
             } else {
                 sb.append("failed");
             }
-            System.out.println(sb);
+
             ILoggerFactory tmpFactory = null;
             try {
                 tmpFactory = (ILoggerFactory) tempClass.newInstance();
@@ -87,6 +98,10 @@ public class StaticLoggerBinder implements LoggerFactoryBinder {
             } finally {
                 FACTORY = tmpFactory;
             }
+            // set to substitute stream for capturing remaining logs
+            System.setErr(subSystemErr);
+            System.setOut(subSystemOut);
+            System.out.println(sb);
         }
         REQUESTED_API_VERSION = "1.6.66";
     }

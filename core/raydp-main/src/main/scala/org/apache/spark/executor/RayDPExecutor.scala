@@ -29,7 +29,6 @@ import org.apache.arrow.vector.ipc.{ArrowStreamWriter, WriteChannel}
 import org.apache.arrow.vector.ipc.message.{IpcOption, MessageSerializer}
 import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
-import org.apache.logging.log4j.core.appender.FileManager
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.deploy.raydp._
@@ -78,8 +77,6 @@ class RayDPExecutor(
           }
       }
     }
-    // debug
-    println(classOf[FileManager].getProtectionDomain.getCodeSource.getLocation.toURI)
     // Check if this actor is restarted
     val ifRestarted = Ray.getRuntimeContext.wasCurrentActorRestarted
     if (ifRestarted) {
