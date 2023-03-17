@@ -2,6 +2,8 @@ package org.apache.spark.raydp;
 
 public class SparkOnRayConfigs {
     public static final String RAY_ACTOR_RESOURCE_PREFIX = "spark.ray.actor.resource";
+    public static final String SPARK_MASTER_ACTOR_RESOURCE_PREFIX =
+            "spark.ray.raydp_spark_master.actor.resource";
     /**
      * CPU cores per Ray Actor which host the Spark executor, the resource is used
      * for scheduling. Default value is 1.

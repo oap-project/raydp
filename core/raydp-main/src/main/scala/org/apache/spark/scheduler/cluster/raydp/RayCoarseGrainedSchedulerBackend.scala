@@ -72,7 +72,12 @@ class RayCoarseGrainedSchedulerBackend(
         val cp = sys.props("java.class.path")
         val options = RayExternalShuffleService.getShuffleConf(conf) ++ javaAgentOpt()
 
-        masterHandle = RayAppMasterUtils.createAppMaster(cp, null, options.toBuffer.asJava)
+        val appMasterResources = conf.getAll.filter {
+          case (k, v) => k.startsWith(SparkOnRayConfigs.SPARK_MASTER_ACTOR_RESOURCE_PREFIX)
+        }.map{ case (k, v) => k->double2Double(v.toDouble) }
+
+        masterHandle = RayAppMasterUtils.createAppMaster(cp, null, options.toBuffer.asJava,
+          appMasterResources.toMap.asJava)
         uri = new URI(RayAppMasterUtils.getMasterUrl(masterHandle))
       } else {
         uri = new URI(sparkUrl)
