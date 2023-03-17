@@ -28,7 +28,7 @@ from pyspark.sql.session import SparkSession
 from raydp.services import Cluster
 from .ray_cluster_master import RAYDP_SPARK_MASTER_SUFFIX, SPARK_RAY_LOG4J_FACTORY_CLASS_KEY
 from .ray_cluster_master import SPARK_LOG4J_CONFIG_FILE_NAME, RAY_LOG4J_CONFIG_FILE_NAME
-from .ray_cluster_master import RayDPSparkMaster, SPARK_JAVAAGENT, SPARK_RAY_LOG_PREFER_CLASSPATH
+from .ray_cluster_master import RayDPSparkMaster, SPARK_JAVAAGENT, SPARK_PREFER_CLASSPATH
 from raydp import versions
 
 logger = logging.getLogger(__name__)
@@ -122,26 +122,21 @@ class SparkCluster(Cluster):
         # for JVM running in ray
         self._configs[SPARK_RAY_LOG4J_FACTORY_CLASS_KEY] = versions.RAY_LOG4J_VERSION
 
-        try:
-            extra_jars = [self._configs["spark.jars"]]
-        except KeyError:
-            extra_jars = []
-
-        if SPARK_RAY_LOG_PREFER_CLASSPATH not in self._configs:
-            self._configs[SPARK_RAY_LOG_PREFER_CLASSPATH] = "spark"
-
         if SPARK_LOG4J_CONFIG_FILE_NAME not in self._configs:
             self._configs[SPARK_LOG4J_CONFIG_FILE_NAME] = versions.SPARK_LOG4J_CONFIG_FILE_NAME_DEFAULT
 
         if RAY_LOG4J_CONFIG_FILE_NAME not in self._configs:
             self._configs[RAY_LOG4J_CONFIG_FILE_NAME] = versions.RAY_LOG4J_CONFIG_FILE_NAME_DEFAULT
 
+        prefer_cp = []
+        if SPARK_PREFER_CLASSPATH in self._configs:
+            prefer_cp.extend(self._configs[SPARK_PREFER_CLASSPATH].split(os.pathsep))
+
         raydp_jars = [jar for jar in glob.glob(raydp_cp) if jar != raydp_agent_jar]
-        self._configs["spark.jars"] = ",".join(raydp_jars + extra_jars)
         driver_cp_key = "spark.driver.extraClassPath"
-        driver_cp = ":".join(raydp_jars + glob.glob(spark_jars_dir) + glob.glob(ray_cp))
+        driver_cp = ":".join(prefer_cp + raydp_jars + [spark_jars_dir] + glob.glob(ray_cp))
         if driver_cp_key in self._configs:
-            self._configs[driver_cp_key] = driver_cp + ":" + self._configs[driver_cp_key]
+            self._configs[driver_cp_key] = self._configs[driver_cp_key] + ":" + driver_cp
         else:
             self._configs[driver_cp_key] = driver_cp
         dyn_alloc_key = "spark.dynamicAllocation.enabled"

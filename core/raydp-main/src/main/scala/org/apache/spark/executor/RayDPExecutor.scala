@@ -20,11 +20,8 @@ package org.apache.spark.executor
 import java.io.{ByteArrayOutputStream, File}
 import java.nio.channels.Channels
 import java.nio.file.Paths
-import java.util.Properties
 import java.util.concurrent.atomic.AtomicBoolean
-
 import scala.reflect.classTag
-
 import com.intel.raydp.shims.SparkShimLoader
 import io.ray.api.Ray
 import io.ray.runtime.config.RayConfig
@@ -32,7 +29,7 @@ import org.apache.arrow.vector.ipc.{ArrowStreamWriter, WriteChannel}
 import org.apache.arrow.vector.ipc.message.{IpcOption, MessageSerializer}
 import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
-
+import org.apache.logging.log4j.core.appender.FileManager
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.deploy.raydp._
@@ -81,6 +78,8 @@ class RayDPExecutor(
           }
       }
     }
+    // debug
+    println(classOf[FileManager].getProtectionDomain.getCodeSource.getLocation.toURI)
     // Check if this actor is restarted
     val ifRestarted = Ray.getRuntimeContext.wasCurrentActorRestarted
     if (ifRestarted) {

@@ -33,9 +33,14 @@ logger = logging.getLogger(__name__)
 
 RAYDP_SPARK_MASTER_SUFFIX = "_SPARK_MASTER"
 RAYDP_EXECUTOR_EXTRA_CLASSPATH = "raydp.executor.extraClassPath"
+
+# configs used internally
 SPARK_JAVAAGENT = "spark.javaagent"
-SPARK_RAY_LOG_PREFER_CLASSPATH = "spark.ray.logPreferClassPath"
 SPARK_RAY_LOG4J_FACTORY_CLASS_KEY = "spark.ray.log4j.factory.class"
+
+# optional configs for user
+SPARK_PREFER_CLASSPATH = "spark.preferClassPath"
+RAY_PREFER_CLASSPATH = "spark.ray.preferClassPath"
 SPARK_LOG4J_CONFIG_FILE_NAME = "spark.log4j.config.file.name"
 RAY_LOG4J_CONFIG_FILE_NAME = "spark.ray.log4j.config.file.name"
 
@@ -74,26 +79,21 @@ class RayDPSparkMaster():
         spark_jars_dir = os.path.abspath(os.path.join(self._spark_home, "jars/*"))
         ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
         raydp_jars = glob.glob(raydp_cp)
-        spark_jars = glob.glob(spark_jars_dir)
+        spark_jars = [spark_jars_dir]
         ray_jars = glob.glob(ray_cp)
 
         cp_list = []
+
+        if RAY_PREFER_CLASSPATH in self._configs:
+            cp_list.extend(self._configs[RAY_PREFER_CLASSPATH].split(os.pathsep))
 
         if RAYDP_EXECUTOR_EXTRA_CLASSPATH in self._configs:
             user_cp = self._configs[RAYDP_EXECUTOR_EXTRA_CLASSPATH].rstrip(os.pathsep)
             cp_list.extend(user_cp.split(os.pathsep))
 
         cp_list.extend(raydp_jars)
-
-        # set cp order based on log prefer path
-        if "spark" == self._configs[SPARK_RAY_LOG_PREFER_CLASSPATH]:
-            cp_list.extend(spark_jars)
-            cp_list.extend(ray_jars)
-        else:
-            log_cp = self._configs[SPARK_RAY_LOG_PREFER_CLASSPATH].rstrip(os.pathsep)
-            cp_list.extend(log_cp.split(os.pathsep))
-            cp_list.extend(spark_jars)
-            cp_list.extend(ray_jars)
+        cp_list.extend(spark_jars)
+        cp_list.extend(ray_jars)
 
         return cp_list
 
