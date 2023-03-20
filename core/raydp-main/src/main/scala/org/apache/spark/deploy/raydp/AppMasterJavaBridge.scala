@@ -18,7 +18,9 @@
 package org.apache.spark.deploy.raydp
 
 import java.util.Map
+
 import scala.collection.JavaConverters._
+
 import io.ray.api.{ActorHandle, Ray}
 
 import org.apache.spark.raydp.RayDPConstants

@@ -20,14 +20,18 @@ package org.apache.spark.scheduler.cluster.raydp
 import java.net.URI
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
+import java.util.regex.Pattern
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
+
 import io.ray.api.{ActorHandle, Ray}
+
 import org.apache.spark.{RayDPException, SparkConf, SparkContext}
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.deploy.security.HadoopDelegationTokenManager
-import org.apache.spark.internal.{Logging, config}
+import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.launcher.{LauncherBackend, SparkAppHandle}
 import org.apache.spark.raydp.{RayDPConstants, SparkOnRayConfigs}
 import org.apache.spark.resource.{ResourceProfile, ResourceRequirement, ResourceUtils}
@@ -35,8 +39,6 @@ import org.apache.spark.rpc.{RpcEndpointAddress, RpcEndpointRef, RpcEnv, ThreadS
 import org.apache.spark.scheduler.TaskSchedulerImpl
 import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
 import org.apache.spark.util.Utils
-
-import java.util.regex.Pattern
 
 /**
  * A SchedulerBackend that request executor from Ray.
