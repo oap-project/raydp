@@ -19,7 +19,7 @@ package org.apache.spark.raydp;
 
 public class RayDPConstants {
 
-    public final static String SPARK_JAVAAGENT = "spark.javaagent";
+    public static final String SPARK_JAVAAGENT = "spark.javaagent";
 
     public static final String LOG4J_FACTORY_CLASS_KEY = "spark.ray.log4j.factory.class";
 
