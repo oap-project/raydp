@@ -113,7 +113,6 @@ class RayDPSparkMaster():
         if "JAVA_OPTS" in env:
             command.append(env["JAVA_OPTS"])
         # set system class loader and log prefer class path
-        import ray
         logging_dir = ray._private.worker._global_node.get_logs_dir_path()
         command.append("-javaagent:" + self._configs[SPARK_JAVAAGENT])
         command.append("-Dray.logging.dir" + "=" + logging_dir)

@@ -20,6 +20,7 @@ import logging
 import os
 import sys
 import platform
+import pyspark
 from typing import Any, Dict
 
 import ray
@@ -120,20 +121,21 @@ class SparkCluster(Cluster):
                 self._configs["spark.driver.host"] = str(driver_node_ip)
                 self._configs["spark.driver.bindAddress"] = str(driver_node_ip)
 
-        import pyspark
         raydp_cp = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
         ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
         spark_home = os.environ.get("SPARK_HOME", os.path.dirname(pyspark.__file__))
         spark_jars_dir = os.path.abspath(os.path.join(spark_home, "jars/*"))
 
-        raydp_agent_path = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/raydp-agent*.jar"))
+        raydp_agent_path = os.path.abspath(os.path.join(os.path.abspath(__file__),
+                                                        "../../jars/raydp-agent*.jar"))
         raydp_agent_jar = glob.glob(raydp_agent_path)[0]
         self._configs[SPARK_JAVAAGENT] = raydp_agent_jar
         # for JVM running in ray
         self._configs[SPARK_RAY_LOG4J_FACTORY_CLASS_KEY] = versions.RAY_LOG4J_VERSION
 
         if SPARK_LOG4J_CONFIG_FILE_NAME not in self._configs:
-            self._configs[SPARK_LOG4J_CONFIG_FILE_NAME] = versions.SPARK_LOG4J_CONFIG_FILE_NAME_DEFAULT
+            self._configs[SPARK_LOG4J_CONFIG_FILE_NAME] =\
+                versions.SPARK_LOG4J_CONFIG_FILE_NAME_DEFAULT
 
         if RAY_LOG4J_CONFIG_FILE_NAME not in self._configs:
             self._configs[RAY_LOG4J_CONFIG_FILE_NAME] = versions.RAY_LOG4J_CONFIG_FILE_NAME_DEFAULT

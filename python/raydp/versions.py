@@ -33,4 +33,3 @@ if _spark_ver.group(0) > "3.2":
 RAY_LOG4J_VERSION = "log4j2"
 RAY_LOG4J_CONFIG_FILE_NAME_KEY = "log4j2.configurationFile"
 RAY_LOG4J_CONFIG_FILE_NAME_DEFAULT = "log4j2.xml"
-
