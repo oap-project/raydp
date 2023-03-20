@@ -60,7 +60,7 @@ public class StaticLoggerBinder implements LoggerFactoryBinder {
     String factoryClzStr = System
         .getProperty(RayDPConstants.LOG4J_FACTORY_CLASS_KEY, "");
     if (factoryClzStr.length() == 0) {
-      System.err.println("ERROR: system property + '"
+      System.err.println("ERROR: system property '"
           + RayDPConstants.LOG4J_FACTORY_CLASS_KEY
           + "' needs to be specified for slf4j binding");
       LOGFACTORY_CLASS = null;
