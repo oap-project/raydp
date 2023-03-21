@@ -22,9 +22,7 @@ import signal
 from typing import Dict, List, Tuple
 
 import numpy as np
-import os
 import psutil
-from urllib.parse import urlparse
 
 MEMORY_SIZE_UNITS = {"K": 2**10, "M": 2**20, "G": 2**30, "T": 2**40}
 

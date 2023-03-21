@@ -16,7 +16,6 @@
 #
 
 import glob
-import logging
 import os
 import sys
 import platform
@@ -31,8 +30,6 @@ from .ray_cluster_master import RAYDP_SPARK_MASTER_SUFFIX, SPARK_RAY_LOG4J_FACTO
 from .ray_cluster_master import SPARK_LOG4J_CONFIG_FILE_NAME, RAY_LOG4J_CONFIG_FILE_NAME
 from .ray_cluster_master import RayDPSparkMaster, SPARK_JAVAAGENT, SPARK_PREFER_CLASSPATH
 from raydp import versions
-
-logger = logging.getLogger(__name__)
 
 
 class SparkCluster(Cluster):

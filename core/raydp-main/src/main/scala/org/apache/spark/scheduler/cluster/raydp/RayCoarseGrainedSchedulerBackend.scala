@@ -20,7 +20,6 @@ package org.apache.spark.scheduler.cluster.raydp
 import java.net.URI
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
-import java.util.regex.Pattern
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
@@ -57,8 +56,6 @@ class RayCoarseGrainedSchedulerBackend(
   private val stopped = new AtomicBoolean()
 
   private val registrationBarrier = new Semaphore(0)
-
-  private val sparkMajorVerPat = Pattern.compile("\\d+\\.\\d+")
 
   private val launcherBackend = new LauncherBackend() {
     override protected def conf: SparkConf = sc.conf
