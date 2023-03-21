@@ -65,13 +65,29 @@ class RayCoarseGrainedSchedulerBackend(
     override protected def onStopRequest(): Unit = stop(SparkAppHandle.State.KILLED)
   }
 
+  def prependPreferPath(cp: String): String = {
+    var resultCp = cp
+    val driverPref = conf.get(RayDPConstants.SPARK_PREFER_CLASSPATH, "")
+    if (!driverPref.isEmpty) {
+      val startIdx = cp.indexOf(driverPref)
+      if (startIdx >= 0) {
+        resultCp = cp.substring(0, startIdx) + cp.substring(startIdx + driverPref.length + 1)
+      }
+    }
+    val rayPref = conf.get(RayDPConstants.RAY_PREFER_CLASSPATH, "")
+    if (!rayPref.isEmpty) {
+      resultCp = rayPref + ":" + resultCp
+    }
+    resultCp
+  }
+
   def transferOrCreateRPCEndpoint(sparkUrl: String): RpcEndpointAddress = {
     try {
       var uri: URI = null
       if (sparkUrl == "ray") {
         // not yet started
         Ray.init()
-        val cp = sys.props("java.class.path")
+        val cp = prependPreferPath(sys.props("java.class.path"))
         val options = RayExternalShuffleService.getShuffleConf(conf) ++ javaAgentOpt()
 
         val appMasterResources = conf.getAll.filter {

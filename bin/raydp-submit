@@ -72,9 +72,8 @@ print(glob.glob(raydp_agent_path)[0])
 ")
 
 
-# target configure to be searched
+# search user's configs in terms of log4j
 SPARK_PREF_CP=
-RAY_PREF_CP=
 
 search_target()
 {
@@ -83,7 +82,6 @@ search_target()
 	if [ ${#kv[@]} -eq 2 ]; then
 		case "${kv[0]}" in
 			"spark.preferClassPath") 		SPARK_PREF_CP=${kv[1]};;
-			"spark.ray.preferClassPath")		RAY_PREF_CP=${kv[1]};;
 			"spark.log4j.config.file.name")		SPARK_LOG4J_CONFIG_FILE_NAME=${kv[1]};;
 			"spark.ray.log4j.config.file.name")	RAY_LOG4J_CONFIG_FILE_NAME=${kv[1]};;
 			*)					;;
@@ -108,12 +106,9 @@ while [ $# -gt 0 ]; do
         esac
 done
 
-
+# set configs with either user's choice or defaults
 added_confs=()
 added_args=()
-#SPARK_DRIVER_EXTRAJAVAOPTS="\"-javaagent:$raydp_agent_jar -Dspark.ray.log4j.factory.class=$SPARK_LOG4J_VERSION -D$SPARK_LOG4J_CONFIG_FILE_NAME_KEY=$SPARK_LOG4J_CONFIG_FILE_NAME\""
-#SPARK_EXECUTOR_EXTRAJAVAOPTS="-javaagent:$raydp_agent_jar -Dspark.ray.log4j.factory.class=$RAY_LOG4J_VERSION -D$RAY_LOG4J_CONFIG_FILE_NAME_KEY=$RAY_LOG4J_CONFIG_FILE_NAME"
-#added_confs+=("--driver-java-options")
 added_confs+=("-javaagent:$raydp_agent_jar")
 added_confs+=("-Dspark.ray.log4j.factory.class=$SPARK_LOG4J_VERSION")
 added_confs+=("-D$SPARK_LOG4J_CONFIG_FILE_NAME_KEY=$SPARK_LOG4J_CONFIG_FILE_NAME")
@@ -132,17 +127,15 @@ else
     exit 1
   fi
 fi
-# All classpath used
+
+# check if prefer classpath set
 if [ ! -z "$SPARK_PREF_CP" ]; then
 	SPARK_PREF_CP=$SPARK_PREF_CP:
 fi
+# class path for spark driver, ray's prefer class path can be set by 'spark.ray.preferClassPath' which is passed down to ray in spark conf
 RAYDP_CLASS_PATH="-cp $SPARK_PREF_CP$RAYDP_HOME/jars/*:$SPARK_HOME/conf:$SPARK_HOME/jars/*:$RAY_HOME/jars/*"
 
-#if [ ! -z "$RAY_PREF_CP" ]; then
-#	added_args+=("--conf")
-#	added_args+=("$RAY_PREF_CP")
-#fi
-
+# merge all
 new_args=()
 for e in ${args[@]::${#args[@]}-1}
 do

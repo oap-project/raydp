@@ -28,4 +28,8 @@ public class RayDPConstants {
     public static final String RAY_LOG4J_CONFIG_FILE_NAME_KEY = "spark.ray.log4j.config.file.name";
 
     public static final String SPARK_DRIVER_EXTRA_JAVA_OPTIONS = "spark.driver.extraJavaOptions";
+
+    public static final String SPARK_PREFER_CLASSPATH = "spark.preferClassPath";
+
+    public static final String RAY_PREFER_CLASSPATH = "spark.ray.preferClassPath";
 }
