@@ -44,8 +44,8 @@ public class Agent {
         .split("@")[0];
     String logDir = System.getProperty("ray.logging.dir");
     if (logDir == null) {
-      System.getProperties().put("ray.logging.dir",
-          "/tmp/ray/session_latest/logs");
+      logDir = "/tmp/ray/session_latest/logs";
+      System.getProperties().put("ray.logging.dir", logDir);
     }
 
     File parentDir = new File(logDir);
