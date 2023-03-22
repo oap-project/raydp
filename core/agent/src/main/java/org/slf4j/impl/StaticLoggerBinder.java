@@ -18,6 +18,7 @@
 package org.slf4j.impl;
 
 import org.apache.spark.raydp.Agent;
+import org.apache.spark.raydp.SparkOnRayConfigs;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.spi.LoggerFactoryBinder;
 
