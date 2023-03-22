@@ -32,7 +32,7 @@ import org.apache.spark.deploy.raydp._
 import org.apache.spark.deploy.security.HadoopDelegationTokenManager
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.launcher.{LauncherBackend, SparkAppHandle}
-import org.apache.spark.raydp.{RayDPConstants, SparkOnRayConfigs}
+import org.apache.spark.raydp.SparkOnRayConfigs
 import org.apache.spark.resource.{ResourceProfile, ResourceRequirement, ResourceUtils}
 import org.apache.spark.rpc.{RpcEndpointAddress, RpcEndpointRef, RpcEnv, ThreadSafeRpcEndpoint}
 import org.apache.spark.scheduler.TaskSchedulerImpl
@@ -64,14 +64,14 @@ class RayCoarseGrainedSchedulerBackend(
 
   def prependPreferPath(cp: String): String = {
     var resultCp = cp
-    val driverPref = conf.get(RayDPConstants.SPARK_PREFER_CLASSPATH, "")
+    val driverPref = conf.get(SparkOnRayConfigs.SPARK_PREFER_CLASSPATH, "")
     if (!driverPref.isEmpty) {
       val startIdx = cp.indexOf(driverPref)
       if (startIdx >= 0) {
         resultCp = cp.substring(0, startIdx) + cp.substring(startIdx + driverPref.length + 1)
       }
     }
-    val rayPref = conf.get(RayDPConstants.RAY_PREFER_CLASSPATH, "")
+    val rayPref = conf.get(SparkOnRayConfigs.RAY_PREFER_CLASSPATH, "")
     if (!rayPref.isEmpty) {
       resultCp = rayPref + ":" + resultCp
     }
@@ -211,11 +211,11 @@ class RayCoarseGrainedSchedulerBackend(
   }
 
   private def javaAgentOpt(): Seq[String] = {
-    val agent = "-javaagent:" + conf.get(RayDPConstants.SPARK_JAVAAGENT)
+    val agent = "-javaagent:" + conf.get(SparkOnRayConfigs.SPARK_JAVAAGENT)
     // comply to ray's log4j version
-    val log4jVer = "-D" + RayDPConstants.LOG4J_FACTORY_CLASS_KEY + "=log4j2"
-    val log4jConfigFile = "-D" + RayDPConstants.RAY_LOG4J_CONFIG_FILE_NAME + "=" +
-      conf.get(RayDPConstants.RAY_LOG4J_CONFIG_FILE_NAME_KEY)
+    val log4jVer = "-D" + SparkOnRayConfigs.LOG4J_FACTORY_CLASS_KEY + "=log4j2"
+    val log4jConfigFile = "-D" + SparkOnRayConfigs.RAY_LOG4J_CONFIG_FILE_NAME + "=" +
+      conf.get(SparkOnRayConfigs.RAY_LOG4J_CONFIG_FILE_NAME_KEY)
     Seq(agent, log4jVer, log4jConfigFile)
   }
 

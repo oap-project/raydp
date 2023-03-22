@@ -18,7 +18,6 @@
 package org.slf4j.impl;
 
 import org.apache.spark.raydp.Agent;
-import org.apache.spark.raydp.RayDPConstants;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.spi.LoggerFactoryBinder;
 
@@ -58,10 +57,10 @@ public class StaticLoggerBinder implements LoggerFactoryBinder {
         "org.apache.logging.slf4j.Log4jLoggerFactory"); // log4j 2
 
     String factoryClzStr = System
-        .getProperty(RayDPConstants.LOG4J_FACTORY_CLASS_KEY, "");
+        .getProperty(SparkOnRayConfigs.LOG4J_FACTORY_CLASS_KEY, "");
     if (factoryClzStr.length() == 0) {
       System.err.println("ERROR: system property '"
-          + RayDPConstants.LOG4J_FACTORY_CLASS_KEY
+          + SparkOnRayConfigs.LOG4J_FACTORY_CLASS_KEY
           + "' needs to be specified for slf4j binding");
       LOGFACTORY_CLASS = null;
       FACTORY = null;
@@ -119,6 +118,14 @@ public class StaticLoggerBinder implements LoggerFactoryBinder {
 
   @Override
   public ILoggerFactory getLoggerFactory() {
+    // restore to system default stream so that log4j console appender
+    // can be correctly set
+    if (System.out != Agent.DEFAULT_OUT_PS) {
+      System.setOut(Agent.DEFAULT_OUT_PS);
+    }
+    if (System.err != Agent.DEFAULT_ERR_PS) {
+      System.setErr(Agent.DEFAULT_ERR_PS);
+    }
     return FACTORY;
   }
 

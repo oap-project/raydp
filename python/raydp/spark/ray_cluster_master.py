@@ -35,10 +35,12 @@ RAYDP_SPARK_MASTER_SUFFIX = "_SPARK_MASTER"
 RAYDP_EXECUTOR_EXTRA_CLASSPATH = "raydp.executor.extraClassPath"
 
 # configs used internally
+# check doc in SparkOnRayConfigs
 SPARK_JAVAAGENT = "spark.javaagent"
 SPARK_RAY_LOG4J_FACTORY_CLASS_KEY = "spark.ray.log4j.factory.class"
 
 # optional configs for user
+# check doc in SparkOnRayConfigs
 SPARK_PREFER_CLASSPATH = "spark.preferClassPath"
 RAY_PREFER_CLASSPATH = "spark.ray.preferClassPath"
 SPARK_LOG4J_CONFIG_FILE_NAME = "spark.log4j.config.file.name"

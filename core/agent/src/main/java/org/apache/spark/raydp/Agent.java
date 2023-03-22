@@ -44,8 +44,8 @@ public class Agent {
         .split("@")[0];
     String logDir = System.getProperty("ray.logging.dir");
     if (logDir == null) {
-      logDir = "/tmp/ray/process-" + pid;
-      System.getProperties().put("ray.logging.dir", logDir);
+      System.getProperties().put("ray.logging.dir",
+          "/tmp/ray/session_latest/logs");
     }
 
     File parentDir = new File(logDir);

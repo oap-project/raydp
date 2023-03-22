@@ -23,7 +23,6 @@ import scala.collection.JavaConverters._
 
 import io.ray.api.{ActorHandle, Ray}
 
-import org.apache.spark.raydp.RayDPConstants
 import org.apache.spark.raydp.SparkOnRayConfigs
 
 class AppMasterJavaBridge {
@@ -35,10 +34,10 @@ class AppMasterJavaBridge {
       Ray.init()
       val name = RayAppMaster.ACTOR_NAME
       val sparkJvmOptions = sparkProps.asScala.toMap.filter(
-        e => !RayDPConstants.SPARK_DRIVER_EXTRA_JAVA_OPTIONS.equals(e._1))
+        e => !SparkOnRayConfigs.SPARK_DRIVER_EXTRA_JAVA_OPTIONS.equals(e._1))
         .map  {
           case (k, v) =>
-            if (!RayDPConstants.SPARK_JAVAAGENT.equals(k)) {
+            if (!SparkOnRayConfigs.SPARK_JAVAAGENT.equals(k)) {
               "-D" + k + "=" + v
             } else {
               "-javaagent:" + v
