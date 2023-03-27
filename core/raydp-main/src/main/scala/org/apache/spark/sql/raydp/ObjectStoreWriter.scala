@@ -33,11 +33,10 @@ import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.apache.arrow.vector.types.pojo.Schema
 
-import org.apache.spark.RayDPException
+import org.apache.spark.{RayDPException, SparkContext}
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.executor.RayDPExecutor
 import org.apache.spark.raydp.{RayDPUtils, RayExecutorUtils}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.execution.arrow.ArrowWriter
 import org.apache.spark.sql.execution.python.BatchIterator
@@ -197,6 +196,8 @@ object ObjectStoreWriter {
   def connectToRay(): Unit = {
     if (!Ray.isInitialized) {
       Ray.init()
+      // restore log level to WARN since it's inside Spark driver
+      SparkContext.getOrCreate().setLogLevel("WARN")
       driverAgent = new RayDPDriverAgent()
       driverAgentUrl = driverAgent.getDriverAgentEndpointUrl
     }

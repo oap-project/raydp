@@ -101,7 +101,8 @@ try:
         "pyarrow >= 4.0.1",
         "ray >= 2.1.0",
         "pyspark >= 3.1.1, <= 3.3.2",
-        "netifaces"
+        "netifaces",
+        "protobuf >= 3.15.3, <= 3.20.3, != 3.19.5"
     ]
 
     _packages = find_packages()

@@ -17,7 +17,7 @@
 
 package org.apache.spark.deploy.raydp
 
-import java.util.{ArrayList, Map}
+import java.util.Map
 
 import scala.collection.JavaConverters._
 
@@ -33,9 +33,15 @@ class AppMasterJavaBridge {
       // init ray, we should set the config by java properties
       Ray.init()
       val name = RayAppMaster.ACTOR_NAME
-      val sparkJvmOptions = sparkProps.asScala.toMap.map {
-        case (k, v) =>
-          "-D" + k + "=" + v
+      val sparkJvmOptions = sparkProps.asScala.toMap.filter(
+        e => !SparkOnRayConfigs.SPARK_DRIVER_EXTRA_JAVA_OPTIONS.equals(e._1))
+        .map  {
+          case (k, v) =>
+            if (!SparkOnRayConfigs.SPARK_JAVAAGENT.equals(k)) {
+              "-D" + k + "=" + v
+            } else {
+              "-javaagent:" + v
+            }
       }.toBuffer
 
       val appMasterResources = sparkProps.asScala.filter {

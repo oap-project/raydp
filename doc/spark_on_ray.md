@@ -126,3 +126,15 @@ You can use RayDP with Ray autoscaling. When you call `raydp.init_spark`, the au
 ### Logging
 + Driver Log: By default, the spark driver log level is WARN. After getting a Spark session by running `spark = raydp.init_spark`, you can change the log level for example `spark.sparkContext.setLogLevel("INFO")`. You will also see some AppMaster INFO logs on the driver. This is because Ray redirects the actor logs to driver by default. To disable logging to driver, you can set it in Ray init `ray.init(log_to_driver=False)`
 + Executor Log: The spark executor logs are stored in Ray's logging directory. By default they are available at /tmp/ray/session_\*/logs/java-worker-\*.log
++ Spark and Ray may use different log4j versions. For example, Spark 3.2 or older uses log4j 1 and Ray uses log4j 2 for long time. And they use different log4j configuration files. We can treat them in two groups, Spark driver and Ray worker. For Spark driver, we follow Spark's log4j version since we may screw up console output otherwise. For Ray worker (rest of JVM processes), we follow Ray's log4j version so that Spark logs can be printed correctly within Ray's realm.
++ To use your customized log4j versions for Spark driver and Ray worker, you can set `spark.preferClassPath` and `spark.ray.preferClassPath` respectively to include your log4j jars when `init_spark` as long as your log4j versions are compatible with Spark and Ray respectively.
+  For example, you want to use your own log4j 2 version, like log4j-core-2.17.2.jar in RayDp with Spark 3.3. You can init spark as showing below.
+  ```
+  raydp.init_spark(..., configs={'spark.preferClassPath': '<your path...>/log4j-core-2.17.2.jar'})
+  ```
++ For log4j config files, you can set `spark.log4j.config.file.name` and `spark.ray.log4j.config.file.name` for Spark driver and Ray worker respectively.
+  For example, you can set Spark's log4j config file to `log4j-cust.properties` and Ray's to `log4j2-cust.xml` like below. Just make sure they are loadable from classpath.
+  You can put them in the preferred classpath.
+  ```
+  raydp.init_spark(..., configs={'spark.log4j.config.file.name': 'log4j-cust.properties', 'spark.ray.log4j.config.file.name': 'log4j2-cust.xml'})
+  ```

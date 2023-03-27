@@ -39,8 +39,6 @@ class AppMasterEntryPoint {
 object AppMasterEntryPoint extends Logging {
   private val localhost = InetAddress.getLoopbackAddress()
 
-  initializeLogIfNecessary(true)
-
   def getGatewayServer(): GatewayServer = {
     new GatewayServer.GatewayServerBuilder()
       .javaPort(0)

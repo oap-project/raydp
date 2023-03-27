@@ -20,7 +20,6 @@ package org.apache.spark.executor
 import java.io.{ByteArrayOutputStream, File}
 import java.nio.channels.Channels
 import java.nio.file.Paths
-import java.util.Properties
 import java.util.concurrent.atomic.AtomicBoolean
 
 import scala.reflect.classTag

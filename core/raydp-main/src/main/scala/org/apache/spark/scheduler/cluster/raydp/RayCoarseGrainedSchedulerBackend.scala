@@ -62,14 +62,30 @@ class RayCoarseGrainedSchedulerBackend(
     override protected def onStopRequest(): Unit = stop(SparkAppHandle.State.KILLED)
   }
 
+  def prependPreferPath(cp: String): String = {
+    var resultCp = cp
+    val driverPref = conf.get(SparkOnRayConfigs.SPARK_PREFER_CLASSPATH, "")
+    if (!driverPref.isEmpty) {
+      val startIdx = cp.indexOf(driverPref)
+      if (startIdx >= 0) {
+        resultCp = cp.substring(0, startIdx) + cp.substring(startIdx + driverPref.length + 1)
+      }
+    }
+    val rayPref = conf.get(SparkOnRayConfigs.RAY_PREFER_CLASSPATH, "")
+    if (!rayPref.isEmpty) {
+      resultCp = rayPref + ":" + resultCp
+    }
+    resultCp
+  }
+
   def transferOrCreateRPCEndpoint(sparkUrl: String): RpcEndpointAddress = {
     try {
       var uri: URI = null
       if (sparkUrl == "ray") {
         // not yet started
         Ray.init()
-        val cp = sys.props("java.class.path")
-        val options = RayExternalShuffleService.getShuffleConf(conf)
+        val cp = prependPreferPath(sys.props("java.class.path"))
+        val options = RayExternalShuffleService.getShuffleConf(conf) ++ javaAgentOpt()
 
         val appMasterResources = conf.getAll.filter {
           case (k, v) => k.startsWith(SparkOnRayConfigs.SPARK_MASTER_ACTOR_RESOURCE_PREFIX)
@@ -142,7 +158,8 @@ class RayCoarseGrainedSchedulerBackend(
     // add Xmx, it should not be set in java opts, because Spark is not allowed.
     // We also add Xms to ensure the Xmx >= Xms
     val memoryLimit = Seq(s"-Xms${sc.executorMemory}M", s"-Xmx${sc.executorMemory}M")
-    val javaOpts = sparkJavaOpts ++ extraJavaOpts ++ memoryLimit
+
+    val javaOpts = sparkJavaOpts ++ extraJavaOpts ++ memoryLimit ++ javaAgentOpt()
 
     val command = Command(driverUrl, sc.executorEnvs,
       classPathEntries ++ testingClassPath, libraryPathEntries, javaOpts)
@@ -191,6 +208,15 @@ class RayCoarseGrainedSchedulerBackend(
       }
     }
     results
+  }
+
+  private def javaAgentOpt(): Seq[String] = {
+    val agent = "-javaagent:" + conf.get(SparkOnRayConfigs.SPARK_JAVAAGENT)
+    // comply to ray's log4j version
+    val log4jVer = "-D" + SparkOnRayConfigs.LOG4J_FACTORY_CLASS_KEY + "=log4j2"
+    val log4jConfigFile = "-D" + SparkOnRayConfigs.RAY_LOG4J_CONFIG_FILE_NAME + "=" +
+      conf.get(SparkOnRayConfigs.RAY_LOG4J_CONFIG_FILE_NAME_KEY)
+    Seq(agent, log4jVer, log4jConfigFile)
   }
 
   def waitForRegistration(): Unit = {

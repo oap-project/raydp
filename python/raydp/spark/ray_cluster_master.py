@@ -24,14 +24,29 @@ import struct
 import tempfile
 import time
 from subprocess import Popen, PIPE
-from copy import copy
 import glob
 import ray
 from py4j.java_gateway import JavaGateway, GatewayParameters
+from raydp import versions
 
 logger = logging.getLogger(__name__)
 
 RAYDP_SPARK_MASTER_SUFFIX = "_SPARK_MASTER"
+RAYDP_EXECUTOR_EXTRA_CLASSPATH = "raydp.executor.extraClassPath"
+
+# configs used internally
+# check doc in SparkOnRayConfigs
+SPARK_JAVAAGENT = "spark.javaagent"
+SPARK_RAY_LOG4J_FACTORY_CLASS_KEY = "spark.ray.log4j.factory.class"
+
+# optional configs for user
+# check doc in SparkOnRayConfigs
+SPARK_PREFER_CLASSPATH = "spark.preferClassPath"
+RAY_PREFER_CLASSPATH = "spark.ray.preferClassPath"
+SPARK_LOG4J_CONFIG_FILE_NAME = "spark.log4j.config.file.name"
+RAY_LOG4J_CONFIG_FILE_NAME = "spark.ray.log4j.config.file.name"
+
+
 
 @ray.remote
 class RayDPSparkMaster():
@@ -62,21 +77,26 @@ class RayDPSparkMaster():
         # pylint: disable=import-outside-toplevel,multiple-imports,cyclic-import
         import raydp, pyspark
         raydp_cp = os.path.abspath(os.path.join(os.path.dirname(raydp.__file__), "jars/*"))
-        ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
-
-        cp_list = []
-        if "raydp.executor.extraClassPath" in self._configs:
-            user_cp = self._configs["raydp.executor.extraClassPath"].rstrip(os.pathsep)
-            cp_list.extend(user_cp.split(os.pathsep))
-        # find RayDP core path
-        cp_list.append(raydp_cp)
-        # find pyspark jars path
         self._spark_home = os.environ.get("SPARK_HOME", os.path.dirname(pyspark.__file__))
         spark_jars_dir = os.path.abspath(os.path.join(self._spark_home, "jars/*"))
-        spark_jars = [jar for jar in glob.glob(spark_jars_dir) if "slf4j-log4j" not in jar]
+        ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
+        raydp_jars = glob.glob(raydp_cp)
+        spark_jars = [spark_jars_dir]
+        ray_jars = glob.glob(ray_cp)
+
+        cp_list = []
+
+        if RAY_PREFER_CLASSPATH in self._configs:
+            cp_list.extend(self._configs[RAY_PREFER_CLASSPATH].split(os.pathsep))
+
+        if RAYDP_EXECUTOR_EXTRA_CLASSPATH in self._configs:
+            user_cp = self._configs[RAYDP_EXECUTOR_EXTRA_CLASSPATH].rstrip(os.pathsep)
+            cp_list.extend(user_cp.split(os.pathsep))
+
+        cp_list.extend(raydp_jars)
         cp_list.extend(spark_jars)
-        # find ray jar path
-        cp_list.append(ray_cp)
+        cp_list.extend(ray_jars)
+
         return cp_list
 
     def _launch_gateway(self, class_path, popen_kwargs=None):
@@ -94,6 +114,14 @@ class RayDPSparkMaster():
         # append JAVA_OPTS. This can be used for debugging.
         if "JAVA_OPTS" in env:
             command.append(env["JAVA_OPTS"])
+        # set system class loader and log prefer class path
+        logging_dir = ray._private.worker._global_node.get_logs_dir_path()
+        command.append("-javaagent:" + self._configs[SPARK_JAVAAGENT])
+        command.append("-Dray.logging.dir" + "=" + logging_dir)
+        command.append("-D" + SPARK_RAY_LOG4J_FACTORY_CLASS_KEY + "="
+                       + self._configs[SPARK_RAY_LOG4J_FACTORY_CLASS_KEY])
+        command.append("-D" + versions.RAY_LOG4J_CONFIG_FILE_NAME_KEY + "="
+                       + self._configs[RAY_LOG4J_CONFIG_FILE_NAME])
         command.append("-cp")
         command.append(class_path)
         command.append("org.apache.spark.deploy.raydp.AppMasterEntryPoint")

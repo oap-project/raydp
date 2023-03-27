@@ -19,14 +19,17 @@ import glob
 import os
 import sys
 import platform
-from typing import Any, Dict, Union, Optional
+import pyspark
+from typing import Any, Dict
 
 import ray
-import pyspark
 from pyspark.sql.session import SparkSession
 
 from raydp.services import Cluster
-from .ray_cluster_master import RAYDP_SPARK_MASTER_SUFFIX, RayDPSparkMaster
+from .ray_cluster_master import RAYDP_SPARK_MASTER_SUFFIX, SPARK_RAY_LOG4J_FACTORY_CLASS_KEY
+from .ray_cluster_master import SPARK_LOG4J_CONFIG_FILE_NAME, RAY_LOG4J_CONFIG_FILE_NAME
+from .ray_cluster_master import RayDPSparkMaster, SPARK_JAVAAGENT, SPARK_PREFER_CLASSPATH
+from raydp import versions
 
 
 class SparkCluster(Cluster):
@@ -114,23 +117,35 @@ class SparkCluster(Cluster):
             if "spark.driver.host" not in self._configs:
                 self._configs["spark.driver.host"] = str(driver_node_ip)
                 self._configs["spark.driver.bindAddress"] = str(driver_node_ip)
-        RAYDP_CP = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
-        RAY_CP = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
-        # A workaround for the spark driver to bind to its slf4j-log4j jar instead of the one from
-        # Ray's jar. Without this, the driver produces INFO logs and the level cannot be changed.
+
+        raydp_cp = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../jars/*"))
+        ray_cp = os.path.abspath(os.path.join(os.path.dirname(ray.__file__), "jars/*"))
         spark_home = os.environ.get("SPARK_HOME", os.path.dirname(pyspark.__file__))
-        log4j_path = os.path.abspath(os.path.join(spark_home, "jars/slf4j-log4j*.jar"))
-        commons_path = os.path.abspath(os.path.join(spark_home, "jars/commons-lang3-*.jar"))
-        try:
-            extra_jars = [self._configs["spark.jars"]]
-        except KeyError:
-            extra_jars = []
-        self._configs["spark.jars"] = ",".join(glob.glob(RAYDP_CP) + extra_jars)
+        spark_jars_dir = os.path.abspath(os.path.join(spark_home, "jars/*"))
+
+        raydp_agent_path = os.path.abspath(os.path.join(os.path.abspath(__file__),
+                                                        "../../jars/raydp-agent*.jar"))
+        raydp_agent_jar = glob.glob(raydp_agent_path)[0]
+        self._configs[SPARK_JAVAAGENT] = raydp_agent_jar
+        # for JVM running in ray
+        self._configs[SPARK_RAY_LOG4J_FACTORY_CLASS_KEY] = versions.RAY_LOG4J_VERSION
+
+        if SPARK_LOG4J_CONFIG_FILE_NAME not in self._configs:
+            self._configs[SPARK_LOG4J_CONFIG_FILE_NAME] =\
+                versions.SPARK_LOG4J_CONFIG_FILE_NAME_DEFAULT
+
+        if RAY_LOG4J_CONFIG_FILE_NAME not in self._configs:
+            self._configs[RAY_LOG4J_CONFIG_FILE_NAME] = versions.RAY_LOG4J_CONFIG_FILE_NAME_DEFAULT
+
+        prefer_cp = []
+        if SPARK_PREFER_CLASSPATH in self._configs:
+            prefer_cp.extend(self._configs[SPARK_PREFER_CLASSPATH].split(os.pathsep))
+
+        raydp_jars = glob.glob(raydp_cp)
         driver_cp_key = "spark.driver.extraClassPath"
-        driver_cp = ":".join(glob.glob(log4j_path) + glob.glob(commons_path)
-                + glob.glob(RAYDP_CP) + glob.glob(RAY_CP))
+        driver_cp = ":".join(prefer_cp + raydp_jars + [spark_jars_dir] + glob.glob(ray_cp))
         if driver_cp_key in self._configs:
-            self._configs[driver_cp_key] = driver_cp + ":" + self._configs[driver_cp_key]
+            self._configs[driver_cp_key] = self._configs[driver_cp_key] + ":" + driver_cp
         else:
             self._configs[driver_cp_key] = driver_cp
         dyn_alloc_key = "spark.dynamicAllocation.enabled"
@@ -142,6 +157,14 @@ class SparkCluster(Cluster):
                       "Consider to set it to match the cluster configuration. " \
                       "If used with autoscaling, calculate it from max_workers.",
                       file=sys.stderr)
+
+        # set spark.driver.extraJavaOptions for driver (spark-submit)
+        java_opts = ["-javaagent:" + self._configs[SPARK_JAVAAGENT],
+                     "-D" + SPARK_RAY_LOG4J_FACTORY_CLASS_KEY + "=" + versions.SPARK_LOG4J_VERSION,
+                     "-D" + versions.SPARK_LOG4J_CONFIG_FILE_NAME_KEY + "=" +
+                     self._configs[SPARK_LOG4J_CONFIG_FILE_NAME]
+                     ]
+        self._configs["spark.driver.extraJavaOptions"] = " ".join(java_opts)
 
     def get_spark_session(self) -> SparkSession:
         if self._spark_session is not None:
