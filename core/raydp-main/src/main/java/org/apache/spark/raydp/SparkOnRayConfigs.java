@@ -88,4 +88,6 @@ public class SparkOnRayConfigs {
      * only.
      */
     public static final String RAY_PREFER_CLASSPATH = "spark.ray.preferClassPath";
+
+    public static final String RAYDP_LOGFILE_PREFIX_CFG = "-Dray.logging.file-prefix=raydp-java-worker";
 }

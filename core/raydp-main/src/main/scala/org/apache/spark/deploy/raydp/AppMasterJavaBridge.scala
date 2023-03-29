@@ -49,7 +49,9 @@ class AppMasterJavaBridge {
       }.map{ case (k, v) => k->double2Double(v.toString.toDouble) }.asJava
 
       handle = RayAppMasterUtils.createAppMaster(
-          extra_cp, name, sparkJvmOptions.asJava, appMasterResources)
+          extra_cp, name,
+          (sparkJvmOptions ++ Seq(SparkOnRayConfigs.RAYDP_LOGFILE_PREFIX_CFG)).asJava,
+          appMasterResources)
     }
   }
 
