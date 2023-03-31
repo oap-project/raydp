@@ -226,8 +226,8 @@ def _convert_by_udf(spark: sql.SparkSession,
         obj_holder = ray.get_actor(holder_name)
         for block in blocks:
             dfs = []
-            for hex in block["hex"]:
-                ref = ray.get(obj_holder.get_object.remote(hex))
+            for obj_hex in block["hex"]:
+                ref = ray.get(obj_holder.get_object.remote(obj_hex))
                 data = ray.get(ref)
                 dfs.append(data.to_pandas())
             yield pd.concat(dfs)
