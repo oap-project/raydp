@@ -20,6 +20,7 @@ package org.apache.spark.raydp;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.instrument.Instrumentation;
@@ -67,6 +68,13 @@ public class Agent {
       // restore system output/error stream
       System.setErr(DEFAULT_ERR_PS);
       System.setOut(DEFAULT_OUT_PS);
+    }
+    String jobId = System.getenv("RAY_JOB_ID");
+    String rayAddress = System.getProperty("ray.address");
+    if (jobId != null && rayAddress != null) {
+      try (FileWriter writer = new FileWriter(logDir + "/java-worker-" + jobId + "-" + pid + ".log")) {
+        writer.write(":job_id:" + jobId + "\n");
+      }
     }
   }
 }
