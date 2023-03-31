@@ -29,14 +29,15 @@ import org.apache.spark.rdd.{RayDatasetRDD, RayObjectRefRDD}
 import org.apache.spark.sql.{DataFrame, SparkSession, SQLContext}
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.sql.execution.arrow.ArrowConverters
-import org.apache.spark.sql.types.{IntegerType, StructType}
+import org.apache.spark.sql.types.{StringType, StructType}
 
 object ObjectStoreReader {
   def createRayObjectRefDF(
       spark: SparkSession,
+      blocksHex: List[String],
       locations: List[Array[Byte]]): DataFrame = {
-    val rdd = new RayObjectRefRDD(spark.sparkContext, locations)
-    val schema = new StructType().add("idx", IntegerType)
+    val rdd = new RayObjectRefRDD(spark.sparkContext, blocksHex, locations)
+    val schema = new StructType().add("hex", StringType)
     spark.createDataFrame(rdd, schema)
   }
 

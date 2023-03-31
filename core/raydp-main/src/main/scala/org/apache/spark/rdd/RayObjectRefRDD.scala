@@ -27,24 +27,26 @@ import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.raydp.RayDPUtils
 import org.apache.spark.sql.Row
 
-private[spark] class RayObjectRefRDDPartition(idx: Int) extends Partition {
+private[spark] class RayObjectRefRDDPartition(idx: Int, hex: String) extends Partition {
   val index = idx
+  val objHex = hex
 }
 
 private[spark]
 class RayObjectRefRDD(
     sc: SparkContext,
+    blocksHex: List[String],
     locations: List[Array[Byte]])
   extends RDD[Row](sc, Nil) {
 
   override def getPartitions: Array[Partition] = {
-    (0 until locations.size()).map { i =>
-      new RayObjectRefRDDPartition(i).asInstanceOf[Partition]
+    (0 until blocksHex.size()).map { i =>
+      new RayObjectRefRDDPartition(i, blocksHex.get(i)).asInstanceOf[Partition]
     }.toArray
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
-    (Row(split.index) :: Nil).iterator
+    (Row(split.asInstanceOf[RayObjectRefRDDPartition].objHex) :: Nil).iterator
   }
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
