@@ -8,8 +8,8 @@ As an example:
 raydp.init_spark(...,
 configs = {
     # ... other configs
-    'spark.ray.raydp_spark_master.resource.CPU': 0,
-    'spark.ray.raydp_spark_master.resource.spark_master': 1,  # Force Spark driver related actor run on headnode
+    'spark.ray.raydp_spark_master.actor.resource.CPU': 0,
+    'spark.ray.raydp_spark_master.actor.resource.spark_master': 1,  # Force Spark driver related actor run on headnode
 })
 ```
 
