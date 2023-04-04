@@ -143,7 +143,7 @@ You can use RayDP with Ray autoscaling. When you call `raydp.init_spark`, the au
   export SPARK_LOG4J_CONFIG_FILE_NAME="<your path...>/log4j-cust.properties"
   export RAY_LOG4J_CONFIG_FILE_NAME="<your path...>/log4j2-cust.xml"
   ```
-  And you can call `init_spark` without having the override code:
+  And you can call `init_spark` without having the override code in Python:
   ```python
   raydp.init_spark(..., configs={})
   ```
