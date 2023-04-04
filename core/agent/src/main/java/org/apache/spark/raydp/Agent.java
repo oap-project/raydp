@@ -71,11 +71,13 @@ public class Agent {
     }
     String jobId = System.getenv("RAY_JOB_ID");
     String rayAddress = System.getProperty("ray.address");
-    String prefix = System.getProperty("ray.logging.file-prefix", "java-worker");
     if (jobId != null && rayAddress != null) {
-      try (FileWriter writer = new FileWriter(logDir + "/" + prefix + "-" +
-          jobId + "-" + pid + ".log")) {
-        writer.write(":job_id:" + jobId + "\n");
+      String prefix = System.getProperty("ray.logging.file-prefix", "java-worker");
+      if ("java-worker".equals(prefix)) {
+        try (FileWriter writer = new FileWriter(logDir + "/" + prefix + "-" +
+                jobId + "-" + pid + ".log")) {
+          writer.write(":job_id:" + jobId + "\n");
+        }
       }
     }
   }
