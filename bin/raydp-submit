@@ -53,10 +53,10 @@ while read line; do
   log4j_config+=($line)
 done < <(python3 -c "from raydp import versions; print(versions.SPARK_LOG4J_VERSION); 
 print(versions.SPARK_LOG4J_CONFIG_FILE_NAME_KEY);
-print(versions.SPARK_LOG4J_CONFIG_FILE_NAME_DEFAULT);
+print(os.getenv(\"SPARK_LOG4J_CONFIG_FILE_NAME\", versions.SPARK_LOG4J_CONFIG_FILE_NAME_DEFAULT));
 print(versions.RAY_LOG4J_VERSION);
 print(versions.RAY_LOG4J_CONFIG_FILE_NAME_KEY);
-print(versions.RAY_LOG4J_CONFIG_FILE_NAME_DEFAULT);
+print(os.getenv(\"RAY_LOG4J_CONFIG_FILE_NAME\", versions.RAY_LOG4J_CONFIG_FILE_NAME_DEFAULT));
 ")
 
 

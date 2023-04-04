@@ -136,5 +136,14 @@ You can use RayDP with Ray autoscaling. When you call `raydp.init_spark`, the au
   For example, you can set Spark's log4j config file to `log4j-cust.properties` and Ray's to `log4j2-cust.xml` like below. Just make sure they are loadable from classpath.
   You can put them in the preferred classpath.
   ```
-  raydp.init_spark(..., configs={'spark.log4j.config.file.name': 'log4j-cust.properties', 'spark.ray.log4j.config.file.name': 'log4j2-cust.xml'})
+  raydp.init_spark(..., configs={'spark.log4j.config.file.name': '<your path...>/log4j-cust.properties', 'spark.ray.log4j.config.file.name': '<your path...>/log4j2-cust.xml'})
+  ```
+  You can also set environment variable `SPARK_LOG4J_CONFIG_FILE_NAME` and `RAY_LOG4J_CONFIG_FILE_NAME` to achieve the same:
+  ```shell
+  export SPARK_LOG4J_CONFIG_FILE_NAME="<your path...>/log4j-cust.properties"
+  export RAY_LOG4J_CONFIG_FILE_NAME="<your path...>/log4j2-cust.xml"
+  ```
+  And you can call `init_spark` without having the override code:
+  ```python
+  raydp.init_spark(..., configs={})
   ```
