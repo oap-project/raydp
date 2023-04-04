@@ -131,11 +131,22 @@ class SparkCluster(Cluster):
         self._configs[SPARK_RAY_LOG4J_FACTORY_CLASS_KEY] = versions.RAY_LOG4J_VERSION
 
         if SPARK_LOG4J_CONFIG_FILE_NAME not in self._configs:
+            # If the config is not passed in by the user, check
+            # by environment variable SPARK_LOG4J_CONFIG_FILE_NAME. This
+            # will give the system admin/infra team a chance to set the
+            # value for all users.
             self._configs[SPARK_LOG4J_CONFIG_FILE_NAME] =\
-                versions.SPARK_LOG4J_CONFIG_FILE_NAME_DEFAULT
+                os.environ.get("SPARK_LOG4J_CONFIG_FILE_NAME",
+                               versions.SPARK_LOG4J_CONFIG_FILE_NAME_DEFAULT)
 
         if RAY_LOG4J_CONFIG_FILE_NAME not in self._configs:
-            self._configs[RAY_LOG4J_CONFIG_FILE_NAME] = versions.RAY_LOG4J_CONFIG_FILE_NAME_DEFAULT
+            # If the config is not passed in by the user, check
+            # by environment variable RAY_LOG4J_CONFIG_FILE_NAME. This
+            # will give the system admin/infra team a chance to set the
+            # value for all users.
+            self._configs[RAY_LOG4J_CONFIG_FILE_NAME] =\
+                os.environ.get("RAY_LOG4J_CONFIG_FILE_NAME",
+                               versions.RAY_LOG4J_CONFIG_FILE_NAME_DEFAULT)
 
         prefer_cp = []
         if SPARK_PREFER_CLASSPATH in self._configs:
