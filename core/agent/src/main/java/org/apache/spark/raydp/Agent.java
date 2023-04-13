@@ -69,11 +69,18 @@ public class Agent {
       System.setErr(DEFAULT_ERR_PS);
       System.setOut(DEFAULT_OUT_PS);
     }
+    // below is to write ':job_id:<jobid>' to first line of log file prefixed with 'java-worker' as required by
+    // PR, https://github.com/ray-project/ray/pull/31772.
+    // It's a workaround of the ray 2.3.[0-1] issue going to be fixed by https://github.com/ray-project/ray/pull/33665.
     String jobId = System.getenv("RAY_JOB_ID");
     String rayAddress = System.getProperty("ray.address");
     if (jobId != null && rayAddress != null) {
-      try (FileWriter writer = new FileWriter(logDir + "/java-worker-" + jobId + "-" + pid + ".log")) {
-        writer.write(":job_id:" + jobId + "\n");
+      String prefix = System.getProperty("ray.logging.file-prefix", "java-worker");
+      if ("java-worker".equals(prefix)) {
+        try (FileWriter writer = new FileWriter(logDir + "/" + prefix + "-" +
+                jobId + "-" + pid + ".log")) {
+          writer.write(":job_id:" + jobId + "\n");
+        }
       }
     }
   }

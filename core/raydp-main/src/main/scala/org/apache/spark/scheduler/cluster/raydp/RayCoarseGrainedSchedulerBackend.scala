@@ -216,7 +216,7 @@ class RayCoarseGrainedSchedulerBackend(
     val log4jVer = "-D" + SparkOnRayConfigs.LOG4J_FACTORY_CLASS_KEY + "=log4j2"
     val log4jConfigFile = "-D" + SparkOnRayConfigs.RAY_LOG4J_CONFIG_FILE_NAME + "=" +
       conf.get(SparkOnRayConfigs.RAY_LOG4J_CONFIG_FILE_NAME_KEY)
-    Seq(agent, log4jVer, log4jConfigFile)
+    Seq(agent, log4jVer, log4jConfigFile, SparkOnRayConfigs.RAYDP_LOGFILE_PREFIX_CFG)
   }
 
   def waitForRegistration(): Unit = {

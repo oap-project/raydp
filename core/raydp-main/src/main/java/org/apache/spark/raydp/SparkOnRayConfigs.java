@@ -88,4 +88,17 @@ public class SparkOnRayConfigs {
      * only.
      */
     public static final String RAY_PREFER_CLASSPATH = "spark.ray.preferClassPath";
+
+    /**
+     * The default log file prefix is 'java-worker' which is monitored and polled
+     * by ray log monitor. As spark executor log, we don't want it's monitored and
+     * polled since user doesn't care about this relative large amount of logs in most time.
+     *
+     * There is a PR, https://github.com/ray-project/ray/pull/33797, which enables
+     * us to change default log file prefix and thus avoid being monitored and polled.
+     *
+     * This configure is to change the prefix to 'raydp-java-worker'.
+     */
+    public static final String RAYDP_LOGFILE_PREFIX_CFG =
+            "-Dray.logging.file-prefix=raydp-java-worker";
 }
