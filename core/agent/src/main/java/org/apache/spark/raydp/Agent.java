@@ -75,13 +75,15 @@ public class Agent {
     String jobId = System.getenv("RAY_JOB_ID");
     String rayAddress = System.getProperty("ray.address");
     if (jobId != null && rayAddress != null) {
-      String prefix = System.getProperty("ray.logging.file-prefix", "java-worker");
-      if ("java-worker".equals(prefix)) {
-        try (FileWriter writer = new FileWriter(logDir + "/" + prefix + "-" +
-                jobId + "-" + pid + ".log")) {
-          writer.write(":job_id:" + jobId + "\n");
-        }
+      String prefix = "java-worker";
+      // TODO: uncomment after the ray PR #33665 released
+      // String prefix = System.getProperty("ray.logging.file-prefix", "java-worker");
+      // if ("java-worker".equals(prefix)) {
+      try (FileWriter writer = new FileWriter(logDir + "/" + prefix + "-" +
+              jobId + "-" + pid + ".log")) {
+        writer.write(":job_id:" + jobId + "\n");
       }
+      // }
     }
   }
 }
