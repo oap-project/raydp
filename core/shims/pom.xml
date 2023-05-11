@@ -19,6 +19,7 @@
     <module>common</module>
     <module>spark321</module>
     <module>spark330</module>
+    <module>spark340</module>
   </modules>
  
   <properties>
