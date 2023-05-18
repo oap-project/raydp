@@ -16,6 +16,7 @@
     <spark.version>3.2.1</spark.version>
     <spark321.version>3.2.1</spark321.version>
     <spark330.version>3.3.0</spark330.version>
+    <spark340.version>3.4.0</spark340.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.compiler.source>1.8</maven.compiler.source>

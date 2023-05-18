@@ -15,29 +15,19 @@
  * limitations under the License.
  */
 
-package com.intel.raydp.shims.spark321
+package com.intel.raydp.shims.spark340
 
 import com.intel.raydp.shims.{SparkShims, SparkShimDescriptor}
 
 object SparkShimProvider {
-  val SPARK311_DESCRIPTOR = SparkShimDescriptor(3, 1, 1)
-  val SPARK312_DESCRIPTOR = SparkShimDescriptor(3, 1, 2)
-  val SPARK313_DESCRIPTOR = SparkShimDescriptor(3, 1, 3)
-  val SPARK320_DESCRIPTOR = SparkShimDescriptor(3, 2, 0)
-  val SPARK321_DESCRIPTOR = SparkShimDescriptor(3, 2, 1)
-  val SPARK322_DESCRIPTOR = SparkShimDescriptor(3, 2, 2)
-  val SPARK323_DESCRIPTOR = SparkShimDescriptor(3, 2, 3)
-  val SPARK324_DESCRIPTOR = SparkShimDescriptor(3, 2, 4)
-  val DESCRIPTOR_STRINGS =
-    Seq(s"$SPARK311_DESCRIPTOR", s"$SPARK312_DESCRIPTOR" ,s"$SPARK313_DESCRIPTOR",
-        s"$SPARK320_DESCRIPTOR", s"$SPARK321_DESCRIPTOR", s"$SPARK322_DESCRIPTOR",
-        s"$SPARK323_DESCRIPTOR", s"$SPARK324_DESCRIPTOR")
-  val DESCRIPTOR = SPARK323_DESCRIPTOR
+  val SPARK340_DESCRIPTOR = SparkShimDescriptor(3, 4, 0)
+  val DESCRIPTOR_STRINGS = Seq(s"$SPARK340_DESCRIPTOR")
+  val DESCRIPTOR = SPARK340_DESCRIPTOR
 }
 
 class SparkShimProvider extends com.intel.raydp.shims.SparkShimProvider {
   def createShim: SparkShims = {
-    new Spark321Shims()
+    new Spark340Shims()
   }
 
   def matches(version: String): Boolean = {
