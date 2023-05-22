@@ -1,4 +1,4 @@
-FROM rayproject/ray:1.3.0
+FROM rayproject/ray:latest
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
