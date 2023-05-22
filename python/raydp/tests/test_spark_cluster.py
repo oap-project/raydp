@@ -94,6 +94,10 @@ def test_spark_driver_and_executor_hostname(spark_on_ray_small):
 
 
 def test_ray_dataset_roundtrip(spark_on_ray_small):
+    # skipping this to be compatible with ray 2.4.0
+    # see issue #343
+    if not ray.worker.global_worker.connected:
+        pytest.skip("Skip this test if using ray client")
     spark = spark_on_ray_small
     spark_df = spark.createDataFrame([(1, "a"), (2, "b"), (3, "c")], ["one", "two"])
     rows = [(r.one, r.two) for r in spark_df.take(3)]
@@ -107,6 +111,10 @@ def test_ray_dataset_roundtrip(spark_on_ray_small):
 
 
 def test_ray_dataset_to_spark(spark_on_ray_small):
+    # skipping this to be compatible with ray 2.4.0
+    # see issue #343
+    if not ray.worker.global_worker.connected:
+        pytest.skip("Skip this test if using ray client")
     spark = spark_on_ray_small
     n = 5
     data = {"value": list(range(n))}
