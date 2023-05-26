@@ -39,10 +39,14 @@ def test_fail_without_data_ownership_transfer(ray_cluster):
   its owner (e.g. Spark JVM process) has terminated, which is expected.
   """
 
-  from raydp.spark.dataset import spark_dataframe_to_ray_dataset
-  
-  num_executor = 1
+  # skipping this to be compatible with ray 2.4.0
+  # see issue #343
+  if not ray.worker.global_worker.connected:
+        pytest.skip("Skip this test if using ray client")
 
+  from raydp.spark.dataset import spark_dataframe_to_ray_dataset
+
+  num_executor = 1
   spark = raydp.init_spark(
     app_name = "example",
     num_executors = num_executor,
@@ -83,6 +87,9 @@ def test_data_ownership_transfer(ray_cluster):
   into Ray object store with data ownership transfer.
   This test should be able to execute till the end without crash as expected.
   """
+
+  if not ray.worker.global_worker.connected:
+        pytest.skip("Skip this test if using ray client")
 
   from raydp.spark.dataset import spark_dataframe_to_ray_dataset
   import numpy as np
