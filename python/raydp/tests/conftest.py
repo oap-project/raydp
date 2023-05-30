@@ -72,6 +72,26 @@ def spark_on_ray_small(request):
     request.addfinalizer(stop_all)
     return spark
 
+@pytest.fixture(scope="function", params=["local", "ray://localhost:10001"])
+def spark_on_ray_2_executors(request):
+    ray.shutdown()
+    if request.param == "local":
+        ray.init(address="local", num_cpus=6, include_dashboard=False)
+    else:
+        ray.init(address=request.param)
+    node_ip = ray.util.get_node_ip_address()
+    spark = raydp.init_spark("test", 2, 1, "500M", configs= {
+        "spark.driver.host": node_ip,
+        "spark.driver.bindAddress": node_ip
+    })
+
+    def stop_all():
+        raydp.stop_spark()
+        ray.shutdown()
+
+    request.addfinalizer(stop_all)
+    return spark
+
 
 @pytest.fixture(scope="function")
 def spark_on_ray_fraction_custom_resource(request):
