@@ -259,15 +259,15 @@ def get_locations(blocks):
     ]
 
 def ray_dataset_to_spark_dataframe(spark: sql.SparkSession,
-                                   arrow_schema: ray.data.dataset.Schema,
+                                   arrow_schema,
                                    blocks: List[ObjectRef],
                                    locations = None) -> DataFrame:
     locations = get_locations(blocks)
     if not isinstance(arrow_schema, pa.lib.Schema):
-        if isinstance(arrow_schema, ray.data.dataset.Schema) and \
-            not isinstance(arrow_schema.base_schema, pa.lib.Schema):
+        if hasattr(arrow_schema, "base_schema") and \
+                not isinstance(arrow_schema.base_schema, pa.lib.Schema):
             raise RuntimeError(f"Schema is {type(arrow_schema)}, required pyarrow.lib.Schema. \n" \
-                           f"to_spark does not support converting non-arrow ray datasets.")
+                               f"to_spark does not support converting non-arrow ray datasets.")
     schema = StructType()
     for field in arrow_schema:
         schema.add(field.name, from_arrow_type(field.type), nullable=field.nullable)
