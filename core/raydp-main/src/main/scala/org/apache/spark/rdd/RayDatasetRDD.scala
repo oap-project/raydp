@@ -22,6 +22,7 @@ import java.util.List;
 import scala.collection.JavaConverters._
 
 import io.ray.runtime.generated.Common.Address
+import org.apache.arrow.vector.VectorSchemaRoot
 
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.api.java.JavaSparkContext
@@ -37,7 +38,7 @@ class RayDatasetRDD(
     jsc: JavaSparkContext,
     @transient val objectIds: List[Array[Byte]],
     locations: List[Array[Byte]])
-  extends RDD[Array[Byte]](jsc.sc, Nil) {
+  extends RDD[VectorSchemaRoot](jsc.sc, Nil) {
 
   override def getPartitions: Array[Partition] = {
     objectIds.asScala.zipWithIndex.map { case (k, i) =>
@@ -45,7 +46,7 @@ class RayDatasetRDD(
     }.toArray
   }
 
-  override def compute(split: Partition, context: TaskContext): Iterator[Array[Byte]] = {
+  override def compute(split: Partition, context: TaskContext): Iterator[VectorSchemaRoot] = {
     val ref = split.asInstanceOf[RayDatasetRDDPartition].ref
     ObjectStoreReader.getBatchesFromStream(ref)
   }
