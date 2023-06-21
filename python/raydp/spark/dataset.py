@@ -273,7 +273,7 @@ def ray_dataset_to_spark_dataframe(spark: sql.SparkSession,
                                    f"required pyarrow.lib.Schema. \n" \
                                    f"to_spark does not support converting non-arrow ray datasets.")
         else:
-            raise RuntimeError(f"Schema is {type(dataset_schema)}, " \ 
+            raise RuntimeError(f"Schema is {type(dataset_schema)}, " \
                                f"required pyarrow.lib.Schema. \n" \
                                f"to_spark does not support converting non-arrow ray datasets.")
     schema = StructType()
