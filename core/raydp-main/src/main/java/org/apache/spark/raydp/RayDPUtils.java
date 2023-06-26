@@ -18,7 +18,9 @@
 package org.apache.spark.raydp;
 
 import io.ray.api.ObjectRef;
+import io.ray.api.Ray;
 import io.ray.api.id.ObjectId;
+import io.ray.runtime.AbstractRayRuntime;
 import io.ray.runtime.object.ObjectRefImpl;
 
 public class RayDPUtils {
@@ -40,9 +42,13 @@ public class RayDPUtils {
    * Create ObjectRef from Array[Byte] and register ownership.
    * We can't import the ObjectRefImpl in scala code, so we do the conversion at here.
    */
-  public static <T> ObjectRef<T> readBinary(byte[] obj, Class<T> clazz) {
+  public static <T> ObjectRef<T> readBinary(byte[] obj, Class<T> clazz, byte[] ownerAddress) {
     ObjectId id = new ObjectId(obj);
-    ObjectRefImpl<T> ref = new ObjectRefImpl<>(id, clazz);
+    ObjectRefImpl<T> ref = new ObjectRefImpl<>(id, clazz, false);
+    AbstractRayRuntime runtime = (AbstractRayRuntime) Ray.internal();
+    runtime.getObjectStore().registerOwnershipInfoAndResolveFuture(
+      id, null, ownerAddress
+    );
     return ref;
   }
 }

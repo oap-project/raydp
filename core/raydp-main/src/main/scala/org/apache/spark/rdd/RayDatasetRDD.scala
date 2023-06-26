@@ -47,10 +47,11 @@ class RayDatasetRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val ref = split.asInstanceOf[RayDatasetRDDPartition].ref
-    ObjectStoreReader.getBatchesFromStream(ref)
+    ObjectStoreReader.getBatchesFromStream(ref, locations.get(split.index))
   }
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
-    Seq(Address.parseFrom(locations.get(split.index)).getIpAddress())
+    val address = Address.parseFrom(locations.get(split.index))
+    Seq(address.getIpAddress())
   }
 }
