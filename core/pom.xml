@@ -13,10 +13,16 @@
   <url>https://github.com/oap-project/raydp.git</url>
 
   <properties>
-    <spark.version>3.2.1</spark.version>
-    <spark321.version>3.2.1</spark321.version>
+    <spark.version>3.4.0</spark.version>
+    <spark322.version>3.2.2</spark322.version>
     <spark330.version>3.3.0</spark330.version>
     <spark340.version>3.4.0</spark340.version>
+    <snappy.version>1.1.10.1</snappy.version>
+    <netty.version>4.1.94.Final</netty.version>
+    <commons.text.version>1.10.0</commons.text.version>
+    <commons.compress.version>1.21</commons.compress.version>
+    <protobuf.version>3.16.3</protobuf.version>
+    <ivy.version>2.5.1</ivy.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.compiler.source>1.8</maven.compiler.source>
@@ -38,9 +44,20 @@
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_${scala.binary.version}</artifactId>
       <version>${spark.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.xerial.snappy</groupId>
+          <artifactId>snappy-java</artifactId>
+        </exclusion>
+      </exclusions>
       <scope>provided</scope>
     </dependency>
 
+    <dependency>
+      <groupId>org.xerial.snappy</groupId>
+      <artifactId>snappy-java</artifactId>
+      <version>${snappy.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_${scala.binary.version}</artifactId>

@@ -17,7 +17,7 @@
 
   <modules>
     <module>common</module>
-    <module>spark321</module>
+    <module>spark322</module>
     <module>spark330</module>
     <module>spark340</module>
   </modules>

@@ -15,14 +15,16 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.spark321
+package org.apache.spark.spark322
 
-import org.apache.spark.api.java.JavaRDD
-import org.apache.spark.sql.{DataFrame, SparkSession, SQLContext}
-import org.apache.spark.sql.execution.arrow.ArrowConverters
+import java.util.Properties
 
-object SparkSqlUtils {
-  def toDataFrame(rdd: JavaRDD[Array[Byte]], schema: String, session: SparkSession): DataFrame = {
-    ArrowConverters.toDataFrame(rdd, schema, new SQLContext(session))
+import org.apache.spark.{SparkEnv, TaskContext, TaskContextImpl}
+import org.apache.spark.memory.TaskMemoryManager
+
+object TaskContextUtils {
+  def getDummyTaskContext(partitionId: Int, env: SparkEnv): TaskContext = {
+    new TaskContextImpl(0, 0, partitionId, -1024, 0,
+        new TaskMemoryManager(env.memoryManager, 0), new Properties(), env.metricsSystem)
   }
 }

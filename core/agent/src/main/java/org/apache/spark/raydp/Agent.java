@@ -17,7 +17,7 @@
 
 package org.apache.spark.raydp;
 
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -59,7 +59,7 @@ public class Agent {
       System.setOut(ps);
       System.setErr(ps);
       // slf4j binding
-      LoggerFactory.getLogger(Agent.class);
+      LogManager.getLogger(Agent.class);
     } catch (Exception e) {
       e.printStackTrace();
     } finally {
