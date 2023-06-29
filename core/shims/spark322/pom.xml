@@ -115,4 +115,5 @@
       <artifactId>protobuf-java</artifactId>
       <version>${protobuf.version}</version>
     </dependency>
+  </dependencies>
 </project>
