@@ -13,7 +13,7 @@
   <url>https://github.com/oap-project/raydp.git</url>
 
   <properties>
-    <spark.version>3.4.0</spark.version>
+    <spark.version>3.2.2</spark.version>
     <spark322.version>3.2.2</spark322.version>
     <spark330.version>3.3.0</spark330.version>
     <spark340.version>3.4.0</spark340.version>
