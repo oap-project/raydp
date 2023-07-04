@@ -15,19 +15,19 @@
  * limitations under the License.
  */
 
-package com.intel.raydp.shims.spark321
+package com.intel.raydp.shims.spark322
 
 import org.apache.spark.{SparkEnv, TaskContext}
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.executor.RayDPExecutorBackendFactory
-import org.apache.spark.executor.spark321._
-import org.apache.spark.spark321.TaskContextUtils
+import org.apache.spark.executor.spark322._
+import org.apache.spark.spark322.TaskContextUtils
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.spark321.SparkSqlUtils
+import org.apache.spark.sql.spark322.SparkSqlUtils
 
 import com.intel.raydp.shims.{ShimDescriptor, SparkShims}
 
-class Spark321Shims extends SparkShims {
+class Spark322Shims extends SparkShims {
   override def getShimDescriptor: ShimDescriptor = SparkShimProvider.DESCRIPTOR
 
   override def toDataFrame(
@@ -38,7 +38,7 @@ class Spark321Shims extends SparkShims {
   }
 
   override def getExecutorBackendFactory(): RayDPExecutorBackendFactory = {
-    new RayDPSpark321ExecutorBackendFactory()
+    new RayDPSpark322ExecutorBackendFactory()
   }
 
   override def getDummyTaskContext(partitionId: Int, env: SparkEnv): TaskContext = {

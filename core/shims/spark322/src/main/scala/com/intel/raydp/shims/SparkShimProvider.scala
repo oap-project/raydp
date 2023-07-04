@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package com.intel.raydp.shims.spark321
+package com.intel.raydp.shims.spark322
 
 import com.intel.raydp.shims.{SparkShims, SparkShimDescriptor}
 
@@ -37,7 +37,7 @@ object SparkShimProvider {
 
 class SparkShimProvider extends com.intel.raydp.shims.SparkShimProvider {
   def createShim: SparkShims = {
-    new Spark321Shims()
+    new Spark322Shims()
   }
 
   def matches(version: String): Boolean = {
