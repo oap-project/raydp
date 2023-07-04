@@ -93,12 +93,12 @@ def test_spark_driver_and_executor_hostname(spark_on_ray_small):
     assert node_ip_address == driver_bind_address
 
 
-def test_ray_dataset_roundtrip(spark_on_ray_small):
+def test_ray_dataset_roundtrip(spark_on_ray_2_executors):
     # skipping this to be compatible with ray 2.4.0
     # see issue #343
     if not ray.worker.global_worker.connected:
         pytest.skip("Skip this test if using ray client")
-    spark = spark_on_ray_small
+    spark = spark_on_ray_2_executors
     spark_df = spark.createDataFrame([(1, "a"), (2, "b"), (3, "c")], ["one", "two"])
     rows = [(r.one, r.two) for r in spark_df.take(3)]
     ds = ray.data.from_spark(spark_df)
@@ -110,12 +110,12 @@ def test_ray_dataset_roundtrip(spark_on_ray_small):
     assert values == rows_2
 
 
-def test_ray_dataset_to_spark(spark_on_ray_small):
+def test_ray_dataset_to_spark(spark_on_ray_2_executors):
     # skipping this to be compatible with ray 2.4.0
     # see issue #343
     if not ray.worker.global_worker.connected:
         pytest.skip("Skip this test if using ray client")
-    spark = spark_on_ray_small
+    spark = spark_on_ray_2_executors
     n = 5
     data = {"value": list(range(n))}
     ds = ray.data.from_arrow(pyarrow.Table.from_pydict(data))

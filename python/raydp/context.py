@@ -97,6 +97,8 @@ class _SparkContext(ContextDecorator):
             if isinstance(self._executor_memory, str):
                 # If this is human readable str(like: 10KB, 10MB..), parse it
                 memory = parse_memory_size(self._executor_memory)
+            else:
+                memory = self._executor_memory
             for _ in range(self._num_executors):
                 bundles.append({"CPU": self._executor_cores,
                                 "memory": memory})

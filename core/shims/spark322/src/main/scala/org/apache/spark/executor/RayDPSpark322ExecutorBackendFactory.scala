@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.spark.executor.spark321
+package org.apache.spark.executor.spark322
 
 import java.net.URL
 
@@ -25,7 +25,7 @@ import org.apache.spark.executor.RayDPExecutorBackendFactory
 import org.apache.spark.resource.ResourceProfile
 import org.apache.spark.rpc.RpcEnv
 
-class RayDPSpark321ExecutorBackendFactory
+class RayDPSpark322ExecutorBackendFactory
     extends RayDPExecutorBackendFactory {
   override def createExecutorBackend(
       rpcEnv: RpcEnv,
