@@ -90,6 +90,10 @@
           <artifactId>commons-compress</artifactId>
         </exclusion>
         <exclusion>
+          <groupId>org.apache.commons</groupId>
+          <artifactId>commons-text</artifactId>
+        </exclusion>
+        <exclusion>
           <groupId>org.apache.ivy</groupId>
           <artifactId>ivy</artifactId>
         </exclusion>
@@ -104,6 +108,11 @@
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-compress</artifactId>
       <version>${commons.compress.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-text</artifactId>
+      <version>${commons.text.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.ivy</groupId>
