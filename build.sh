@@ -37,6 +37,11 @@ then
 fi
 
 # build core part
+# set environment variables for spark versio
+export SPARK_VERSION=3.2.2
+export SPARK322_VERSION=3.2.2
+export SPARK330_VERSION=3.3.0
+export SPARK340_VERSION=3.4.0
 CORE_DIR="${CURRENT_DIR}/core"
 pushd ${CORE_DIR}
 if [[ -z $GITHUB_CI ]];
