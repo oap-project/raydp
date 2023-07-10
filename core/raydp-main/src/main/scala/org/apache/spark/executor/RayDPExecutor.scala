@@ -30,7 +30,6 @@ import io.ray.runtime.config.RayConfig
 import org.apache.arrow.vector.ipc.{ArrowStreamWriter, WriteChannel}
 import org.apache.arrow.vector.ipc.message.{IpcOption, MessageSerializer}
 import org.apache.arrow.vector.types.pojo.Schema
-import org.apache.log4j.{FileAppender => Log4jFileAppender, _}
 
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -111,7 +110,6 @@ class RayDPExecutor(
     }
     createWorkingDir(appId)
     setUserDir()
-    // redirectLog()
 
     val userClassPath = classPathEntries.split(java.io.File.pathSeparator)
       .filter(_.nonEmpty).map(new File(_).toURI.toURL)
@@ -249,27 +247,6 @@ class RayDPExecutor(
 
       env.rpcEnv.awaitTermination()
     }
-  }
-
-  def redirectLog(): Unit = {
-    val logFile = Paths.get(workingDir.getAbsolutePath, s"executor${executorId}.out")
-    val errorFile = Paths.get(workingDir.getAbsolutePath, s"executor${executorId}.err")
-    logInfo(s"Redirect executor log to ${logFile.toString}")
-    val appenders = LogManager.getRootLogger.getAllAppenders
-    // There should be a console appender. Use its layout.
-    val defaultAppender = appenders.nextElement().asInstanceOf[Appender]
-    val layout = defaultAppender.getLayout
-
-    val out = new Log4jFileAppender(layout, logFile.toString)
-    out.setName("outfile")
-
-    val err = new Log4jFileAppender(layout, errorFile.toString())
-    err.setName("errfile")
-    err.setThreshold(Level.ERROR)
-
-    LogManager.getRootLogger.addAppender(out)
-    LogManager.getRootLogger.addAppender(err)
-    LogManager.getRootLogger.removeAppender(defaultAppender)
   }
 
   def createTemporaryRpcEnv(
