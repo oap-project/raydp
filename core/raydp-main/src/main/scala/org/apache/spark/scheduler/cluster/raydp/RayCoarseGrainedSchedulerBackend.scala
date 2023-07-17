@@ -27,7 +27,7 @@ import scala.concurrent.Future
 
 import io.ray.api.{ActorHandle, Ray}
 
-import org.apache.spark.{RayDPException, SparkConf, SparkContext}
+import org.apache.spark.{RayDPException, SparkConf, SparkContext, SparkException}
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.deploy.security.HadoopDelegationTokenManager
 import org.apache.spark.internal.{config, Logging}
@@ -167,7 +167,10 @@ class RayCoarseGrainedSchedulerBackend(
 
     val executorResourceReqs = ResourceUtils.parseResourceRequirements(
       conf, config.SPARK_EXECUTOR_PREFIX)
-    val resourcesInMap = transferResourceRequirements(executorResourceReqs)
+    val raydpExecutorCustomResources = parseRayDPResourceRequirements(conf)
+
+    val resourcesInMap = transferResourceRequirements(executorResourceReqs) ++
+      raydpExecutorCustomResources
     val numExecutors = conf.get(config.EXECUTOR_INSTANCES).get
     val sparkCoresPerExecutor = coresPerExecutor
       .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
@@ -194,6 +197,21 @@ class RayCoarseGrainedSchedulerBackend(
     if (masterHandle != null) {
       RayAppMasterUtils.stopAppMaster(masterHandle)
     }
+  }
+
+  def parseRayDPResourceRequirements(sparkConf: SparkConf): Map[String, Double] = {
+    sparkConf.getAllWithPrefix(
+      s"${SparkOnRayConfigs.RAY_ACTOR_RESOURCE_PREFIX}.")
+      .filter{ case (key, _) => key.toLowerCase() != "cpu" }
+      .map{ case (key, _) => key }
+      .distinct
+      .map(name => {
+        val amountDouble = sparkConf.get(
+          s"${SparkOnRayConfigs.RAY_ACTOR_RESOURCE_PREFIX}.${name}",
+          0d.toString).toDouble
+        name->amountDouble
+      })
+      .toMap
   }
 
   private def transferResourceRequirements(
