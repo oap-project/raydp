@@ -32,7 +32,7 @@ available_node_types:
 ### Spark executor actors node affinity
 
 Similar to master actors node affinity, you can also schedule Spark executor to a specific set of nodes
-using custom resource:
+using custom resource, using configuration `spark.ray.raydp_spark_executor.actor.resource.[RESOURCE_NAME]`:
 
 ```python
 import raydp
@@ -51,7 +51,7 @@ And here is the cluster YAML with the customer resource:
 available_node_types:
   spark_on_spot:  # Spark only nodes
     resources:
-      spark_executor: 100 # custom resource indicates these node group is for Spark only
+      spark_executor: 100 # custom resource, with name matches the one set in spark.ray.raydp_spark_executor.actor.resource.*
     min_workers: 2
     max_workers: 10  # changing this also need to change the global max_workers
     node_config:
@@ -76,7 +76,7 @@ spark = raydp.init_spark(app_name='RayDP Oversubscribe Example',
                          executor_memory=1 * 1024 * 1024 * 1024,
                          configs = {
                              # ...
-                             'spark.ray.raydp_spark_executor.actor.resource.spark_executor': 1,  # The actor only occupy 1 logical CPU slots from Ray
+                             'spark.ray.raydp_spark_executor.actor.resource.cpu': 1,  # The actor only occupy 1 logical CPU slots from Ray
                          })
 ```
 

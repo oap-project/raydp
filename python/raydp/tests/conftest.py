@@ -78,7 +78,7 @@ def spark_on_ray_small(request):
 def spark_on_ray_2_executors(request):
     ray.shutdown()
     if request.param == "local":
-        ray.init(address="local", num_cpus=10, include_dashboard=False)
+        ray.init(address="local", num_cpus=6, include_dashboard=False)
     else:
         ray.init(address=request.param)
     node_ip = ray.util.get_node_ip_address()

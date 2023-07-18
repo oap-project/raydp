@@ -1,12 +1,12 @@
 package org.apache.spark.raydp;
 
-import scala.deprecated;
 
 public class SparkOnRayConfigs {
     @Deprecated
     public static final String RAY_ACTOR_RESOURCE_PREFIX = "spark.ray.actor.resource";
 
-    public static final String SPARK_EXECUTOR_ACTOR_RESOURCE_PREFIX = "spark.ray.raydp_spark_executor.actor.resource";
+    public static final String SPARK_EXECUTOR_ACTOR_RESOURCE_PREFIX =
+            "spark.ray.raydp_spark_executor.actor.resource";
     public static final String SPARK_MASTER_ACTOR_RESOURCE_PREFIX =
             "spark.ray.raydp_spark_master.actor.resource";
     /**
@@ -24,7 +24,8 @@ public class SparkOnRayConfigs {
      * This is different from spark.executor.cores, which defines the task parallelism
      * inside a stage.
      */
-    public static final String SPARK_EXECUTOR_ACTOR_CPU_RESOURCE = SPARK_EXECUTOR_ACTOR_RESOURCE_PREFIX + ".cpu";
+    public static final String SPARK_EXECUTOR_ACTOR_CPU_RESOURCE =
+            SPARK_EXECUTOR_ACTOR_RESOURCE_PREFIX + ".cpu";
 
     public static final int DEFAULT_SPARK_CORES_PER_EXECUTOR = 1;
 
