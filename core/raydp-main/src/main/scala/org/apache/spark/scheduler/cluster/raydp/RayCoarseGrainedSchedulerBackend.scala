@@ -174,8 +174,9 @@ class RayCoarseGrainedSchedulerBackend(
     val numExecutors = conf.get(config.EXECUTOR_INSTANCES).get
     val sparkCoresPerExecutor = coresPerExecutor
       .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
-    val rayActorCPU = conf.get(SparkOnRayConfigs.RAY_ACTOR_CPU_RESOURCE,
-      sparkCoresPerExecutor.toString).toDouble
+    val rayActorCPU = conf.get(SparkOnRayConfigs.SPARK_EXECUTOR_ACTOR_CPU_RESOURCE,
+      conf.get(SparkOnRayConfigs.RAY_ACTOR_CPU_RESOURCE,
+        sparkCoresPerExecutor.toString)).toDouble
 
     val appDesc = ApplicationDescription(name = sc.appName, numExecutors = numExecutors,
       coresPerExecutor = coresPerExecutor, memoryPerExecutorMB = sc.executorMemory,
@@ -201,13 +202,13 @@ class RayCoarseGrainedSchedulerBackend(
 
   def parseRayDPResourceRequirements(sparkConf: SparkConf): Map[String, Double] = {
     sparkConf.getAllWithPrefix(
-      s"${SparkOnRayConfigs.RAY_ACTOR_RESOURCE_PREFIX}.")
+      s"${SparkOnRayConfigs.SPARK_EXECUTOR_ACTOR_CPU_RESOURCE}.")
       .filter{ case (key, _) => key.toLowerCase() != "cpu" }
       .map{ case (key, _) => key }
       .distinct
       .map(name => {
         val amountDouble = sparkConf.get(
-          s"${SparkOnRayConfigs.RAY_ACTOR_RESOURCE_PREFIX}.${name}",
+          s"${SparkOnRayConfigs.SPARK_EXECUTOR_ACTOR_CPU_RESOURCE}.${name}",
           0d.toString).toDouble
         name->amountDouble
       })

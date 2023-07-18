@@ -1,16 +1,23 @@
-### Spark master node affinity
+### Spark master actors node affinity
 
-RayDP will create a ray actor called `RayDPSparkMaster`, which will then launch the java process, acting like a Master in a tradtional Spark cluster. By default, this actor could be scheduled to any node in the ray cluster. If you want it to be on a particular node, you can assign some custom resources to that node, and request those resources when starting `RayDPSparkMaster` by setting `spark.ray.raydp_spark_master.resource.*` in `init_spark`.
+RayDP will create a ray actor called `RayDPSparkMaster`, which will then launch the java process, 
+acting like a Master in a tradtional Spark cluster. 
+By default, this actor could be scheduled to any node in the ray cluster. 
+If you want it to be on a particular node, you can assign some custom resources to that node, 
+and request those resources when starting `RayDPSparkMaster` by setting 
+`spark.ray.raydp_spark_master.resource.*` in `init_spark`.
 
 As an example:
 
 ```python
+import raydp
+
 raydp.init_spark(...,
-configs = {
-    # ... other configs
-    'spark.ray.raydp_spark_master.actor.resource.CPU': 0,
-    'spark.ray.raydp_spark_master.actor.resource.spark_master': 1,  # Force Spark driver related actor run on headnode
-})
+                configs = {
+                    # ... other configs
+                    'spark.ray.raydp_spark_master.actor.resource.CPU': 0,
+                    'spark.ray.raydp_spark_master.actor.resource.spark_master': 1,  # Force Spark driver related actor run on headnode
+                })
 ```
 
 In cluster config yaml:
@@ -21,6 +28,58 @@ available_node_types:
       CPU: 0    # We intentionally set this to 0 so no executor is on headnode
       spark_master: 100  # Just gave it a large enough number so all drivers are there
 ```
+
+### Spark executor actors node affinity
+
+Similar to master actors node affinity, you can also schedule Spark executor to a specific set of nodes
+using custom resource:
+
+```python
+import raydp
+
+spark = raydp.init_spark(...,
+                         configs = {
+                             # ...
+                             'spark.ray.raydp_spark_executor.actor.resource.spark_executor': 1,  # Schedule executor on nodes with custom resource spark_executor
+                         })
+```
+
+And here is the cluster YAML with the customer resource:
+
+```yaml
+# ... other Ray cluster config
+available_node_types:
+  spark_on_spot:  # Spark only nodes
+    resources:
+      spark_executor: 100 # custom resource indicates these node group is for Spark only
+    min_workers: 2
+    max_workers: 10  # changing this also need to change the global max_workers
+    node_config:
+      # ....
+  general_spot:  # Nodes for general Ray workloads
+    min_workers: 2
+    max_workers: 10  # changing this also need to change the global max_workers
+    node_config:
+      # ...
+```
+
+One thing worth to note is you can use `spark.ray.raydp_spark_executor.actor.resource.cpu` to oversubscribe
+CPU resources, setting logical CPU smaller than the number of cores per executor. In this case, you can
+schedule more executor cores than the total vCPU in a node, which is useful if your workload is not CPU bound:
+
+```python
+import raydp
+
+spark = raydp.init_spark(app_name='RayDP Oversubscribe Example',
+                         num_executors=1,
+                         executor_cores=3,  # The executor can run 3 tasks in parallel
+                         executor_memory=1 * 1024 * 1024 * 1024,
+                         configs = {
+                             # ...
+                             'spark.ray.raydp_spark_executor.actor.resource.spark_executor': 1,  # The actor only occupy 1 logical CPU slots from Ray
+                         })
+```
+
 
 ### External Shuffle Service & Dynamic Resource Allocation
 

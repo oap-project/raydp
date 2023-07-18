@@ -16,14 +16,14 @@
 #
 
 import logging
+import subprocess
+import time
 
-import pytest
 import pyspark
-from pyspark.sql import SparkSession
+import pytest
 import ray
 import raydp
-import subprocess
-from ray.cluster_utils import Cluster
+from pyspark.sql import SparkSession
 
 
 def quiet_logger():
@@ -67,6 +67,7 @@ def spark_on_ray_small(request):
 
     def stop_all():
         raydp.stop_spark()
+        time.sleep(5)
         ray.shutdown()
 
     request.addfinalizer(stop_all)
@@ -77,7 +78,7 @@ def spark_on_ray_small(request):
 def spark_on_ray_2_executors(request):
     ray.shutdown()
     if request.param == "local":
-        ray.init(address="local", num_cpus=6, include_dashboard=False)
+        ray.init(address="local", num_cpus=10, include_dashboard=False)
     else:
         ray.init(address=request.param)
     node_ip = ray.util.get_node_ip_address()
@@ -88,71 +89,11 @@ def spark_on_ray_2_executors(request):
 
     def stop_all():
         raydp.stop_spark()
+        time.sleep(5)
         ray.shutdown()
 
     request.addfinalizer(stop_all)
     return spark
-
-
-@pytest.fixture(scope="function")
-def spark_on_ray_fraction_custom_resource(request):
-    ray.shutdown()
-    cluster = Cluster(
-        initialize_head=True,
-        head_node_args={
-            "num_cpus": 2
-        })
-    ray.init(address=cluster.address)
-
-    def stop_all():
-        raydp.stop_spark()
-        ray.shutdown()
-
-    request.addfinalizer(stop_all)
-
-
-@pytest.fixture(scope="function")
-def spark_on_ray_fractional_cpu(request):
-    ray.shutdown()
-    cluster = Cluster(
-        initialize_head=True,
-        head_node_args={
-            "num_cpus": 2
-        })
-
-    ray.init(address=cluster.address)
-
-    spark = raydp.init_spark(app_name="test_cpu_fraction",
-                             num_executors=1, executor_cores=3, executor_memory="500M",
-                             configs={"spark.ray.actor.resource.cpu": "0.1"})
-
-    def stop_all():
-        raydp.stop_spark()
-        ray.shutdown()
-
-    request.addfinalizer(stop_all)
-    return spark
-
-
-@pytest.fixture(scope="function")
-def spark_on_ray_executor_node_affinity(request):
-    ray.shutdown()
-    cluster = Cluster(
-        initialize_head=True,
-        head_node_args={
-            "num_cpus": 2,
-        })
-    cluster.add_node(num_cpus=10, resources={"spark_executor": 10})
-
-    ray.init(address=cluster.address)
-
-    def stop_all():
-        raydp.stop_spark()
-        ray.shutdown()
-
-    request.addfinalizer(stop_all)
-    return cluster
-
 
 @pytest.fixture(scope='session')
 def custom_spark_dir(tmp_path_factory) -> str:
