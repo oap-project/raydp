@@ -92,6 +92,7 @@ public class StaticLoggerBinder implements LoggerFactoryBinder {
               .getLocation().toURI().toString();
           sb.append(" from ").append(loc);
         } catch (Exception e) {
+          e.printStackTrace();
         }
       } else {
         sb.append("failed");
