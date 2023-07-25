@@ -39,24 +39,67 @@ def test_spark(spark_on_ray_small):
     assert result == 10
 
 
-def test_spark_on_fractional_cpu(spark_on_ray_fractional_cpu):
-    spark = spark_on_ray_fractional_cpu
+def test_legacy_spark_on_fractional_cpu():
+    cluster = Cluster(
+        initialize_head=True,
+        connect=True,
+        head_node_args={
+            "num_cpus": 2
+        })
+
+    spark = raydp.init_spark(app_name="test_cpu_fraction",
+                             num_executors=1, executor_cores=3, executor_memory="500M",
+                             configs={"spark.ray.actor.resource.cpu": "0.1"})
     result = spark.range(0, 10).count()
     assert result == 10
 
+    spark.stop()
+    raydp.stop_spark()
+    time.sleep(5)
+    ray.shutdown()
+    cluster.shutdown()
 
-@pytest.mark.error_on_custom_resource
-def test_spark_on_fractional_custom_resource(spark_on_ray_fraction_custom_resource):
-    try:
-        spark = raydp.init_spark(app_name="test_custom_resource_fraction",
-                                 num_executors=1, executor_cores=3, executor_memory="500M",
-                                 configs={"spark.executor.resource.CUSTOM.amount": "0.1"})
-        spark.range(0, 10).count()
-    except Exception:
-        assert True
-        return
 
-    assert False
+def test_spark_on_fractional_cpu():
+    cluster = Cluster(
+        initialize_head=True,
+        connect=True,
+        head_node_args={
+            "num_cpus": 2
+        })
+
+    spark = raydp.init_spark(app_name="test_cpu_fraction",
+                             num_executors=1, executor_cores=3, executor_memory="500M",
+                             configs={"spark.ray.raydp_spark_executor.actor.resource.cpu": "0.1"})
+    result = spark.range(0, 10).count()
+    assert result == 10
+
+    spark.stop()
+    raydp.stop_spark()
+    time.sleep(5)
+    ray.shutdown()
+    cluster.shutdown()
+
+
+def test_spark_executor_node_affinity():
+    cluster = Cluster(
+        initialize_head=True,
+        connect=True,
+        head_node_args={
+            "num_cpus": 1,
+        })
+    cluster.add_node(num_cpus=2, resources={"spark_executor": 10})
+
+    spark = raydp.init_spark(app_name="test_executor_node_affinity",
+                             num_executors=1, executor_cores=2, executor_memory="500M",
+                             configs={"spark.ray.raydp_spark_executor.actor.resource.spark_executor": "1"})
+    result = spark.range(0, 10).count()
+    assert result == 10
+
+    raydp.stop_spark()
+    time.sleep(5)
+    ray.shutdown()
+    cluster.shutdown()
 
 
 def test_spark_remote(ray_cluster):
@@ -74,6 +117,7 @@ def test_spark_remote(ray_cluster):
         def stop(self):
             self.spark.stop()
             raydp.stop_spark()
+            time.sleep(5)
 
     driver = SparkRemote.remote()
     result = ray.get(driver.run.remote())
@@ -171,6 +215,7 @@ def test_placement_group(ray_cluster):
     ])
     assert num_non_removed_pgs == 0
 
+
 def test_reconstruction():
     cluster = ray.cluster_utils.Cluster()
     # Head node has 2 cores for necessray actors
@@ -183,8 +228,8 @@ def test_reconstruction():
     # init_spark before adding nodes to ensure drivers connect to the head node
     spark = raydp.init_spark('a', 2, 1, '500m', fault_tolerant_mode=True)
     # Add two nodes, 1 executor each
-    node_to_kill = cluster.add_node(num_cpus=1, include_dashboard=False,object_store_memory=10**8)
-    second_node = cluster.add_node(num_cpus=1, include_dashboard=False,object_store_memory=10**8)
+    node_to_kill = cluster.add_node(num_cpus=1, include_dashboard=False, object_store_memory=10 ** 8)
+    second_node = cluster.add_node(num_cpus=1, include_dashboard=False, object_store_memory=10 ** 8)
     # wait for executors to start
     time.sleep(5)
     # df should be large enough so that result will be put into plasma
@@ -202,6 +247,7 @@ def test_reconstruction():
     raydp.stop_spark()
     ray.shutdown()
     cluster.shutdown()
+
 
 @pytest.mark.skip("flaky")
 def test_custom_installed_spark(custom_spark_dir):
@@ -225,6 +271,7 @@ def test_custom_installed_spark(custom_spark_dir):
     assert result == 10
     assert spark_home == custom_spark_dir
 
+
 def start_spark(barrier, i, results):
     try:
         # connect to the cluster started before pytest
@@ -239,6 +286,7 @@ def start_spark(barrier, i, results):
         ray.shutdown()
     except Exception as e:
         results[i] = -1
+
 
 def test_init_spark_twice():
     num_processes = 2
@@ -255,6 +303,7 @@ def test_init_spark_twice():
 
     assert results[0] == 10
     assert results[1] == 10
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))

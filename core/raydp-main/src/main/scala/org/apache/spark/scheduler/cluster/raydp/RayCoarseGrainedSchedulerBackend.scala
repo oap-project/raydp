@@ -27,7 +27,7 @@ import scala.concurrent.Future
 
 import io.ray.api.{ActorHandle, Ray}
 
-import org.apache.spark.{RayDPException, SparkConf, SparkContext}
+import org.apache.spark.{RayDPException, SparkConf, SparkContext, SparkException}
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.deploy.security.HadoopDelegationTokenManager
 import org.apache.spark.internal.{config, Logging}
@@ -167,12 +167,16 @@ class RayCoarseGrainedSchedulerBackend(
 
     val executorResourceReqs = ResourceUtils.parseResourceRequirements(
       conf, config.SPARK_EXECUTOR_PREFIX)
-    val resourcesInMap = transferResourceRequirements(executorResourceReqs)
+    val raydpExecutorCustomResources = parseRayDPResourceRequirements(conf)
+
+    val resourcesInMap = transferResourceRequirements(executorResourceReqs) ++
+      raydpExecutorCustomResources
     val numExecutors = conf.get(config.EXECUTOR_INSTANCES).get
     val sparkCoresPerExecutor = coresPerExecutor
       .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
-    val rayActorCPU = conf.get(SparkOnRayConfigs.RAY_ACTOR_CPU_RESOURCE,
-      sparkCoresPerExecutor.toString).toDouble
+    val rayActorCPU = conf.get(SparkOnRayConfigs.SPARK_EXECUTOR_ACTOR_CPU_RESOURCE,
+      conf.get(SparkOnRayConfigs.RAY_ACTOR_CPU_RESOURCE,
+        sparkCoresPerExecutor.toString)).toDouble
 
     val appDesc = ApplicationDescription(name = sc.appName, numExecutors = numExecutors,
       coresPerExecutor = coresPerExecutor, memoryPerExecutorMB = sc.executorMemory,
@@ -194,6 +198,21 @@ class RayCoarseGrainedSchedulerBackend(
     if (masterHandle != null) {
       RayAppMasterUtils.stopAppMaster(masterHandle)
     }
+  }
+
+  def parseRayDPResourceRequirements(sparkConf: SparkConf): Map[String, Double] = {
+    sparkConf.getAllWithPrefix(
+      s"${SparkOnRayConfigs.SPARK_EXECUTOR_ACTOR_CPU_RESOURCE}.")
+      .filter{ case (key, _) => key.toLowerCase() != "cpu" }
+      .map{ case (key, _) => key }
+      .distinct
+      .map(name => {
+        val amountDouble = sparkConf.get(
+          s"${SparkOnRayConfigs.SPARK_EXECUTOR_ACTOR_CPU_RESOURCE}.${name}",
+          0d.toString).toDouble
+        name->amountDouble
+      })
+      .toMap
   }
 
   private def transferResourceRequirements(
