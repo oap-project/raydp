@@ -51,11 +51,14 @@ public class Agent {
 
     File parentDir = new File(logDir);
     if (!parentDir.exists()) {
-      parentDir.mkdirs();
+      boolean flag = parentDir.mkdirs();
+      if (!flag) {
+        throw new RuntimeException("Error create log dir.");
+      }
     }
 
     File logFile = new File(parentDir, "/slf4j-" + pid + ".log");
-    try (PrintStream ps = new PrintStream(logFile)) {
+    try (PrintStream ps = new PrintStream(logFile, "UTF-8")) {
       System.setOut(ps);
       System.setErr(ps);
       // slf4j binding
