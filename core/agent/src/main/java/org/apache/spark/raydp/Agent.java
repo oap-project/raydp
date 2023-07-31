@@ -82,8 +82,9 @@ public class Agent {
       // TODO: uncomment after the ray PR #33665 released
       // String prefix = System.getProperty("ray.logging.file-prefix", "java-worker");
       // if ("java-worker".equals(prefix)) {
-      try (FileWriter writer = new FileWriter(logDir + "/" + prefix + "-" +
-              jobId + "-" + pid + ".log")) {
+      String file = new String(
+        (logDir + "/" + prefix + "-" + jobId + "-" + pid + ".log").getBytes(), "UTF-8");
+      try (FileWriter writer = new FileWriter(file)) {
         writer.write(":job_id:" + jobId + "\n");
       }
       // }
