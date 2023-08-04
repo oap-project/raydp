@@ -20,12 +20,16 @@ package org.apache.spark.raydp;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.PrintStream;
+import java.io.Writer;
 import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 
 public class Agent {
@@ -83,9 +87,10 @@ public class Agent {
       // TODO: uncomment after the ray PR #33665 released
       // String prefix = System.getProperty("ray.logging.file-prefix", "java-worker");
       // if ("java-worker".equals(prefix)) {
-      String file = new String((logDir + "/" + prefix + "-" + jobId + "-" + pid + ".log")
-        .getBytes(Charset.forName("UTF-8")), "UTF-8");
-      try (FileWriter writer = new FileWriter(file)) {
+      File file = new File(new String((logDir + "/" + prefix + "-" + jobId + "-" + pid + ".log")
+        .getBytes(Charset.forName("UTF-8")), "UTF-8"));
+      try (OutputStream out = new FileOutputStream(file);
+          Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
         writer.write(":job_id:" + jobId + "\n");
       }
       // }
