@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
+import java.nio.charset.Charset;
 
 
 public class Agent {
@@ -82,8 +83,8 @@ public class Agent {
       // TODO: uncomment after the ray PR #33665 released
       // String prefix = System.getProperty("ray.logging.file-prefix", "java-worker");
       // if ("java-worker".equals(prefix)) {
-      String file = new String(
-        (logDir + "/" + prefix + "-" + jobId + "-" + pid + ".log").getBytes(), "UTF-8");
+      String file = new String((logDir + "/" + prefix + "-" + jobId + "-" + pid + ".log")
+        .getBytes(Charset.forName("UTF-8")), "UTF-8");
       try (FileWriter writer = new FileWriter(file)) {
         writer.write(":job_id:" + jobId + "\n");
       }
