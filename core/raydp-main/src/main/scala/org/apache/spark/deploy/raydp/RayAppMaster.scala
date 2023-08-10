@@ -19,7 +19,7 @@ package org.apache.spark.deploy.raydp
 
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.{Date, Locale}
+import java.util.{Arrays, Date, List, Locale}
 import javax.xml.bind.DatatypeConverter
 
 import scala.collection.JavaConverters._
@@ -120,8 +120,8 @@ class RayAppMaster(host: String,
         PlacementGroups.getPlacementGroup(id)
       }.orNull
     private val bundleIndexes: List[Int] = conf.getOption("spark.ray.bundle_indexes")
-      .map(_.split(",").map(_.toInt).toList)
-      .getOrElse(List.empty)
+      .map(_.split(",").map(_.toInt).toList).get.asJava
+
     private var currentBundleIndex: Int = 0
 
     override def receive: PartialFunction[Any, Unit] = {
@@ -316,7 +316,7 @@ class RayAppMaster(host: String,
     }
 
     private def getNextBundleIndex: Int = {
-      if (placementGroup != null && bundleIndexes.nonEmpty) {
+      if (placementGroup != null && !bundleIndexes.isEmpty) {
         val previous = currentBundleIndex
         currentBundleIndex = (currentBundleIndex + 1) % bundleIndexes.size
         previous
