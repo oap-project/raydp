@@ -17,7 +17,7 @@
 
   <properties>
     <scala.version>2.12.15</scala.version>
-    <jackson.version>2.13.3</jackson.version>
+    <jackson.version>2.13.5</jackson.version>
   </properties>
 
   <build>

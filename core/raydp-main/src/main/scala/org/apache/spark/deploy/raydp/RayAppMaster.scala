@@ -119,9 +119,14 @@ class RayAppMaster(host: String,
         val id = PlacementGroupId.fromBytes(DatatypeConverter.parseHexBinary(hex))
         PlacementGroups.getPlacementGroup(id)
       }.orNull
-    private val bundleIndexes: List[Int] = conf.getOption("spark.ray.bundle_indexes")
-      .map(_.split(",").map(_.toInt).toList)
-      .getOrElse(List.empty)
+    private val bundleIndexesOpt: Option[Array[Int]] = conf.getOption("spark.ray.bundle_indexes")
+      .map(_.split(",").map(_.toInt))
+
+    private val bundleIndexesNum: Int = bundleIndexesOpt match {
+        case Some(n) => n.size
+        case None => 0
+      }
+
     private var currentBundleIndex: Int = 0
 
     override def receive: PartialFunction[Any, Unit] = {
@@ -316,9 +321,9 @@ class RayAppMaster(host: String,
     }
 
     private def getNextBundleIndex: Int = {
-      if (placementGroup != null && bundleIndexes.nonEmpty) {
+      if (placementGroup != null && bundleIndexesNum != 0) {
         val previous = currentBundleIndex
-        currentBundleIndex = (currentBundleIndex + 1) % bundleIndexes.size
+        currentBundleIndex = (currentBundleIndex + 1) % bundleIndexesNum
         previous
       } else {
         -1

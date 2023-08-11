@@ -29,7 +29,7 @@
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
     <scala.version>2.12.15</scala.version>
-    <jackson.version>2.13.4</jackson.version>
+    <jackson.version>2.13.5</jackson.version>
     <scala.binary.version>2.12</scala.binary.version>
   </properties>
 
@@ -153,7 +153,7 @@
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-databind</artifactId>
-        <version>2.13.4.2</version>
+        <version>${jackson.version}</version>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
