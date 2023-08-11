@@ -124,7 +124,7 @@ class RayAppMaster(host: String,
 
     private val bundleIndexesNum: Int = bundleIndexesOpt match {
         case Some(n) => n.size
-        case None    => 0
+        case None => 0
       }
 
     private var currentBundleIndex: Int = 0
