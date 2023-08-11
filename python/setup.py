@@ -27,14 +27,7 @@ from setuptools import find_packages, setup, Command
 
 build_mode = os.getenv("RAYDP_BUILD_MODE", "")
 package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
-BASE_VERSION = "1.6.0"
-if build_mode == "nightly":
-    VERSION = BASE_VERSION + datetime.today().strftime("b%Y%m%d.dev0")
-# for legacy raydp_nightly package
-elif package_name == 'raydp_nightly':
-    VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
-else:
-    VERSION = BASE_VERSION + ".dev0"
+VERSION = "1.6.0"
 
 ROOT_DIR = os.path.dirname(__file__)
 
