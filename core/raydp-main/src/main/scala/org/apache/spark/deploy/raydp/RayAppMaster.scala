@@ -120,7 +120,8 @@ class RayAppMaster(host: String,
         PlacementGroups.getPlacementGroup(id)
       }.orNull
     private val bundleIndexes: List[Int] = conf.getOption("spark.ray.bundle_indexes")
-      .map(_.split(",").map(_.toInt).toList).get.asJava
+      .map(_.split(",").map(_.toInt).toList)
+      .getOrElse(List.empty).asJava
 
     private var currentBundleIndex: Int = 0
 
