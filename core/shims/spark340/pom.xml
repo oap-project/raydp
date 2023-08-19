@@ -66,13 +66,13 @@
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_${scala.binary.version}</artifactId>
-      <version>${spark340.version}</version>
+      <version>${env.SPARK340_VERSION}</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_${scala.binary.version}</artifactId>
-      <version>${spark340.version}</version>
+      <version>${env.SPARK340_VERSION}</version>
       <scope>provided</scope>
       <exclusions>
         <exclusion>
