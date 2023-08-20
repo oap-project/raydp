@@ -1,12 +1,16 @@
 
 import sys
 import time
+from typing import Any
 
 import pytest
 import ray
 from ray._private.client_mode_hook import client_mode_wrap
 from ray.exceptions import RayTaskError, OwnerDiedError
 import raydp
+from raydp.spark import PartitionObjectsOwner
+
+from raydp.spark import get_raydp_master_owner
 
 
 def gen_test_data():
@@ -130,6 +134,72 @@ def test_data_ownership_transfer(ray_cluster):
    
   # final clean up
   raydp.stop_spark()
+
+
+def test_custom_ownership_transfer_custom_actor(ray_cluster):
+  """
+  Test shutting down Spark worker after data been put
+  into Ray object store with data ownership transfer to custom user actor.
+  This test should be able to execute till the end without crash as expected.
+  """
+
+  @ray.remote
+  class CustomActor:
+      objects: Any
+
+      def wake(self):
+          pass
+
+      def set_objects(self, objects):
+          self.objects = objects
+
+  if not ray.worker.global_worker.connected:
+      pytest.skip("Skip this test if using ray client")
+
+  from raydp.spark.dataset import spark_dataframe_to_ray_dataset
+  import numpy as np
+
+  num_executor = 1
+
+  spark = raydp.init_spark(
+      app_name="example",
+      num_executors=num_executor,
+      executor_cores=1,
+      executor_memory="500M"
+  )
+
+  df_train = gen_test_data()
+
+  resource_stats = ray.available_resources()
+  cpu_cnt = resource_stats['CPU']
+
+  # create owner
+  owner_actor_name = 'owner_actor_name'
+  actor = CustomActor.options(name=owner_actor_name).remote()
+  # waiting for the actor to be created
+  ray.get(actor.wake.remote())
+
+  # convert data from spark dataframe to ray dataset,
+  # and transfer data ownership to dedicated Object Holder (Singleton)
+  ds = spark_dataframe_to_ray_dataset(df_train, parallelism=4, owner=PartitionObjectsOwner(
+      owner_actor_name,
+      lambda actor, objects: actor.set_objects.remote(objects)))
+
+  # display data
+  ds.show(5)
+
+  # release resource by shutting down spark Java process
+  raydp.stop_spark()
+  ray_gc()  # ensure GC kicked in
+  time.sleep(3)
+
+  # confirm that resources has been recycled
+  resource_stats = ray.available_resources()
+  assert resource_stats['CPU'] == cpu_cnt + num_executor
+
+  # confirm that data is still available from object store!
+  # sanity check the dataset is as functional as normal
+  assert np.isnan(ds.mean('Age')) is not True
 
 
 def test_api_compatibility(ray_cluster):
