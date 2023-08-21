@@ -137,7 +137,8 @@ class ParquetPiece(RecordPiece):
 class PartitionObjectsOwner:
     # Actor owner name
     actor_name: str
-    # Function that set serialized parquet objects to actor owner state and return result of .remote() calling
+    # Function that set serialized parquet objects to actor owner state
+    # and return result of .remote() calling
     set_reference_as_state: Callable[[ray.actor.ActorHandle, List[ObjectRef]], ObjectRef]
 
 
@@ -145,9 +146,15 @@ def get_raydp_master_owner(spark: Optional[SparkSession] = None) -> PartitionObj
     if spark is None:
         spark = SparkSession.getActiveSession()
     obj_holder_name = spark.sparkContext.appName + RAYDP_SPARK_MASTER_SUFFIX
+
+    def raydp_master_set_reference_as_state(
+            raydp_master_actor: ray.actor.ActorHandle,
+            objects: List[ObjectRef]) -> ObjectRef:
+        return raydp_master_actor.add_objects.remote(uuid.uuid4(), objects)
+
     return PartitionObjectsOwner(
         obj_holder_name,
-        lambda raydp_master_actor, objects: raydp_master_actor.add_objects.remote(uuid.uuid4(), objects))
+        raydp_master_set_reference_as_state)
 
 
 @client_mode_wrap
