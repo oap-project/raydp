@@ -13,7 +13,7 @@
   <url>https://github.com/oap-project/raydp.git</url>
 
   <properties>
-    <spark.version>3.2.2</spark.version>
+    <spark.version>3.3.3</spark.version>
     <spark322.version>3.2.2</spark322.version>
     <spark330.version>3.3.0</spark330.version>
     <spark340.version>3.4.0</spark340.version>
@@ -23,7 +23,7 @@
     <commons.compress.version>1.21</commons.compress.version>
     <rhino.version>1.7.12</rhino.version>
     <protobuf.version>3.16.3</protobuf.version>
-    <ivy.version>2.5.1</ivy.version>
+    <ivy.version>2.5.2</ivy.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.compiler.source>1.8</maven.compiler.source>
