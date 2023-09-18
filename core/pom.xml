@@ -14,9 +14,9 @@
 
   <properties>
     <spark.version>3.3.3</spark.version>
-    <spark322.version>3.2.2</spark322.version>
-    <spark330.version>3.3.0</spark330.version>
-    <spark340.version>3.4.0</spark340.version>
+    <spark322.version>3.3.3</spark322.version>
+    <spark330.version>3.3.3</spark330.version>
+    <spark340.version>3.3.3</spark340.version>
     <snappy.version>1.1.10.1</snappy.version>
     <netty.version>4.1.94.Final</netty.version>
     <commons.text.version>1.10.0</commons.text.version>
