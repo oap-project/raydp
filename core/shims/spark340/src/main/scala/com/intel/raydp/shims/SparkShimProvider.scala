@@ -21,8 +21,9 @@ import com.intel.raydp.shims.{SparkShims, SparkShimDescriptor}
 
 object SparkShimProvider {
   val SPARK340_DESCRIPTOR = SparkShimDescriptor(3, 4, 0)
-  val DESCRIPTOR_STRINGS = Seq(s"$SPARK340_DESCRIPTOR")
-  val DESCRIPTOR = SPARK340_DESCRIPTOR
+  val SPARK341_DESCRIPTOR = SparkShimDescriptor(3, 4, 1)
+  val DESCRIPTOR_STRINGS = Seq(s"$SPARK340_DESCRIPTOR", s"$SPARK341_DESCRIPTOR")
+  val DESCRIPTOR = SPARK341_DESCRIPTOR
 }
 
 class SparkShimProvider extends com.intel.raydp.shims.SparkShimProvider {
