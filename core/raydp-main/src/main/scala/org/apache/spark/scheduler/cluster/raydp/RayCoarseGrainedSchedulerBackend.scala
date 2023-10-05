@@ -38,6 +38,8 @@ import org.apache.spark.rpc.{RpcEndpointAddress, RpcEndpointRef, RpcEnv, ThreadS
 import org.apache.spark.scheduler.TaskSchedulerImpl
 import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
 import org.apache.spark.util.Utils
+import org.apache.spark.util.{SparkUncaughtExceptionHandler, ThreadUtils, Utils}
+import java.util.concurrent.{ScheduledFuture, TimeUnit}
 
 /**
  * A SchedulerBackend that request executor from Ray.
@@ -246,14 +248,31 @@ class RayCoarseGrainedSchedulerBackend(
       appDesc: ApplicationDescription,
       override val rpcEnv: RpcEnv) extends ThreadSafeRpcEndpoint with Logging {
 
+    private val executorRecoveryThread =
+      ThreadUtils.newDaemonSingleThreadScheduledExecutor("driver-executor-recovery-thread")
+
+    private var executorRecoveryTask: ScheduledFuture[_] = _
+
     override def onStart(): Unit = {
       try {
         registerToAppMaster()
+        logInfo("Starting Spark master using Darwin's logic")
+        executorRecoveryTask = executorRecoveryThread.scheduleAtFixedRate(
+          () => appMasterRef.get.send(CheckRecoveryForExecutors(appDesc)),
+          60, 10, TimeUnit.SECONDS)
       } catch {
         case e: Exception =>
           logWarning("Failed to connect to app master", e)
           stop()
       }
+    }
+
+    override def onStop(): Unit = {
+      // Stop the daemon threads
+      if (executorRecoveryTask != null) {
+        executorRecoveryTask.cancel(true)
+      }
+      executorRecoveryThread.shutdownNow()
     }
 
     override def receive: PartialFunction[Any, Unit] = {

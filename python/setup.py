@@ -27,7 +27,7 @@ from setuptools import find_packages, setup, Command
 
 build_mode = os.getenv("RAYDP_BUILD_MODE", "")
 package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
-VERSION = "1.6.0"
+VERSION = "1.6.2"
 
 ROOT_DIR = os.path.dirname(__file__)
 
@@ -88,14 +88,6 @@ try:
     copy2(SCRIPT_PATH, SCRIPT_TARGET)
 
     install_requires = [
-        "numpy",
-        "pandas >= 1.1.4",
-        "psutil",
-        "pyarrow >= 4.0.1",
-        "ray >= 2.1.0",
-        "pyspark >= 3.1.1, <= 3.3.2",
-        "netifaces",
-        "protobuf > 3.19.5, <= 3.20.3"
     ]
 
     _packages = find_packages()
