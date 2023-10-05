@@ -142,6 +142,15 @@ class RayAppMaster(host: String,
         driver.send(RegisteredApplication(app.id, self))
         schedule()
 
+      /**
+       * On receiving the event, we check if any executors are lost and we will recovery only one executor at a time.
+       */
+      case CheckRecoveryForExecutors(appDescription: ApplicationDescription) =>
+        val targetExecutros = appDescription.numExecutors
+        if (targetExecutros > appInfo.currentExecutors()) {
+          requestNewExecutor()
+        }
+
       case UnregisterApplication(appId) =>
         assert(appInfo != null && appInfo.id == appId)
         appInfo.markFinished(ApplicationState.FINISHED)

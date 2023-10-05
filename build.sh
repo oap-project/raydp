@@ -57,7 +57,7 @@ then
 fi
 
 pushd ${PYTHON_DIR}
-python setup.py bdist_wheel
+python3 setup.py bdist_wheel
 cp ${PYTHON_DIR}/dist/${RAYDP_PACKAGE_NAME}-* ${DIST_PATH}
 popd # python dir
 
