@@ -212,11 +212,15 @@ class RayDPSparkMaster():
         assert self._started_up
         return self._spark_home
 
-    def add_objects(self, timestamp, objects):
-        self._objects[timestamp] = objects
+    def add_objects(self, objects):
+        for obj in objects:
+            self._objects[obj.hex()] = obj
 
-    def get_object(self, timestamp, idx):
-        return self._objects[timestamp][idx]
+    def get_object(self, obj_hex):
+        return self._objects[obj_hex]
+
+    def remove_object(self, obj_hex):
+        del self._objects[obj_hex]
 
     def get_ray_address(self):
         return ray.worker.global_worker.node.address

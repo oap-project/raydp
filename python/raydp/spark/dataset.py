@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import logging
-import uuid
 from typing import Callable, Dict, List, NoReturn, Optional, Iterable, Union
 
 import numpy as np
@@ -164,8 +163,7 @@ def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
 
     if _use_owner is True:
         holder = ray.get_actor(obj_holder_name)
-        df_id = uuid.uuid4()
-        ray.get(holder.add_objects.remote(df_id, blocks))
+        ray.get(holder.add_objects.remote(blocks))
 
     return blocks, block_sizes
 
@@ -210,12 +208,12 @@ def _convert_by_udf(spark: sql.SparkSession,
                     schema: StructType) -> DataFrame:
     holder_name  = spark.sparkContext.appName + RAYDP_SPARK_MASTER_SUFFIX
     holder = ray.get_actor(holder_name)
-    df_id = uuid.uuid4()
-    ray.get(holder.add_objects.remote(df_id, blocks))
+    ray.get(holder.add_objects.remote(blocks))
     jvm = spark.sparkContext._jvm
     object_store_reader = jvm.org.apache.spark.sql.raydp.ObjectStoreReader
     # create the rdd then dataframe to utilize locality
-    jdf = object_store_reader.createRayObjectRefDF(spark._jsparkSession, locations)
+    blocks_hex = [block.hex() for block in blocks]
+    jdf = object_store_reader.createRayObjectRefDF(spark._jsparkSession, blocks_hex, locations)
     current_namespace = ray.get_runtime_context().namespace
     ray_address = ray.get(holder.get_ray_address.remote())
     blocks_df = DataFrame(jdf, spark._wrapped if hasattr(spark, "_wrapped") else spark)
@@ -228,8 +226,8 @@ def _convert_by_udf(spark: sql.SparkSession,
         obj_holder = ray.get_actor(holder_name)
         for block in blocks:
             dfs = []
-            for idx in block["idx"]:
-                ref = ray.get(obj_holder.get_object.remote(df_id, idx))
+            for obj_hex in block["hex"]:
+                ref = ray.get(obj_holder.get_object.remote(obj_hex))
                 data = ray.get(ref)
                 dfs.append(data.to_pandas())
             yield pd.concat(dfs)
