@@ -23,7 +23,7 @@ def libs_import():
         import intel_extension_for_pytorch
     except ImportError:
         raise ImportError(
-            "Please install IPEX"
+            "Please install intel_extension_for_pytorch"
         )
     try:
         ccl_version = importlib_metadata.version("oneccl_bind_pt")
