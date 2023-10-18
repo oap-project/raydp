@@ -114,7 +114,8 @@ def test_data_ownership_transfer(ray_cluster):
 
   # convert data from spark dataframe to ray dataset,
   # and transfer data ownership to dedicated Object Holder (Singleton)
-  ds = spark_dataframe_to_ray_dataset(df_train, parallelism=4, _use_owner=True)
+  ds = spark_dataframe_to_ray_dataset(df_train, parallelism=4,
+                                      owner=get_raydp_master_owner(df_train.sparkSession))
 
   # display data
   ds.show(5)
