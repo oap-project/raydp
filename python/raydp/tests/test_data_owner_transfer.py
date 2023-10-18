@@ -16,7 +16,7 @@ from raydp.spark import get_raydp_master_owner
 def gen_test_data():
   from pyspark.sql.session import SparkSession
   s = SparkSession.getActiveSession()
- 
+
   data = []
   tmp = [("ming", 20, 15552211521),
           ("hong", 19, 13287994007),
@@ -34,10 +34,10 @@ def gen_test_data():
 @client_mode_wrap
 def ray_gc():
   ray._private.internal_api.global_gc()
-  
+
 def test_fail_without_data_ownership_transfer(ray_cluster):
   """
-  Test shutting down Spark worker after data been put 
+  Test shutting down Spark worker after data been put
   into Ray object store without data ownership transfer.
   This test should be throw error of data inaccessible after
   its owner (e.g. Spark JVM process) has terminated, which is expected.
@@ -87,7 +87,7 @@ def test_fail_without_data_ownership_transfer(ray_cluster):
 
 def test_data_ownership_transfer(ray_cluster):
   """
-  Test shutting down Spark worker after data been put 
+  Test shutting down Spark worker after data been put
   into Ray object store with data ownership transfer.
   This test should be able to execute till the end without crash as expected.
   """
@@ -97,7 +97,7 @@ def test_data_ownership_transfer(ray_cluster):
 
   from raydp.spark.dataset import spark_dataframe_to_ray_dataset
   import numpy as np
-  
+
   num_executor = 1
 
   spark = raydp.init_spark(
@@ -115,7 +115,7 @@ def test_data_ownership_transfer(ray_cluster):
   # convert data from spark dataframe to ray dataset,
   # and transfer data ownership to dedicated Object Holder (Singleton)
   ds = spark_dataframe_to_ray_dataset(df_train, parallelism=4,
-                                      owner=get_raydp_master_owner(df_train.sparkSession))
+                                      owner=get_raydp_master_owner(df_train.sql_ctx.sparkSession))
 
   # display data
   ds.show(5)
@@ -132,7 +132,7 @@ def test_data_ownership_transfer(ray_cluster):
   # confirm that data is still available from object store!
   # sanity check the dataset is as functional as normal
   assert np.isnan(ds.mean('Age')) is not True
-   
+
   # final clean up
   raydp.stop_spark()
 
@@ -230,13 +230,13 @@ def test_api_compatibility(ray_cluster):
   # confirm that resources is still being occupied
   resource_stats = ray.available_resources()
   assert resource_stats['CPU'] == cpu_cnt
-  
+
   # final clean up
   raydp.stop_spark()
 
 if __name__ == '__main__':
   sys.exit(pytest.main(["-v", __file__]))
-  
+
   # test_api_compatibility()
   # test_data_ownership_transfer()
   # test_fail_without_data_ownership_transfer()
