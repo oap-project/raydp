@@ -13,16 +13,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import logging
 import uuid
 from typing import Callable, Dict, List, NoReturn, Optional, Iterable, Union
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pyspark.sql as sql
+from pyspark.sql import SparkSession
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import StructType
 from pyspark.sql.pandas.types import from_arrow_type
@@ -132,6 +133,30 @@ class ParquetPiece(RecordPiece):
         return ParquetPiece(self.piece, self.columns, self.partitions, new_row_ids, num_rows)
 
 
+@dataclass
+class PartitionObjectsOwner:
+    # Actor owner name
+    actor_name: str
+    # Function that set serialized parquet objects to actor owner state
+    # and return result of .remote() calling
+    set_reference_as_state: Callable[[ray.actor.ActorHandle, List[ObjectRef]], ObjectRef]
+
+
+def get_raydp_master_owner(spark: Optional[SparkSession] = None) -> PartitionObjectsOwner:
+    if spark is None:
+        spark = SparkSession.getActiveSession()
+    obj_holder_name = spark.sparkContext.appName + RAYDP_SPARK_MASTER_SUFFIX
+
+    def raydp_master_set_reference_as_state(
+            raydp_master_actor: ray.actor.ActorHandle,
+            objects: List[ObjectRef]) -> ObjectRef:
+        return raydp_master_actor.add_objects.remote(uuid.uuid4(), objects)
+
+    return PartitionObjectsOwner(
+        obj_holder_name,
+        raydp_master_set_reference_as_state)
+
+
 @client_mode_wrap
 def _register_objects(records):
     worker = ray.worker.global_worker
@@ -147,36 +172,34 @@ def _register_objects(records):
     return blocks, block_sizes
 
 def _save_spark_df_to_object_store(df: sql.DataFrame, use_batch: bool = True,
-                                   _use_owner: bool = False):
+                                   owner: Union[PartitionObjectsOwner, None] = None):
     # call java function from python
     jvm = df.sql_ctx.sparkSession.sparkContext._jvm
     jdf = df._jdf
     object_store_writer = jvm.org.apache.spark.sql.raydp.ObjectStoreWriter(jdf)
-    obj_holder_name = df.sql_ctx.sparkSession.sparkContext.appName + RAYDP_SPARK_MASTER_SUFFIX
-    if _use_owner is True:
-        records = object_store_writer.save(use_batch, obj_holder_name)
-    else:
-        records = object_store_writer.save(use_batch, "")
+    actor_owner_name = ""
+    if owner is not None:
+        actor_owner_name = owner.actor_name
+    records = object_store_writer.save(use_batch, actor_owner_name)
 
     record_tuples = [(record.objectId(), record.ownerAddress(), record.numRecords())
-                        for record in records]
+                     for record in records]
     blocks, block_sizes = _register_objects(record_tuples)
 
-    if _use_owner is True:
-        holder = ray.get_actor(obj_holder_name)
-        df_id = uuid.uuid4()
-        ray.get(holder.add_objects.remote(df_id, blocks))
+    if owner is not None:
+        actor_owner = ray.get_actor(actor_owner_name)
+        ray.get(owner.set_reference_as_state(actor_owner, blocks))
 
     return blocks, block_sizes
 
 def spark_dataframe_to_ray_dataset(df: sql.DataFrame,
                                    parallelism: Optional[int] = None,
-                                   _use_owner: bool = False):
+                                   owner: Union[PartitionObjectsOwner, None] = None):
     num_part = df.rdd.getNumPartitions()
     if parallelism is not None:
         if parallelism != num_part:
             df = df.repartition(parallelism)
-    blocks, _ = _save_spark_df_to_object_store(df, False, _use_owner)
+    blocks, _ = _save_spark_df_to_object_store(df, False, owner)
     return from_arrow_refs(blocks)
 
 # This is an experimental API for now.

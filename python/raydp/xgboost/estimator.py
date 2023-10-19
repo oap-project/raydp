@@ -20,7 +20,7 @@ from typing import Any, Callable, List, NoReturn, Optional, Union, Dict
 from raydp.estimator import EstimatorInterface
 from raydp.spark.interfaces import SparkEstimatorInterface, DF, OPTIONAL_DF
 from raydp import stop_spark
-from raydp.spark import spark_dataframe_to_ray_dataset
+from raydp.spark import spark_dataframe_to_ray_dataset, get_raydp_master_owner
 
 import ray
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
@@ -99,14 +99,17 @@ class XGBoostEstimator(EstimatorInterface, SparkEstimatorInterface):
                 evaluate_df.write.parquet(path+"/test", compression=compression)
                 evaluate_ds = ray.data.read_parquet(path+"/test")
         else:
+            owner = None
+            if stop_spark_after_conversion:
+                owner = get_raydp_master_owner(train_df.sql_ctx.sparkSession)
             train_ds = spark_dataframe_to_ray_dataset(train_df,
-                                                  parallelism=self._num_workers,
-                                                  _use_owner=stop_spark_after_conversion)
+                                                      parallelism=self._num_workers,
+                                                      owner=owner)
             if evaluate_df is not None:
                 evaluate_df = self._check_and_convert(evaluate_df)
                 evaluate_ds = spark_dataframe_to_ray_dataset(evaluate_df,
-                                                         parallelism=self._num_workers,
-                                                         _use_owner=stop_spark_after_conversion)
+                                                             parallelism=self._num_workers,
+                                                             owner=owner)
         if stop_spark_after_conversion:
             stop_spark(cleanup_data=False)
         return self.fit(
