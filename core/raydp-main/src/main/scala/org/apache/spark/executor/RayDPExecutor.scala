@@ -136,6 +136,10 @@ class RayDPExecutor(
     started.compareAndSet(false, true)
   }
 
+  def alive(): Boolean = {
+    return started.get()
+  }
+
   def createWorkingDir(appId: String): Unit = {
     // create the application dir
     val app_dir = new File(RayConfig.create().sessionDir, appId)

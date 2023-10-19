@@ -35,10 +35,9 @@ case class ExecutorStarted(executorId: String) extends RayDPDeployMessage
 case class RequestExecutors(appId: String, requestedTotal: Int) extends RayDPDeployMessage
 
 /**
- * Message which is published periodically to check if we need to recover any lost executors.
- * @param appDescription
+ * Message to mark an executor as lost if its handler is not reachable.
  */
-case class CheckRecoveryForExecutors(appDescription: ApplicationDescription) extends RayDPDeployMessage
+case class MarkLostExecutors(appDescription: ApplicationDescription) extends RayDPDeployMessage
 
 case class KillExecutors(appId: String, executorIds: Seq[String]) extends RayDPDeployMessage
 

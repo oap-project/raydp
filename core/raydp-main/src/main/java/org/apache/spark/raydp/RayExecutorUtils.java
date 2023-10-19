@@ -60,7 +60,7 @@ public class RayExecutorUtils {
     if (placementGroup != null) {
       creator.setPlacementGroup(placementGroup, bundleIndex);
     }
-    creator.setMaxRestarts(3);
+    creator.setMaxRestarts(0);
     creator.setMaxTaskRetries(3);
     creator.setMaxConcurrency(2);
     return creator.remote();
@@ -74,6 +74,16 @@ public class RayExecutorUtils {
       String classPathEntries) {
     handler.task(RayDPExecutor::startUp,
         appId, driverUrl, cores, classPathEntries).remote();
+  }
+
+  public static boolean isExecutorAlive(
+          ActorHandle<RayDPExecutor> handler) {
+    try {
+        Ray.get(handler.task(RayDPExecutor::alive).remote(), 1000);
+        return true;
+    } catch (Exception e) {
+        return false;
+    }
   }
 
   public static String[] getBlockLocations(

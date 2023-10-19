@@ -99,6 +99,19 @@ private[spark] class ApplicationInfo(
     addressToExecutorId(address) = executorId
   }
 
+  def removeLostExecutor(executorId: String): Unit = {
+    if (executors.contains(executorId)) {
+      val exec = executors(executorId)
+      if (exec.registered) {
+        registeredExecutors -= 1
+      }
+      removedExecutors += executors(executorId)
+      executors -= executorId
+      coresGranted -= exec.cores
+      executorIdToHandler -= executorId
+    }
+  }
+
   def kill(address: RpcAddress): Boolean = {
     if (addressToExecutorId.contains(address)) {
       kill(addressToExecutorId(address))
@@ -132,6 +145,10 @@ private[spark] class ApplicationInfo(
   def getExecutorHandler(
       executorId: String): Option[ActorHandle[RayDPExecutor]] = {
     executorIdToHandler.get(executorId)
+  }
+
+  def getAllExecutorIds(): Seq[String] = {
+    executorIdToHandler.keys.toSeq
   }
 
   def remainingUnRegisteredExecutors(): Int = {

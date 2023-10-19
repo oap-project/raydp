@@ -251,15 +251,19 @@ class RayCoarseGrainedSchedulerBackend(
     private val executorRecoveryThread =
       ThreadUtils.newDaemonSingleThreadScheduledExecutor("driver-executor-recovery-thread")
 
-    private var executorRecoveryTask: ScheduledFuture[_] = _
+//    private var executorRecoveryTask: ScheduledFuture[_] = _
+    private var checkForWorkerTimeOutTask: ScheduledFuture[_] = _
 
     override def onStart(): Unit = {
       try {
         registerToAppMaster()
-        logInfo("Starting Spark master using Darwin's logic")
-        executorRecoveryTask = executorRecoveryThread.scheduleAtFixedRate(
-          () => appMasterRef.get.send(CheckRecoveryForExecutors(appDesc)),
-          60, 10, TimeUnit.SECONDS)
+        logInfo("[Darwin] Starting Spark master using Darwin's logic")
+        /*
+          * Periodically send events to the app master to check for executor loss
+         */
+        checkForWorkerTimeOutTask = executorRecoveryThread.scheduleAtFixedRate(
+          () => appMasterRef.get.send(MarkLostExecutors(appDesc)),
+          30, 30, TimeUnit.SECONDS)
       } catch {
         case e: Exception =>
           logWarning("Failed to connect to app master", e)
@@ -269,8 +273,8 @@ class RayCoarseGrainedSchedulerBackend(
 
     override def onStop(): Unit = {
       // Stop the daemon threads
-      if (executorRecoveryTask != null) {
-        executorRecoveryTask.cancel(true)
+      if (checkForWorkerTimeOutTask != null) {
+        checkForWorkerTimeOutTask.cancel(true)
       }
       executorRecoveryThread.shutdownNow()
     }
