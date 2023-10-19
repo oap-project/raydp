@@ -28,7 +28,7 @@ case class RegisteredApplication(appId: String, master: RpcEndpointRef) extends 
 
 case class UnregisterApplication(appId: String) extends RayDPDeployMessage
 
-case class RegisterExecutor(executorId: String, nodeIp: String) extends RayDPDeployMessage
+case class RegisterExecutor(executorId: String, nodeIp: String, cores: Int) extends RayDPDeployMessage
 
 case class ExecutorStarted(executorId: String) extends RayDPDeployMessage
 

@@ -159,7 +159,7 @@ class RayAppMaster(host: String,
             if (!RayExecutorUtils.isExecutorAlive(handler)){
               logInfo(s"[Darwin] Executor ${executorId} is not reachable. Removing it from the appInfo")
               appInfo.removeLostExecutor(executorId)
-              requestNewExecutor()
+              requestNewExecutor(true)
             } else {
               logInfo(s"[Darwin] Executor ${executorId} is alive")
             }
@@ -169,7 +169,7 @@ class RayAppMaster(host: String,
         logInfo(s"[Darwin] Current state of numExec is ${appInfo.currentExecutors()} and target executors is ${targetExecutors}")
         if (targetExecutors > appInfo.currentExecutors()) {
           logInfo("[Darwin] Recovering lost executors")
-          requestNewExecutor()
+          requestNewExecutor(true)
         }
 
       case UnregisterApplication(appId) =>
@@ -178,7 +178,7 @@ class RayAppMaster(host: String,
     }
 
     override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
-      case RegisterExecutor(executorId, executorIp) =>
+      case RegisterExecutor(executorId, executorIp, cores) =>
         val success = appInfo.registerExecutor(executorId)
         if (success) {
           // external shuffle service is enabled
@@ -192,7 +192,7 @@ class RayAppMaster(host: String,
               nodesWithShuffleService(executorIp) = service
             }
           }
-          setUpExecutor(executorId)
+          setUpExecutor(executorId, cores)
         }
         context.reply(success)
 
@@ -204,7 +204,7 @@ class RayAppMaster(host: String,
         assert(appInfo != null && appInfo.id == appId)
         if (requestedTotal > appInfo.currentExecutors()) {
           (0 until (requestedTotal - appInfo.currentExecutors())).foreach{ _ =>
-            requestNewExecutor()
+            requestNewExecutor(false)
           }
         }
         context.reply(true)
@@ -281,11 +281,11 @@ class RayAppMaster(host: String,
     private def schedule(): Unit = {
       val desc = appInfo.desc
       for (_ <- 0 until desc.numExecutors) {
-        requestNewExecutor()
+        requestNewExecutor(false)
       }
     }
 
-    private def requestNewExecutor(): Unit = {
+    private def requestNewExecutor(lost: Boolean): Unit = {
       val sparkCoresPerExecutor = appInfo.desc
         .coresPerExecutor
         .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
@@ -300,19 +300,36 @@ class RayAppMaster(host: String,
           .map{ case (name, amount) => s"${name}: ${amount}"}.mkString(", ")} }..")
       // TODO: Support generic fractional logical resources using prefix spark.ray.actor.resource.*
 
-      val handler = RayExecutorUtils.createExecutorActor(
-        executorId, getAppMasterEndpointUrl(),
-        rayActorCPU,
-        memory,
-        // This won't work, Spark expect integer in custom resources,
-        // please see python test test_spark_on_fractional_custom_resource
-        appInfo.desc.resourceReqsPerExecutor
-          .map{ case (name, amount) => (name, Double.box(amount))}.asJava,
-        placementGroup,
-        getNextBundleIndex,
-        seqAsJavaList(appInfo.desc.command.javaOpts))
-      logInfo(s"[Darwin] Created an executor actor with id ${executorId}")
-      appInfo.addPendingRegisterExecutor(executorId, handler, sparkCoresPerExecutor, memory)
+      if (!lost) {
+        val handler = RayExecutorUtils.createExecutorActor(
+          executorId, getAppMasterEndpointUrl(),
+          rayActorCPU,
+          memory,
+          // This won't work, Spark expect integer in custom resources,
+          // please see python test test_spark_on_fractional_custom_resource
+          appInfo.desc.resourceReqsPerExecutor
+            .map { case (name, amount) => (name, Double.box(amount)) }.asJava,
+          placementGroup,
+          getNextBundleIndex,
+          seqAsJavaList(appInfo.desc.command.javaOpts))
+        logInfo(s"[Darwin] Created an executor actor with id ${executorId}")
+        appInfo.addPendingRegisterExecutor(executorId, handler, sparkCoresPerExecutor, memory)
+      } else {
+        val handler = RayExecutorUtils.createExecutorActor(
+          executorId, getAppMasterEndpointUrl(),
+          1,
+          memory,
+          // This won't work, Spark expect integer in custom resources,
+          // please see python test test_spark_on_fractional_custom_resource
+          appInfo.desc.resourceReqsPerExecutor
+            .map { case (name, amount) => (name, Double.box(1.0)) }.asJava,
+          placementGroup,
+          getNextBundleIndex,
+          seqAsJavaList(appInfo.desc.command.javaOpts))
+        logInfo(s"[Darwin] Created an Lost executor actor with id ${executorId}")
+        appInfo.addPendingRegisterExecutor(executorId, handler, 1, memory)
+      }
+
     }
 
     private def appendActorClasspath(javaOpts: Seq[String]): Seq[String] = {
@@ -339,13 +356,13 @@ class RayAppMaster(host: String,
       }
     }
 
-    private def setUpExecutor(executorId: String): Unit = {
+    private def setUpExecutor(executorId: String, cores: Int): Unit = {
       val handlerOpt = appInfo.getExecutorHandler(executorId)
       if (handlerOpt.isEmpty) {
         logWarning(s"Trying to setup executor: ${executorId} which has been removed")
       }
       val driverUrl = appInfo.desc.command.driverUrl
-      val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
+//      val cores = appInfo.desc.coresPerExecutor.getOrElse(1)
       val appId = appInfo.id
       val classPathEntries = appInfo.desc.command.classPathEntries.mkString(";")
       RayExecutorUtils.setUpExecutor(handlerOpt.get, appId, driverUrl, cores, classPathEntries)

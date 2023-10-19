@@ -48,7 +48,7 @@ public class RayExecutorUtils {
       int bundleIndex,
       List<String> javaOpts) {
     ActorCreator<RayDPExecutor> creator = Ray.actor(
-            RayDPExecutor::new, executorId, appMasterURL);
+            RayDPExecutor::new, executorId, appMasterURL, (int) cores);
     creator.setName("raydp-executor-" + executorId);
     creator.setJvmOptions(javaOpts);
     creator.setResource("CPU", cores);

@@ -44,7 +44,8 @@ import org.apache.spark.util.Utils
 
 class RayDPExecutor(
     var executorId: String,
-    val appMasterURL: String) extends Logging {
+    val appMasterURL: String,
+    val cores: Int) extends Logging {
 
   val nodeIp = RayConfig.create().nodeIp
   val conf = new SparkConf()
@@ -92,7 +93,7 @@ class RayDPExecutor(
         throw new RuntimeException(s"Executor ${executorId} restarted, but getActor failed.")
       }
     }
-    val registeredResult = appMaster.askSync[Boolean](RegisterExecutor(executorId, nodeIp))
+    val registeredResult = appMaster.askSync[Boolean](RegisterExecutor(executorId, nodeIp, cores))
     if (registeredResult) {
       logInfo(s"Executor: ${executorId} register to app master success")
     } else {
