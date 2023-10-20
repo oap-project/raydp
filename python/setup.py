@@ -27,7 +27,7 @@ from setuptools import find_packages, setup, Command
 
 build_mode = os.getenv("RAYDP_BUILD_MODE", "")
 package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
-VERSION = "1.6.4"
+VERSION = "1.6.5"
 
 ROOT_DIR = os.path.dirname(__file__)
 

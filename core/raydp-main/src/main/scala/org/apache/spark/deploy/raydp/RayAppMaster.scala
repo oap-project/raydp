@@ -41,7 +41,8 @@ import org.apache.spark.util.Utils
 
 class RayAppMaster(host: String,
                    port: Int,
-                   actorExtraClasspath: String) extends Serializable with Logging {
+                   actorExtraClasspath: String,
+                   dynamicCoreAllocationStrategy: String) extends Serializable with Logging {
   private var endpoint: RpcEndpointRef = _
   private var rpcEnv: RpcEnv = _
   private val conf: SparkConf = new SparkConf()
@@ -49,12 +50,12 @@ class RayAppMaster(host: String,
 
   init()
 
-  def this() = {
-    this(RayConfig.create().nodeIp, 0, "")
+  def this(dynamicCoreAllocationStrategy: String) = {
+    this(RayConfig.create().nodeIp, 0, "", dynamicCoreAllocationStrategy)
   }
 
-  def this(actorExtraClasspath: String) = {
-    this(RayConfig.create().nodeIp, 0, actorExtraClasspath)
+  def this(actorExtraClasspath: String, dynamicCoreAllocationStrategy: String) = {
+    this(RayConfig.create().nodeIp, 0, actorExtraClasspath, dynamicCoreAllocationStrategy)
   }
 
   def init(): Unit = {
@@ -70,7 +71,7 @@ class RayAppMaster(host: String,
       numUsableCores = 0,
       clientMode = false)
     // register endpoint
-    endpoint = rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, new RayAppMasterEndpoint(rpcEnv))
+    endpoint = rpcEnv.setupEndpoint(RayAppMaster.ENDPOINT_NAME, new RayAppMasterEndpoint(dynamicCoreAllocationStrategy, rpcEnv))
   }
 
   /**
@@ -101,7 +102,7 @@ class RayAppMaster(host: String,
     0
   }
 
-  class RayAppMasterEndpoint(override val rpcEnv: RpcEnv)
+  class RayAppMasterEndpoint(val dynamicCoreAllocationStrategy: String, override val rpcEnv: RpcEnv)
       extends ThreadSafeRpcEndpoint with Logging {
     // For application IDs
     private def createDateFormat = new SimpleDateFormat("yyyyMMddHHmmssSSS", Locale.US)
@@ -300,21 +301,8 @@ class RayAppMaster(host: String,
           .map{ case (name, amount) => s"${name}: ${amount}"}.mkString(", ")} }..")
       // TODO: Support generic fractional logical resources using prefix spark.ray.actor.resource.*
 
-      if (!lost) {
-        val handler = RayExecutorUtils.createExecutorActor(
-          executorId, getAppMasterEndpointUrl(),
-          rayActorCPU,
-          memory,
-          // This won't work, Spark expect integer in custom resources,
-          // please see python test test_spark_on_fractional_custom_resource
-          appInfo.desc.resourceReqsPerExecutor
-            .map { case (name, amount) => (name, Double.box(amount)) }.asJava,
-          placementGroup,
-          getNextBundleIndex,
-          seqAsJavaList(appInfo.desc.command.javaOpts))
-        logInfo(s"[Darwin] Created an executor actor with id ${executorId}")
-        appInfo.addPendingRegisterExecutor(executorId, handler, sparkCoresPerExecutor, memory)
-      } else {
+//       if lost and dynamicCoreAllocationStrategy == "REDUCE_CORES_TO_1"
+      if(lost && dynamicCoreAllocationStrategy == "REDUCE_CORES_TO_1") {
         val handler = RayExecutorUtils.createExecutorActor(
           executorId, getAppMasterEndpointUrl(),
           1,
@@ -328,8 +316,21 @@ class RayAppMaster(host: String,
           seqAsJavaList(appInfo.desc.command.javaOpts))
         logInfo(s"[Darwin] Created an Lost executor actor with id ${executorId}")
         appInfo.addPendingRegisterExecutor(executorId, handler, 1, memory)
+      } else {
+        val handler = RayExecutorUtils.createExecutorActor(
+          executorId, getAppMasterEndpointUrl(),
+          rayActorCPU,
+          memory,
+          // This won't work, Spark expect integer in custom resources,
+          // please see python test test_spark_on_fractional_custom_resource
+          appInfo.desc.resourceReqsPerExecutor
+            .map { case (name, amount) => (name, Double.box(amount)) }.asJava,
+          placementGroup,
+          getNextBundleIndex,
+          seqAsJavaList(appInfo.desc.command.javaOpts))
+        logInfo(s"[Darwin] Created an executor actor with id ${executorId}")
+        appInfo.addPendingRegisterExecutor(executorId, handler, sparkCoresPerExecutor, memory)
       }
-
     }
 
     private def appendActorClasspath(javaOpts: Seq[String]): Seq[String] = {

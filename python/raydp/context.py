@@ -64,12 +64,14 @@ class _SparkContext(ContextDecorator):
                  placement_group_strategy: Optional[str],
                  placement_group: Optional[PlacementGroup],
                  placement_group_bundle_indexes: Optional[List[int]],
+                 dynamicCoreAllocationStrategy: str,
                  configs: Dict[str, str] = None):
         self._app_name = app_name
         self._num_executors = num_executors
         self._executor_cores = executor_cores
         self._enable_hive = enable_hive
         self._fault_tolerant_mode = fault_tolerant_mode
+        self.dynamicCoreAllocationStrategy = dynamicCoreAllocationStrategy
         self._executor_memory = executor_memory
         self._placement_group_strategy = placement_group_strategy
         self._placement_group = placement_group
@@ -88,7 +90,8 @@ class _SparkContext(ContextDecorator):
                                            self._executor_cores,
                                            self._executor_memory,
                                            self._enable_hive,
-                                           self._configs)
+                                           self._configs,
+                                           self.dynamicCoreAllocationStrategy)
         return self._spark_cluster
 
     def _prepare_placement_group(self):
@@ -162,7 +165,8 @@ def init_spark(app_name: str,
                placement_group_strategy: Optional[str] = None,
                placement_group: Optional[PlacementGroup] = None,
                placement_group_bundle_indexes: Optional[List[int]] = None,
-               configs: Optional[Dict[str, str]] = None):
+               configs: Optional[Dict[str, str]] = None,
+               dynamicCoreAllocationStrategy: str = "NO_REDUCTION"):
     """
     Init a Spark cluster with given requirements.
     :param app_name: The application name.
@@ -183,6 +187,14 @@ def init_spark(app_name: str,
     :param placement_group_bundle_indexes: which bundles to use. If it's not specified,
                                            all bundles will be used.
     :param configs: the extra Spark config need to set
+    :param dynamicCoreAllocationStrategy: the strategy to allocate cores dynamically. This only affects recovered executors.
+                                        Possible values are: "REDUCE_CORES_TO_1", "NO_REDUCTION"
+                                        REDUCE_CORES_TO_1: means the recovered executor will only have 1 core.
+                                                           This is most reliable mode to run the job and is the most inefficient mode.
+                                                           Best suited for OOM failures.
+                                                           Note: This will reduce the number of cores for the executor to 1 for all lost executors even non OOM failures.
+                                        NO_REDUCTION: means the recovered executor will have the same number of cores as before.
+                                                      This is best suited for intemittent failures or node failures not because of OOM.
     :return: return the SparkSession
     """
 
@@ -211,6 +223,7 @@ def init_spark(app_name: str,
                     placement_group_strategy,
                     placement_group,
                     placement_group_bundle_indexes,
+                    dynamicCoreAllocationStrategy,
                     configs)
                 return _global_spark_context.get_or_create_session()
             except:

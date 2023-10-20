@@ -30,8 +30,9 @@ public class RayAppMasterUtils {
       String cp,
       String name,
       List<String> jvmOptions,
-      Map<String, Double> appMasterResource) {
-    ActorCreator<RayAppMaster> creator = Ray.actor(RayAppMaster::new, cp);
+      Map<String, Double> appMasterResource,
+      String dynamicCoreAllocationStrategy) {
+    ActorCreator<RayAppMaster> creator = Ray.actor(RayAppMaster::new, cp, dynamicCoreAllocationStrategy);
     if (name != null) {
       creator.setName(name);
     }

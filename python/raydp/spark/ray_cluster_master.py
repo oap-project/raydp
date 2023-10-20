@@ -50,11 +50,12 @@ RAY_LOG4J_CONFIG_FILE_NAME = "spark.ray.log4j.config.file.name"
 
 @ray.remote
 class RayDPSparkMaster():
-    def __init__(self, configs):
+    def __init__(self, configs, dynamicCoreAllocationStrategy):
         self._gateway = None
         self._app_master_java_bridge = None
         self._host = None
         self._started_up = False
+        self.dynamicCoreAllocationStrategy = dynamicCoreAllocationStrategy
         self._configs = configs
         self._spark_home = None
         self._objects = {}
@@ -70,7 +71,7 @@ class RayDPSparkMaster():
         ray_properties = self._generate_ray_configs()
         self._gateway.jvm.org.apache.spark.deploy.raydp.RayAppMaster.setProperties(ray_properties)
         self._host = ray.util.get_node_ip_address()
-        self._create_app_master(extra_classpath)
+        self._create_app_master(extra_classpath, self.dynamicCoreAllocationStrategy)
         self._started_up = True
 
     def _prepare_jvm_classpath(self):
@@ -199,10 +200,10 @@ class RayDPSparkMaster():
         assert self._started_up
         return self._host
 
-    def _create_app_master(self, extra_classpath: str):
+    def _create_app_master(self, extra_classpath: str, dynamicCoreAllocationStrategy: str):
         if self._started_up:
             return
-        self._app_master_java_bridge.startUpAppMaster(extra_classpath, self._configs)
+        self._app_master_java_bridge.startUpAppMaster(extra_classpath, self._configs, dynamicCoreAllocationStrategy)
 
     def get_master_url(self):
         assert self._started_up

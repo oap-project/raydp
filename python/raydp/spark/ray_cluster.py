@@ -39,7 +39,8 @@ class SparkCluster(Cluster):
                  executor_cores,
                  executor_memory,
                  enable_hive,
-                 configs):
+                 configs,
+                 dynamicCoreAllocationStrategy):
         super().__init__(None)
         self._app_name = app_name
         self._spark_master = None
@@ -47,6 +48,7 @@ class SparkCluster(Cluster):
         self._executor_cores = executor_cores
         self._executor_memory = executor_memory
         self._enable_hive = enable_hive
+        self._dynamicCoreAllocationStrategy = dynamicCoreAllocationStrategy
         self._configs = configs
         self._prepare_spark_configs()
         self._set_up_master(resources=self._get_master_resources(self._configs), kwargs=None)
@@ -64,10 +66,10 @@ class SparkCluster(Cluster):
             self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name,
                                                                  num_cpus=num_cpu,
                                                                  resources=resources) \
-                                                        .remote(self._configs)
+                                                        .remote(self._configs, self._dynamicCoreAllocationStrategy)
         else:
             self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name) \
-                .remote(self._configs)
+                .remote(self._configs, self._dynamicCoreAllocationStrategy)
 
         ray.get(self._spark_master_handle.start_up.remote())
 

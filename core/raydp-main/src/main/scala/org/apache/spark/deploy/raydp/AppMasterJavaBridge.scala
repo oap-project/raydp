@@ -28,7 +28,7 @@ import org.apache.spark.raydp.SparkOnRayConfigs
 class AppMasterJavaBridge {
   private var handle: ActorHandle[RayAppMaster] = null
 
-  def startUpAppMaster(extra_cp: String, sparkProps: Map[String, Any]): Unit = {
+  def startUpAppMaster(extra_cp: String, sparkProps: Map[String, Any], dynamicCoreAllocationStrategy: String): Unit = {
     if (handle == null) {
       // init ray, we should set the config by java properties
       Ray.init()
@@ -51,7 +51,8 @@ class AppMasterJavaBridge {
       handle = RayAppMasterUtils.createAppMaster(
           extra_cp, name,
           (sparkJvmOptions ++ Seq(SparkOnRayConfigs.RAYDP_LOGFILE_PREFIX_CFG)).asJava,
-          appMasterResources)
+          appMasterResources,
+          dynamicCoreAllocationStrategy)
     }
   }
 

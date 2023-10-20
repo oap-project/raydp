@@ -94,7 +94,7 @@ class RayCoarseGrainedSchedulerBackend(
         }.map{ case (k, v) => k->double2Double(v.toDouble) }
 
         masterHandle = RayAppMasterUtils.createAppMaster(cp, null, options.toBuffer.asJava,
-          appMasterResources.toMap.asJava)
+          appMasterResources.toMap.asJava, "NO_REDUCTION")
         uri = new URI(RayAppMasterUtils.getMasterUrl(masterHandle))
       } else {
         uri = new URI(sparkUrl)
