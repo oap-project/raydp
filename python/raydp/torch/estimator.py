@@ -32,6 +32,7 @@ import ray
 from ray import train
 from ray.train.torch import TorchTrainer, TorchCheckpoint
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
+from ray.air import session
 from ray.data.dataset import Dataset
 from ray.tune.search.sample import Domain
 
@@ -220,7 +221,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         metrics = config["metrics"]
 
         # create dataset
-        train_data_shard = train.get_dataset_shard("train")
+        train_data_shard = session.get_dataset_shard("train")
         train_dataset = train_data_shard.to_torch(feature_columns=config["feature_columns"],
                                                 feature_column_dtypes=config["feature_types"],
                                                 label_column=config["label_column"],
@@ -228,7 +229,7 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
                                                 batch_size=config["batch_size"],
                                                 drop_last=config["drop_last"])
         if config["evaluate"]:
-            evaluate_data_shard = train.get_dataset_shard("evaluate")
+            evaluate_data_shard = session.get_dataset_shard("evaluate")
             evaluate_dataset = evaluate_data_shard.to_torch(
                                                     feature_columns=config["feature_columns"],
                                                     label_column=config["label_column"],
@@ -242,18 +243,18 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         for epoch in range(config["num_epochs"]):
             train_res, train_loss = TorchEstimator.train_epoch(train_dataset, model, loss,
                                                                 optimizer, metrics, lr_scheduler)
-            train.report(dict(epoch=epoch, train_res=train_res, train_loss=train_loss))
+            session.report(dict(epoch=epoch, train_res=train_res, train_loss=train_loss))
             if config["evaluate"]:
                 eval_res, evaluate_loss = TorchEstimator.evaluate_epoch(evaluate_dataset,
                                                                             model, loss, metrics)
-                train.report(dict(epoch=epoch, eval_res=eval_res, test_loss=evaluate_loss))
+                session.report(dict(epoch=epoch, eval_res=eval_res, test_loss=evaluate_loss))
                 loss_results.append(evaluate_loss)
         if hasattr(model, "module"):
             states = model.module.state_dict()
         else:
             # if num_workers = 1, model is not wrapped
             states = model.state_dict()
-        train.report({}, checkpoint=TorchCheckpoint.from_state_dict(states))
+        session.report({}, checkpoint=TorchCheckpoint.from_state_dict(states))
 
     @staticmethod
     def train_epoch(dataset, model, criterion, optimizer, metrics, scheduler=None):
