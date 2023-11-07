@@ -22,6 +22,7 @@ import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from tensorflow.keras.callbacks import Callback
 
+import ray
 from ray.train.tensorflow import TensorflowTrainer, TensorflowCheckpoint, prepare_dataset_shard
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.data import read_parquet
