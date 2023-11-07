@@ -22,7 +22,7 @@ import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from tensorflow.keras.callbacks import Callback
 
-import ray
+from ray import train
 from ray.train.tensorflow import TensorflowTrainer, TensorflowCheckpoint, prepare_dataset_shard
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.data import read_parquet
@@ -161,7 +161,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             # Model building/compiling need to be within `strategy.scope()`.
             multi_worker_model = TFEstimator.build_and_compile_model(config)
 
-        train_dataset = ray.train.get_dataset_shard("train")
+        train_dataset = train.get_dataset_shard("train")
         train_tf_dataset = train_dataset.to_tf(
             feature_columns=config["feature_columns"],
             label_columns=config["label_columns"],
@@ -169,7 +169,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             drop_last=config["drop_last"]
         )
         if config["evaluate"]:
-            eval_dataset = ray.train.get_dataset_shard("evaluate")
+            eval_dataset = train.get_dataset_shard("evaluate")
             eval_tf_dataset = eval_dataset.to_tf(
                 feature_columns=config["feature_columns"],
                 label_columns=config["label_columns"],
@@ -184,7 +184,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             if config["evaluate"]:
                 test_history = multi_worker_model.evaluate(eval_tf_dataset, callbacks=callbacks)
                 results.append(test_history)
-        ray.train.report({}, checkpoint=TensorflowCheckpoint.from_model(multi_worker_model))
+        train.report({}, checkpoint=TensorflowCheckpoint.from_model(multi_worker_model))
 
     def fit(self,
             train_ds: Dataset,
