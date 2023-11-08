@@ -99,6 +99,10 @@ private[spark] class ApplicationInfo(
     addressToExecutorId(address) = executorId
   }
 
+  /**
+   * Remove a lost executor from the application context.
+   * @param executorId
+   */
   def removeLostExecutor(executorId: String): Unit = {
     if (executors.contains(executorId)) {
       val exec = executors(executorId)

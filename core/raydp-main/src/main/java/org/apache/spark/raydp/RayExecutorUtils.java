@@ -60,7 +60,7 @@ public class RayExecutorUtils {
     if (placementGroup != null) {
       creator.setPlacementGroup(placementGroup, bundleIndex);
     }
-    creator.setMaxRestarts(0);
+    creator.setMaxRestarts(3);
     creator.setMaxTaskRetries(3);
     creator.setMaxConcurrency(2);
     return creator.remote();
@@ -76,11 +76,16 @@ public class RayExecutorUtils {
         appId, driverUrl, cores, classPathEntries).remote();
   }
 
+  /**
+   * Check whether the executor is alive by calling the remote helathcheck method.
+   * @param handler
+   * @return
+   */
   public static boolean isExecutorAlive(
           ActorHandle<RayDPExecutor> handler) {
     try {
-        Ray.get(handler.task(RayDPExecutor::alive).remote(), 1000);
-        return true;
+        // We wait for 1 second to check whether the executor is alive.
+        return Ray.get(handler.task(RayDPExecutor::alive).remote(), 1000);
     } catch (Exception e) {
         return false;
     }

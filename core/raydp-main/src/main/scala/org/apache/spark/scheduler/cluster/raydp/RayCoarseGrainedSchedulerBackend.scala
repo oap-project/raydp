@@ -251,13 +251,11 @@ class RayCoarseGrainedSchedulerBackend(
     private val executorRecoveryThread =
       ThreadUtils.newDaemonSingleThreadScheduledExecutor("driver-executor-recovery-thread")
 
-//    private var executorRecoveryTask: ScheduledFuture[_] = _
     private var checkForWorkerTimeOutTask: ScheduledFuture[_] = _
 
     override def onStart(): Unit = {
       try {
         registerToAppMaster()
-        logInfo("[Darwin] Starting Spark master using Darwin's logic")
         /*
           * Periodically send events to the app master to check for executor loss
          */

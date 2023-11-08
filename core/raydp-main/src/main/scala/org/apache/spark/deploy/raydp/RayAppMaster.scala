@@ -131,6 +131,7 @@ class RayAppMaster(host: String,
 
     override def receive: PartialFunction[Any, Unit] = {
       case RegisterApplication(appDescription: ApplicationDescription, driver: RpcEndpointRef) =>
+
         logInfo("Registering app " + appDescription.name)
         val javaOpts = appendActorClasspath(appDescription.command.javaOpts)
         val newCommand = appDescription.command.withNewJavaOpts(javaOpts)
@@ -145,30 +146,30 @@ class RayAppMaster(host: String,
        * On receiving the event, we check if any executors are lost and mark them in the appInfo.
        */
       case MarkLostExecutors(appDescription: ApplicationDescription) =>
-        logInfo("[Darwin] Received an event for MarkLostExecutors")
+        logDebug("Received an event for MarkLostExecutors")
         val allExecutors = appInfo.getAllExecutorIds()
-        logInfo(s"[Darwin] Checking if any of the executor handlers are unreachable for ${allExecutors.mkString(", ")}")
+        logDebug(s"Checking if any of the executor handlers are unreachable for ${allExecutors.mkString(", ")}")
         allExecutors.foreach { executorId =>
           val handlerOpt = appInfo.getExecutorHandler(executorId)
           if (handlerOpt.isEmpty) {
-            logInfo(s"[Darwin] Executor ${executorId} is empty. Removing it from the appInfo")
+            logInfo(s"Executor ${executorId} is empty. Removing it from the appInfo")
             appInfo.removeLostExecutor(executorId)
           } else {
             val handler = handlerOpt.get.asInstanceOf[ActorHandle[RayDPExecutor]]
-            logInfo(s"[Darwin] Checking if executor ${executorId} is alive")
+            logDebug(s"Checking if executor ${executorId} is alive")
             if (!RayExecutorUtils.isExecutorAlive(handler)){
-              logInfo(s"[Darwin] Executor ${executorId} is not reachable. Removing it from the appInfo")
+              logInfo(s"Executor ${executorId} is not reachable. Removing it from the appInfo")
               appInfo.removeLostExecutor(executorId)
               requestNewExecutor()
             } else {
-              logInfo(s"[Darwin] Executor ${executorId} is alive")
+              logDebug(s"Executor ${executorId} is alive")
             }
           }
         }
         val targetExecutors = appDescription.numExecutors
-        logInfo(s"[Darwin] Current state of numExec is ${appInfo.currentExecutors()} and target executors is ${targetExecutors}")
+        logDebug(s"Current state of numExec is ${appInfo.currentExecutors()} and target executors is ${targetExecutors}")
         if (targetExecutors > appInfo.currentExecutors()) {
-          logInfo("[Darwin] Recovering lost executors")
+          logDebug("Recovering lost executors")
           requestNewExecutor()
         }
 
@@ -311,7 +312,6 @@ class RayAppMaster(host: String,
         placementGroup,
         getNextBundleIndex,
         seqAsJavaList(appInfo.desc.command.javaOpts))
-      logInfo(s"[Darwin] Created an executor actor with id ${executorId}")
       appInfo.addPendingRegisterExecutor(executorId, handler, sparkCoresPerExecutor, memory)
     }
 
