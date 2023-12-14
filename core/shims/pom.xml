@@ -20,6 +20,7 @@
     <module>spark322</module>
     <module>spark330</module>
     <module>spark340</module>
+    <module>spark350</module>
   </modules>
  
   <properties>
