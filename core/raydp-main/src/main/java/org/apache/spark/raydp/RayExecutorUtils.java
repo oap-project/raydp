@@ -60,8 +60,8 @@ public class RayExecutorUtils {
     if (placementGroup != null) {
       creator.setPlacementGroup(placementGroup, bundleIndex);
     }
-    creator.setMaxRestarts(3);
-    creator.setMaxTaskRetries(3);
+    creator.setMaxRestarts(-1);
+    creator.setMaxTaskRetries(-1);
     creator.setMaxConcurrency(2);
     return creator.remote();
   }

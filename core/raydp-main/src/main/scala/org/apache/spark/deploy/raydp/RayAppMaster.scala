@@ -183,7 +183,7 @@ class RayAppMaster(host: String,
         assert(appInfo != null && appInfo.id == appId)
         var success = true
         for (executorId <- executorIds) {
-          if (!appInfo.kill(executorId)) {
+          if (!appInfo.kill(executorId, shutdownActor = true)) {
             success = false
           }
         }
@@ -210,7 +210,7 @@ class RayAppMaster(host: String,
     }
 
     override def onDisconnected(remoteAddress: RpcAddress): Unit = {
-      appInfo.kill(remoteAddress)
+      appInfo.kill(remoteAddress, shutdownActor = false)
     }
 
     override def onStop(): Unit = {
