@@ -34,7 +34,7 @@ if build_mode == "nightly":
 elif package_name == 'raydp_nightly':
     VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
 else:
-    VERSION = BASE_VERSION
+    VERSION = BASE_VERSION + '.dev6'
 
 ROOT_DIR = os.path.dirname(__file__)
 
