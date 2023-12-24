@@ -270,6 +270,16 @@ class RayAppMaster(host: String,
           .map{ case (name, amount) => s"${name}: ${amount}"}.mkString(", ")} }..")
       // TODO: Support generic fractional logical resources using prefix spark.ray.actor.resource.*
 
+      // This will check with dynamic auto scale no additional pending executor actor added more
+      // than max executors count as this result in executor even running after job completion
+      val dynamicAllocationEnabled = conf.getBoolean("spark.dynamicAllocation.enabled", false)
+      if (dynamicAllocationEnabled) {
+        val maxExecutor = conf.getInt("spark.dynamicAllocation.maxExecutors", 0)
+        if (restartedExecutors.size >= maxExecutor) {
+          return
+        }
+      }
+
       val handler = RayExecutorUtils.createExecutorActor(
         executorId, getAppMasterEndpointUrl(),
         rayActorCPU,
