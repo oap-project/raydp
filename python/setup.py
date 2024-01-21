@@ -98,7 +98,7 @@ try:
         "numpy",
         "pandas >= 1.1.4",
         "psutil",
-        "pyarrow >= 4.0.1",
+        "pyarrow >= 4.0.1, <15.0.0",
         "ray >= 2.1.0",
         "pyspark >= 3.1.1, <= 3.5.0",
         "netifaces",
