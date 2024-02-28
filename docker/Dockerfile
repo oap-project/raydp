@@ -1,4 +1,4 @@
-FROM rayproject/ray:latest
+FROM rayproject/ray:latest@sha256:c864e37f4ce516ff49425f69cac5503a51e84c333d30928416714a2c3da55b43
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
