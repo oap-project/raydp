@@ -21,7 +21,7 @@
     <snappy.version>1.1.10.4</snappy.version>
     <netty.version>4.1.94.Final</netty.version>
     <commons.text.version>1.10.0</commons.text.version>
-    <commons.compress.version>1.21</commons.compress.version>
+    <commons.compress.version>1.26.0</commons.compress.version>
     <rhino.version>1.7.12</rhino.version>
     <protobuf.version>3.16.3</protobuf.version>
     <ivy.version>2.5.2</ivy.version>
