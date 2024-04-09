@@ -75,16 +75,13 @@ jobs:
           SUBVERSION=$(python -c 'import sys; print(sys.version_info[1])')
           if [ "$(uname -s)" == "Linux" ]
           then
-            pip install torch==1.8.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+            pip install torch==2.1.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
           else
             pip install torch
           fi
-          pip install pyarrow==6.0.1 ray[default]==2.4.0 pytest koalas tensorflow tabulate grpcio-tools wget
+          pip install pyarrow==6.0.1 ray[default] pytest koalas tensorflow tabulate grpcio-tools wget
           pip install "xgboost_ray[default]<=0.1.13"
           pip install torchmetrics
-          HOROVOD_WITH_GLOO=1
-          HOROVOD_WITH_PYTORCH=1
-          pip install horovod[pytorch,ray]
       - name: Cache Maven
         uses: actions/cache@v2
         with:
@@ -114,7 +111,6 @@ jobs:
           ray stop
           python examples/pytorch_nyctaxi.py
           python examples/tensorflow_nyctaxi.py
-          python examples/horovod_nyctaxi.py
           python examples/xgboost_ray_nyctaxi.py
           # python examples/raytrain_nyctaxi.py
           python examples/data_process.py
