@@ -79,7 +79,7 @@ jobs:
           else
             pip install torch
           fi
-          pip install pyarrow==6.0.1 ray[default] pytest koalas tensorflow tabulate grpcio-tools wget
+          pip install pyarrow==6.0.1 ray[train] pytest koalas tensorflow tabulate grpcio-tools wget
           pip install "xgboost_ray[default]<=0.1.13"
           pip install torchmetrics
       - name: Cache Maven
