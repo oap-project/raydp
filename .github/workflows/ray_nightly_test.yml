@@ -74,7 +74,7 @@ jobs:
           SUBVERSION=$(python -c 'import sys; print(sys.version_info[1])')
           if [ "$(uname -s)" == "Linux" ]
           then
-            pip install torch==1.8.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+            pip3 install torch --index-url https://download.pytorch.org/whl/cpu
           else
             pip install torch
           fi
