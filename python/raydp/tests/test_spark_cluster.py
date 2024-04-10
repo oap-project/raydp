@@ -273,19 +273,19 @@ def test_custom_installed_spark(custom_spark_dir):
 
 
 def start_spark(barrier, i, results):
-    try:
-        # connect to the cluster started before pytest
-        ray.init(address="auto")
-        spark = raydp.init_spark(f"spark-{i}", 1, 1, "500M")
-        # wait on barrier to ensure 2 spark sessions
-        # are active on the same ray cluster at the same time
-        barrier.wait()
-        df = spark.range(10)
-        results[i] = df.count()
-        raydp.stop_spark()
-        ray.shutdown()
-    except Exception as e:
-        results[i] = -1
+    # try:
+    # connect to the cluster started before pytest
+    ray.init(address="auto")
+    spark = raydp.init_spark(f"spark-{i}", 1, 1, "500M")
+    # wait on barrier to ensure 2 spark sessions
+    # are active on the same ray cluster at the same time
+    barrier.wait()
+    df = spark.range(10)
+    results[i] = df.count()
+    raydp.stop_spark()
+    ray.shutdown()
+    # except Exception as e:
+    #     results[i] = -1
 
 
 def test_init_spark_twice():

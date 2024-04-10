@@ -378,4 +378,4 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
 
     def get_model(self):
         assert self._trainer is not None, "Must call fit first"
-        return self._trained_results.checkpoint.get_model()
+        return TorchCheckpoint(self._trained_results.checkpoint).get_model()

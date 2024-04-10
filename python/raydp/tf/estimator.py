@@ -228,8 +228,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                                           train_loop_config=train_loop_config,
                                           scaling_config=scaling_config,
                                           run_config=run_config,
-                                          datasets=datasets,
-                                          preprocessor=preprocessor)
+                                          datasets=datasets)
         self._results = self._trainer.fit()
 
     def fit_on_spark(self,
@@ -268,4 +267,4 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
 
     def get_model(self) -> Any:
         assert self._trainer, "Trainer has not been created"
-        return self._results.checkpoint.get_model()
+        return TensorflowCheckpoint(self._results.checkpoint).get_model()
