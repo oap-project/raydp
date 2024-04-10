@@ -45,7 +45,7 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
     # create model
     model = keras.Sequential(
         [
-            keras.layers.InputLayer(input_shape=(2,)),
+            keras.layers.InputLayer(input_shape=()),
             keras.layers.Dense(1, activation='sigmoid')
         ]
     )
