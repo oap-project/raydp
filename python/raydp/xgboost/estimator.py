@@ -109,4 +109,4 @@ class XGBoostEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_ds, evaluate_ds, max_retries)
 
     def get_model(self):
-        return XGBoostCheckpoint.from_checkpoint(self._results.checkpoint).get_model()
+        return XGBoostCheckpoint(self._results.checkpoint.to_directory()).get_model()

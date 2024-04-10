@@ -43,7 +43,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  metrics: Union[List[keras.metrics.Metric], List[str]] = None,
                  feature_columns: Union[str, List[str]] = None,
                  label_columns: Union[str, List[str]] = None,
-                 merge_feature_columns: bool = False,
+                 merge_feature_columns: bool = True,
                  batch_size: int = 128,
                  drop_last: bool = False,
                  num_epochs: int = 1,
@@ -268,4 +268,4 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
 
     def get_model(self) -> Any:
         assert self._trainer, "Trainer has not been created"
-        return TensorflowCheckpoint(self._results.checkpoint).get_model()
+        return TensorflowCheckpoint(self._results.checkpoint.to_directory()).get_model()
