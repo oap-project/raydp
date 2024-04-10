@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+import os
+import tempfile
 import inspect
 from typing import Any, Callable, List, NoReturn, Optional, Union, Dict
 
@@ -30,6 +32,7 @@ from raydp.torch.config import TorchConfig
 
 import ray
 from ray import train
+from ray.train import Checkpoint
 from ray.train.torch import TorchTrainer, TorchCheckpoint
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
 from ray.air import session
@@ -254,7 +257,18 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         else:
             # if num_workers = 1, model is not wrapped
             states = model.state_dict()
-        session.report({}, checkpoint=TorchCheckpoint.from_state_dict(states))
+        with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
+            checkpoint = None
+            # In standard DDP training, where the model is the same across all ranks,
+            # only the global rank 0 worker needs to save and report the checkpoint
+            if train.get_context().get_world_rank() == 0:
+                torch.save(
+                    states,
+                    os.path.join(temp_checkpoint_dir, "model.pt"),
+                )
+                checkpoint = Checkpoint.from_directory(temp_checkpoint_dir)
+
+            session.report({}, checkpoint=checkpoint)
 
     @staticmethod
     def train_epoch(dataset, model, criterion, optimizer, metrics, scheduler=None):

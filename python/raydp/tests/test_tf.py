@@ -34,12 +34,11 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
     spark = spark_on_ray_small
 
     # ---------------- data process with Spark ------------
-    # calculate z = 3 * x + 4 * y + 5
+    # calculate y = 3 * x + 4
     df: pyspark.sql.DataFrame = spark.range(0, 100000)
     df = df.withColumn("x", rand() * 100)  # add x column
-    df = df.withColumn("y", rand() * 1000)  # ad y column
-    df = df.withColumn("z", df.x * 3 + df.y * 4 + rand() + 5)  # ad z column
-    df = df.select(df.x, df.y, df.z)
+    df = df.withColumn("y", df.x * 3 + rand() + 4)  # add y column
+    df = df.select(df.x, df.y)
 
     train_df, test_df = random_split(df, [0.7, 0.3])
 
@@ -59,8 +58,8 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
                             optimizer=optimizer,
                             loss=loss,
                             metrics=["accuracy", "mse"],
-                            feature_columns=["x", "y"],
-                            label_columns="z",
+                            feature_columns=["x"],
+                            label_columns="y",
                             batch_size=1000,
                             num_epochs=2,
                             use_gpu=False)

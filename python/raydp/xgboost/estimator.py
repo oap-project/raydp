@@ -23,7 +23,7 @@ from raydp import stop_spark
 from raydp.spark import spark_dataframe_to_ray_dataset, get_raydp_master_owner
 
 import ray
-from ray.air.config import ScalingConfig, RunConfig, FailureConfig
+from ray.air.config import ScalingConfig, RunConfig, FailureConfig, CheckpointConfig
 from ray.data.dataset import Dataset
 from ray.train.xgboost import XGBoostTrainer, XGBoostCheckpoint
 
@@ -58,7 +58,15 @@ class XGBoostEstimator(EstimatorInterface, SparkEstimatorInterface):
             max_retries=3) -> NoReturn:
         scaling_config = ScalingConfig(num_workers=self._num_workers,
                                       resources_per_worker=self._resources_per_worker)
-        run_config = RunConfig(failure_config=FailureConfig(max_failures=max_retries))
+        run_config = RunConfig(
+            checkpoint_config=CheckpointConfig(
+                # Checkpoint every iteration.
+                checkpoint_frequency=1,
+                # Only keep the latest checkpoint and delete the others.
+                num_to_keep=1,
+            ),
+            failure_config=FailureConfig(max_failures=max_retries)
+        )
         if self._shuffle:
             train_ds = train_ds.random_shuffle()
             if evaluate_ds:
@@ -109,4 +117,4 @@ class XGBoostEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_ds, evaluate_ds, max_retries)
 
     def get_model(self):
-        return XGBoostCheckpoint(self._results.checkpoint.to_directory()).get_model()
+        return XGBoostTrainer.get_model(self._results.checkpoint)

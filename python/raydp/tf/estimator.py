@@ -15,6 +15,9 @@
 # limitations under the License.
 #
 
+import json
+import os
+import tempfile
 from typing import Any, List, NoReturn, Optional, Union, Dict
 
 import tensorflow as tf
@@ -22,6 +25,7 @@ import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from tensorflow.keras.callbacks import Callback
 
+from ray.train import Checkpoint
 from ray.train.tensorflow import TensorflowTrainer, TensorflowCheckpoint, prepare_dataset_shard
 from ray.air import session
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
@@ -43,7 +47,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  metrics: Union[List[keras.metrics.Metric], List[str]] = None,
                  feature_columns: Union[str, List[str]] = None,
                  label_columns: Union[str, List[str]] = None,
-                 merge_feature_columns: bool = True,
+                 merge_feature_columns: bool = False,
                  batch_size: int = 128,
                  drop_last: bool = False,
                  num_epochs: int = 1,
@@ -184,7 +188,14 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             if config["evaluate"]:
                 test_history = multi_worker_model.evaluate(eval_tf_dataset, callbacks=callbacks)
                 results.append(test_history)
-        session.report({}, checkpoint=TensorflowCheckpoint.from_model(multi_worker_model))
+        with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
+            multi_worker_model.save(os.path.join(temp_checkpoint_dir, "model.keras"))
+            checkpoint_dict = os.path.join(temp_checkpoint_dir, "checkpoint.json")
+            with open(checkpoint_dict, "w") as f:
+                json.dump({"epoch": config["num_epochs"]}, f)
+            checkpoint = Checkpoint.from_directory(temp_checkpoint_dir)
+
+            session.report({}, checkpoint=checkpoint)
 
     def fit(self,
             train_ds: Dataset,
