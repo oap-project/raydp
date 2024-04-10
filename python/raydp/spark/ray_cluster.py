@@ -125,6 +125,7 @@ class SparkCluster(Cluster):
 
         raydp_agent_path = os.path.abspath(os.path.join(os.path.abspath(__file__),
                                                         "../../jars/raydp-agent*.jar"))
+        print(raydp_agent_path)
         raydp_agent_jar = glob.glob(raydp_agent_path)[0]
         self._configs[SPARK_JAVAAGENT] = raydp_agent_jar
         # for JVM running in ray

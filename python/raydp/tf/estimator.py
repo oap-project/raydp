@@ -43,7 +43,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  metrics: Union[List[keras.metrics.Metric], List[str]] = None,
                  feature_columns: Union[str, List[str]] = None,
                  label_columns: Union[str, List[str]] = None,
-                 merge_feature_columns: bool = True,
+                 merge_feature_columns: bool = False,
                  batch_size: int = 128,
                  drop_last: bool = False,
                  num_epochs: int = 1,
@@ -211,10 +211,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_ds = train_ds.random_shuffle()
             if evaluate_ds:
                 evaluate_ds = evaluate_ds.random_shuffle()
-        datasets = {"train": train_ds}
-        if evaluate_ds is not None:
-            train_loop_config["evaluate"] = True
-            datasets["evaluate"] = evaluate_ds
         preprocessor = None
         if self._merge_feature_columns:
             if isinstance(self._feature_columns, list) and len(self._feature_columns) > 1:
@@ -224,6 +220,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                 preprocessor = Concatenator(output_column_name="features",
                                             exclude=label_cols)
                 train_loop_config["feature_columns"] = "features"
+                train_ds = preprocessor.fit_transform(train_ds)
+        datasets = {"train": train_ds}
+        if evaluate_ds is not None:
+            train_loop_config["evaluate"] = True
+            datasets["evaluate"] = evaluate_ds
         self._trainer = TensorflowTrainer(TFEstimator.train_func,
                                           train_loop_config=train_loop_config,
                                           scaling_config=scaling_config,
