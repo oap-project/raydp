@@ -46,7 +46,10 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
     model = keras.Sequential(
         [
             keras.layers.InputLayer(input_shape=()),
-            keras.layers.Dense(1, activation='sigmoid')
+            # Add feature dimension, expanding (batch_size,) to (batch_size, 1).
+            keras.layers.Flatten(),
+            keras.layers.Dense(10),
+            keras.layers.Dense(1),
         ]
     )
 
