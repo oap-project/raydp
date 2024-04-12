@@ -60,7 +60,7 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
                             optimizer=optimizer,
                             loss=loss,
                             metrics=["accuracy", "mse"],
-                            feature_columns=["x"],
+                            feature_columns="x",
                             label_columns="y",
                             batch_size=1000,
                             num_epochs=2,
