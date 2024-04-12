@@ -280,4 +280,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
     def get_model(self) -> Any:
         assert self._trainer, "Trainer has not been created"
         self._results.checkpoint.update_metadata()
-        return TensorflowCheckpoint.from_saved_model(self._results.checkpoint.to_directory()).get_model()
+        return TensorflowCheckpoint.from_saved_model(
+                self._results.checkpoint.to_directory()
+            ).get_model()
