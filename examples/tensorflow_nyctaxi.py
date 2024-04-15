@@ -42,6 +42,7 @@ features = [field.name for field in list(train_df.schema) if field.name != "fare
 model = keras.Sequential(
     [
         keras.layers.InputLayer(input_shape=(len(features),)),
+        keras.layers.Flatten(),
         keras.layers.Dense(256, activation="relu"),
         keras.layers.BatchNormalization(),
         keras.layers.Dense(128, activation="relu"),
@@ -65,7 +66,8 @@ class PrintingCallback(Callback):
 adam = keras.optimizers.Adam(learning_rate=0.001)
 loss = keras.losses.MeanSquaredError()
 estimator = TFEstimator(num_workers=2, model=model, optimizer=adam, loss=loss,
-                        metrics=["mae"], feature_columns=features, label_columns="fare_amount",
+                        merge_feature_columns=True, metrics=["mae"],
+                        feature_columns=features, label_columns="fare_amount",
                         batch_size=256, num_epochs=10, callbacks=[PrintingCallback()])
 
 # Train the model

@@ -221,14 +221,17 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                 evaluate_ds = evaluate_ds.random_shuffle()
         preprocessor = None
         if self._merge_feature_columns:
-            if isinstance(self._feature_columns, list) and len(self._feature_columns) > 1:
-                label_cols = self._label_columns
-                if not isinstance(label_cols, list):
-                    label_cols = [label_cols]
-                preprocessor = Concatenator(output_column_name="features",
-                                            exclude=label_cols)
-                train_loop_config["feature_columns"] = "features"
-                train_ds = preprocessor.fit_transform(train_ds)
+            if isinstance(self._feature_columns, list):
+                if len(self._feature_columns) > 1:
+                    label_cols = self._label_columns
+                    if not isinstance(label_cols, list):
+                        label_cols = [label_cols]
+                    preprocessor = Concatenator(output_column_name="features",
+                                                exclude=label_cols)
+                    train_loop_config["feature_columns"] = "features"
+                    train_ds = preprocessor.transform(train_ds)
+                else:
+                    train_loop_config["feature_columns"] = self._feature_columns[0]
         datasets = {"train": train_ds}
         if evaluate_ds is not None:
             train_loop_config["evaluate"] = True
