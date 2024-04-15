@@ -230,6 +230,8 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                                                 exclude=label_cols)
                     train_loop_config["feature_columns"] = "features"
                     train_ds = preprocessor.transform(train_ds)
+                    if evaluate_ds is not None:
+                        evaluate_ds = preprocessor.transform(evaluate_ds)
                 else:
                     train_loop_config["feature_columns"] = self._feature_columns[0]
         datasets = {"train": train_ds}
