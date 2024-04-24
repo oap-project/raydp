@@ -28,8 +28,8 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        python-version: [3.7, 3.8, 3.9]
-        spark-version: [3.1.3, 3.2.3, 3.3.2]
+        python-version: [3.8, 3.9]
+        spark-version: [3.1.3, 3.2.4, 3.3.2, 3.4.0]
 
     runs-on: ${{ matrix.os }}
 
@@ -74,22 +74,22 @@ jobs:
           SUBVERSION=$(python -c 'import sys; print(sys.version_info[1])')
           if [ "$(uname -s)" == "Linux" ]
           then
-            pip install torch==1.8.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+            pip install torch --index-url https://download.pytorch.org/whl/cpu
           else
             pip install torch
           fi
           case $PYTHON_VERSION in
             3.7)
-              pip install "ray[default] @ https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-3.0.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl"
+              pip install "ray[train] @ https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-3.0.0.dev0-cp37-cp37m-manylinux2014_x86_64.whl"
               ;;
             3.8)
-              pip install "ray[default] @ https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-3.0.0.dev0-cp38-cp38-manylinux2014_x86_64.whl"
+              pip install "ray[train] @ https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-3.0.0.dev0-cp38-cp38-manylinux2014_x86_64.whl"
               ;;
             3.9)
-              pip install "ray[default] @ https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-3.0.0.dev0-cp39-cp39-manylinux2014_x86_64.whl"
+              pip install "ray[train] @ https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-3.0.0.dev0-cp39-cp39-manylinux2014_x86_64.whl"
               ;;
           esac
-          pip install pyarrow==6.0.1 pytest koalas tensorflow tabulate grpcio-tools wget
+          pip install pyarrow==6.0.1 pytest koalas tensorflow==2.13.1 tabulate grpcio-tools wget
           pip install "xgboost_ray[default]<=0.1.13"
           pip install torchmetrics
           HOROVOD_WITH_GLOO=1
@@ -115,8 +115,7 @@ jobs:
       - name: Test with pytest
         run: |
           ray start --head --num-cpus 6
-          pytest python/raydp/tests/ -v -m"not error_on_custom_resource"
-          pytest python/raydp/tests/ -v -m"error_on_custom_resource"
+          pytest python/raydp/tests/ -v
           ray stop --force
       - name: Test Examples
         run: |

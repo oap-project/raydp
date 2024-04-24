@@ -15,6 +15,9 @@
 # limitations under the License.
 #
 
+import json
+import os
+import tempfile
 from typing import Any, List, NoReturn, Optional, Union, Dict
 
 import tensorflow as tf
@@ -22,6 +25,7 @@ import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from tensorflow.keras.callbacks import Callback
 
+from ray.train import Checkpoint
 from ray.train.tensorflow import TensorflowTrainer, TensorflowCheckpoint, prepare_dataset_shard
 from ray.air import session
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
@@ -43,7 +47,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                  metrics: Union[List[keras.metrics.Metric], List[str]] = None,
                  feature_columns: Union[str, List[str]] = None,
                  label_columns: Union[str, List[str]] = None,
-                 merge_feature_columns: bool = True,
+                 merge_feature_columns: bool = False,
                  batch_size: int = 128,
                  drop_last: bool = False,
                  num_epochs: int = 1,
@@ -184,7 +188,11 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             if config["evaluate"]:
                 test_history = multi_worker_model.evaluate(eval_tf_dataset, callbacks=callbacks)
                 results.append(test_history)
-        session.report({}, checkpoint=TensorflowCheckpoint.from_model(multi_worker_model))
+        with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
+            multi_worker_model.save(temp_checkpoint_dir, save_format="tf")
+            checkpoint = Checkpoint.from_directory(temp_checkpoint_dir)
+
+            session.report({}, checkpoint=checkpoint)
 
     def fit(self,
             train_ds: Dataset,
@@ -211,25 +219,30 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_ds = train_ds.random_shuffle()
             if evaluate_ds:
                 evaluate_ds = evaluate_ds.random_shuffle()
+        preprocessor = None
+        if self._merge_feature_columns:
+            if isinstance(self._feature_columns, list):
+                if len(self._feature_columns) > 1:
+                    label_cols = self._label_columns
+                    if not isinstance(label_cols, list):
+                        label_cols = [label_cols]
+                    preprocessor = Concatenator(output_column_name="features",
+                                                exclude=label_cols)
+                    train_loop_config["feature_columns"] = "features"
+                    train_ds = preprocessor.transform(train_ds)
+                    if evaluate_ds is not None:
+                        evaluate_ds = preprocessor.transform(evaluate_ds)
+                else:
+                    train_loop_config["feature_columns"] = self._feature_columns[0]
         datasets = {"train": train_ds}
         if evaluate_ds is not None:
             train_loop_config["evaluate"] = True
             datasets["evaluate"] = evaluate_ds
-        preprocessor = None
-        if self._merge_feature_columns:
-            if isinstance(self._feature_columns, list) and len(self._feature_columns) > 1:
-                label_cols = self._label_columns
-                if not isinstance(label_cols, list):
-                    label_cols = [label_cols]
-                preprocessor = Concatenator(output_column_name="features",
-                                            exclude=label_cols)
-                train_loop_config["feature_columns"] = "features"
         self._trainer = TensorflowTrainer(TFEstimator.train_func,
                                           train_loop_config=train_loop_config,
                                           scaling_config=scaling_config,
                                           run_config=run_config,
-                                          datasets=datasets,
-                                          preprocessor=preprocessor)
+                                          datasets=datasets)
         self._results = self._trainer.fit()
 
     def fit_on_spark(self,
@@ -268,4 +281,6 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
 
     def get_model(self) -> Any:
         assert self._trainer, "Trainer has not been created"
-        return self._results.checkpoint.get_model()
+        return TensorflowCheckpoint.from_saved_model(
+                self._results.checkpoint.to_directory()
+            ).get_model()

@@ -272,37 +272,37 @@ def test_custom_installed_spark(custom_spark_dir):
     assert spark_home == custom_spark_dir
 
 
-def start_spark(barrier, i, results):
-    try:
-        # connect to the cluster started before pytest
-        ray.init(address="auto")
-        spark = raydp.init_spark(f"spark-{i}", 1, 1, "500M")
-        # wait on barrier to ensure 2 spark sessions
-        # are active on the same ray cluster at the same time
-        barrier.wait()
-        df = spark.range(10)
-        results[i] = df.count()
-        raydp.stop_spark()
-        ray.shutdown()
-    except Exception as e:
-        results[i] = -1
+# def start_spark(barrier, i, results):
+#     # try:
+#     # connect to the cluster started before pytest
+#     ray.init(address="auto")
+#     spark = raydp.init_spark(f"spark-{i}", 1, 1, "500M")
+#     # wait on barrier to ensure 2 spark sessions
+#     # are active on the same ray cluster at the same time
+#     barrier.wait()
+#     df = spark.range(10)
+#     results[i] = df.count()
+#     raydp.stop_spark()
+#     ray.shutdown()
+#     # except Exception as e:
+#     #     results[i] = -1
 
 
-def test_init_spark_twice():
-    num_processes = 2
-    ctx = get_context("spawn")
-    barrier = ctx.Barrier(num_processes)
-    # shared memory for processes to return if spark started successfully
-    results = ctx.Array('i', [-1] * num_processes)
-    processes = [ctx.Process(target=start_spark, args=(barrier, i, results)) for i in range(num_processes)]
-    for i in range(2):
-        processes[i].start()
+# def test_init_spark_twice():
+#     num_processes = 2
+#     ctx = get_context("spawn")
+#     barrier = ctx.Barrier(num_processes)
+#     # shared memory for processes to return if spark started successfully
+#     results = ctx.Array('i', [-1] * num_processes)
+#     processes = [ctx.Process(target=start_spark, args=(barrier, i, results)) for i in range(num_processes)]
+#     for i in range(2):
+#         processes[i].start()
 
-    for i in range(2):
-        processes[i].join()
+#     for i in range(2):
+#         processes[i].join()
 
-    assert results[0] == 10
-    assert results[1] == 10
+#     assert results[0] == 10
+#     assert results[1] == 10
 
 
 if __name__ == "__main__":

@@ -136,8 +136,6 @@ def train_func(config):
     for epoch in range(num_epochs):
         train_mse, train_loss = train_epoch(train_dataset, model, criterion, optimizer)
         test_mse, test_loss = test_epoch(test_dataset, model, criterion)
-        train.report(epoch = epoch, train_mse = train_mse, train_loss = train_loss)
-        train.report(epoch = epoch, test_mse = test_mse, test_loss=test_loss)
         loss_results.append(test_loss)
 
 trainer = Trainer(backend="torch", num_workers=num_executors)
