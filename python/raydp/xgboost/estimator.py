@@ -23,7 +23,7 @@ from raydp import stop_spark
 from raydp.spark import spark_dataframe_to_ray_dataset, get_raydp_master_owner
 
 import ray
-from ray.air.config import ScalingConfig, RunConfig, FailureConfig
+from ray.air.config import ScalingConfig, RunConfig, FailureConfig, CheckpointConfig
 from ray.data.dataset import Dataset
 from ray.train.xgboost import XGBoostTrainer, XGBoostCheckpoint
 
@@ -31,7 +31,6 @@ class XGBoostEstimator(EstimatorInterface, SparkEstimatorInterface):
     def __init__(self,
                  xgboost_params: Dict,
                  label_column: str,
-                 dmatrix_params: Dict = None,
                  num_workers: int = 1,
                  resources_per_worker: Optional[Dict[str, float]] = None,
                  shuffle: bool = True):
@@ -41,10 +40,6 @@ class XGBoostEstimator(EstimatorInterface, SparkEstimatorInterface):
               for a list of possible parameters.
         :param label_column: Name of the label column. A column with this name
               must be present in the training dataset passed to fit() later.
-        :param dmatrix_params: Dict of ``dataset name:dict of kwargs`` passed to respective
-              :class:`xgboost_ray.RayDMatrix` initializations, which in turn are passed
-              to ``xgboost.DMatrix`` objects created on each worker. For example, this can
-              be used to add sample weights with the ``weights`` parameter.
         :param num_workers: the number of workers to do the distributed training.
         :param resources_per_worker: the resources defined in this Dict will be reserved for
               each worker. The ``CPU`` and ``GPU`` keys (case-sensitive) can be defined to
@@ -53,7 +48,6 @@ class XGBoostEstimator(EstimatorInterface, SparkEstimatorInterface):
         """
         self._xgboost_params = xgboost_params
         self._label_column = label_column
-        self._dmatrix_params = dmatrix_params
         self._num_workers = num_workers
         self._resources_per_worker = resources_per_worker
         self._shuffle = shuffle
@@ -64,7 +58,15 @@ class XGBoostEstimator(EstimatorInterface, SparkEstimatorInterface):
             max_retries=3) -> NoReturn:
         scaling_config = ScalingConfig(num_workers=self._num_workers,
                                       resources_per_worker=self._resources_per_worker)
-        run_config = RunConfig(failure_config=FailureConfig(max_failures=max_retries))
+        run_config = RunConfig(
+            checkpoint_config=CheckpointConfig(
+                # Checkpoint every iteration.
+                checkpoint_frequency=1,
+                # Only keep the latest checkpoint and delete the others.
+                num_to_keep=1,
+            ),
+            failure_config=FailureConfig(max_failures=max_retries)
+        )
         if self._shuffle:
             train_ds = train_ds.random_shuffle()
             if evaluate_ds:
@@ -76,7 +78,6 @@ class XGBoostEstimator(EstimatorInterface, SparkEstimatorInterface):
                                 datasets=datasets,
                                 label_column=self._label_column,
                                 params=self._xgboost_params,
-                                dmatrix_params=self._dmatrix_params,
                                 run_config=run_config)
         self._results = trainer.fit()
 
@@ -116,4 +117,4 @@ class XGBoostEstimator(EstimatorInterface, SparkEstimatorInterface):
             train_ds, evaluate_ds, max_retries)
 
     def get_model(self):
-        return XGBoostCheckpoint.from_checkpoint(self._results.checkpoint).get_model()
+        return XGBoostTrainer.get_model(self._results.checkpoint)
