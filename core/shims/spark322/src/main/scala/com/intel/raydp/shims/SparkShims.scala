@@ -24,8 +24,10 @@ import org.apache.spark.executor.spark322._
 import org.apache.spark.spark322.TaskContextUtils
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.spark322.SparkSqlUtils
-
 import com.intel.raydp.shims.{ShimDescriptor, SparkShims}
+import org.apache.arrow.vector.types.pojo.Schema
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.util.ArrowUtils
 
 class Spark322Shims extends SparkShims {
   override def getShimDescriptor: ShimDescriptor = SparkShimProvider.DESCRIPTOR
@@ -43,5 +45,9 @@ class Spark322Shims extends SparkShims {
 
   override def getDummyTaskContext(partitionId: Int, env: SparkEnv): TaskContext = {
     TaskContextUtils.getDummyTaskContext(partitionId, env)
+  }
+
+  override def toArrowSchema(schema : StructType, timeZoneId : String) : Schema = {
+    SparkSqlUtils.toArrowSchema(schema = schema, timeZoneId = timeZoneId)
   }
 }
