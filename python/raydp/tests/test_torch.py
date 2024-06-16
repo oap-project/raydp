@@ -21,7 +21,9 @@ import sys
 import shutil
 import torch
 
-import databricks.koalas as ks
+# https://spark.apache.org/docs/latest/api/python/migration_guide/koalas_to_pyspark.html
+# import databricks.koalas as ks
+import pyspark.pandas as ps
 
 from raydp.torch import TorchEstimator
 from raydp.utils import random_split
@@ -32,7 +34,7 @@ def test_torch_estimator(spark_on_ray_small, use_fs_directory):
     spark = spark_on_ray_small
 
     # calculate z = 3 * x + 4 * y + 5
-    df: ks.DataFrame = ks.range(0, 100000)
+    df: ps.DataFrame = ps.range(0, 100000)
     df["x"] = df["id"] + 100
     df["y"] = df["id"] + 1000
     df["z"] = df["x"] * 3 + df["y"] * 4 + 5

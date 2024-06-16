@@ -34,7 +34,7 @@ if build_mode == "nightly":
 elif package_name == 'raydp_nightly':
     VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
 else:
-    VERSION = BASE_VERSION + '.dev6'
+    VERSION = BASE_VERSION + '.dev7'
 
 ROOT_DIR = os.path.dirname(__file__)
 
@@ -100,7 +100,7 @@ try:
         "psutil",
         "pyarrow >= 4.0.1, <15.0.0",
         "ray >= 2.1.0",
-        "pyspark >= 3.1.1, <= 3.5.0",
+        "pyspark >= 3.1.1, <=3.5.0",
         "netifaces",
         "protobuf > 3.19.5, <= 3.20.3"
     ]
@@ -136,9 +136,10 @@ try:
         python_requires='>=3.6',
         classifiers=[
             'License :: OSI Approved :: Apache Software License',
-            'Programming Language :: Python :: 3.6',
-            'Programming Language :: Python :: 3.7',
-            'Programming Language :: Python :: 3.8']
+            'Programming Language :: Python :: 3.8',
+            'Programming Language :: Python :: 3.9',
+            'Programming Language :: Python :: 3.10'
+        ]
     )
 finally:
     rmtree(os.path.join(TEMP_PATH, "jars"))

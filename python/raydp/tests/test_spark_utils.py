@@ -18,7 +18,9 @@
 import math
 import sys
 
-import databricks.koalas as ks
+# https://spark.apache.org/docs/latest/api/python/migration_guide/koalas_to_pyspark.html
+# import databricks.koalas as ks
+import pyspark.pandas as ps
 import pyspark
 import pytest
 
@@ -27,7 +29,7 @@ import raydp.utils as utils
 
 def test_df_type_check(spark_session):
     spark_df = spark_session.range(0, 10)
-    koalas_df = ks.range(0, 10)
+    koalas_df = ps.range(0, 10)
     assert utils.df_type_check(spark_df)
     assert utils.df_type_check(koalas_df)
 
@@ -45,7 +47,7 @@ def test_convert_to_spark(spark_session):
     assert is_spark_df
     assert spark_df is converted
 
-    koalas_df = ks.range(0, 10)
+    koalas_df = ps.range(0, 10)
     converted, is_spark_df = utils.convert_to_spark(koalas_df)
     assert not is_spark_df
     assert isinstance(converted, pyspark.sql.DataFrame)
@@ -64,10 +66,10 @@ def test_random_split(spark_session):
     splits = utils.random_split(spark_df, [0.7, 0.3])
     assert len(splits) == 2
 
-    koalas_df = ks.range(0, 10)
+    koalas_df = ps.range(0, 10)
     splits = utils.random_split(koalas_df, [0.7, 0.3])
-    assert isinstance(splits[0], ks.DataFrame)
-    assert isinstance(splits[1], ks.DataFrame)
+    assert isinstance(splits[0], ps.DataFrame)
+    assert isinstance(splits[1], ps.DataFrame)
     assert len(splits) == 2
 
 
