@@ -215,7 +215,7 @@ object ObjectStoreWriter {
   def toArrowSchema(df: DataFrame): Schema = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
-    ArrowUtils.toArrowSchema(df.schema, timeZoneId)
+    SparkShimLoader.getSparkShims.toArrowSchema(df.schema, timeZoneId)
   }
 
   def fromSparkRDD(df: DataFrame, storageLevel: StorageLevel): Array[Array[Byte]] = {
