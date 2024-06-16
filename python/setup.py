@@ -27,14 +27,14 @@ from setuptools import find_packages, setup, Command
 
 build_mode = os.getenv("RAYDP_BUILD_MODE", "")
 package_name = os.getenv("RAYDP_PACKAGE_NAME", "raydp")
-BASE_VERSION = "1.6.0"
+BASE_VERSION = "1.7.0"
 if build_mode == "nightly":
     VERSION = BASE_VERSION + datetime.today().strftime("b%Y%m%d.dev0")
 # for legacy raydp_nightly package
 elif package_name == 'raydp_nightly':
     VERSION = datetime.today().strftime("%Y.%m.%d.dev0")
 else:
-    VERSION = BASE_VERSION + '.dev7'
+    VERSION = BASE_VERSION + ".dev0"
 
 ROOT_DIR = os.path.dirname(__file__)
 
@@ -98,9 +98,9 @@ try:
         "numpy",
         "pandas >= 1.1.4",
         "psutil",
-        "pyarrow >= 4.0.1, <15.0.0",
+        "pyarrow >= 4.0.1",
         "ray >= 2.1.0",
-        "pyspark >= 3.1.1, <=3.5.1",
+        "pyspark >= 3.1.1, <= 3.5.0",
         "netifaces",
         "protobuf > 3.19.5, <= 3.20.3"
     ]
@@ -138,7 +138,7 @@ try:
             'License :: OSI Approved :: Apache Software License',
             'Programming Language :: Python :: 3.8',
             'Programming Language :: Python :: 3.9',
-            'Programming Language :: Python :: 3.10'
+            'Programming Language :: Python :: 3.10',
         ]
     )
 finally:
