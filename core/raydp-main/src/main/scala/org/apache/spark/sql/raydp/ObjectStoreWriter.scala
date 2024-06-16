@@ -17,21 +17,20 @@
 
 package org.apache.spark.sql.raydp
 
-
 import com.intel.raydp.shims.SparkShimLoader
-
+import io.ray.api.{ActorHandle, ObjectRef, PyActorHandle, Ray}
+import io.ray.runtime.AbstractRayRuntime
 import java.io.ByteArrayOutputStream
 import java.util.{List, UUID}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 import java.util.function.{Function => JFunction}
-import scala.collection.JavaConverters._
-import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-import io.ray.api.{ActorHandle, ObjectRef, PyActorHandle, Ray}
-import io.ray.runtime.AbstractRayRuntime
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.apache.arrow.vector.types.pojo.Schema
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
+
 import org.apache.spark.{RayDPException, SparkContext}
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.executor.RayDPExecutor
