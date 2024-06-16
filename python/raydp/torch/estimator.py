@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+import os
+import tempfile
 import inspect
 from typing import Any, Callable, List, NoReturn, Optional, Union, Dict
 
@@ -30,9 +32,9 @@ from raydp.torch.config import TorchConfig
 
 import ray
 from ray import train
-from ray.train.torch import TorchTrainer
+from ray.train import Checkpoint
+from ray.train.torch import TorchTrainer, TorchCheckpoint
 from ray.air.config import ScalingConfig, RunConfig, FailureConfig
-from ray.air.checkpoint import Checkpoint
 from ray.air import session
 from ray.data.dataset import Dataset
 from ray.tune.search.sample import Domain
@@ -255,9 +257,18 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
         else:
             # if num_workers = 1, model is not wrapped
             states = model.state_dict()
-        session.report({}, checkpoint=Checkpoint.from_dict({
-            "state_dict": states
-        }))
+        with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
+            checkpoint = None
+            # In standard DDP training, where the model is the same across all ranks,
+            # only the global rank 0 worker needs to save and report the checkpoint
+            if train.get_context().get_world_rank() == 0:
+                torch.save(
+                    states,
+                    os.path.join(temp_checkpoint_dir, "model.pt"),
+                )
+                checkpoint = Checkpoint.from_directory(temp_checkpoint_dir)
+
+            session.report({}, checkpoint=checkpoint)
 
     @staticmethod
     def train_epoch(dataset, model, criterion, optimizer, metrics, scheduler=None):
@@ -381,14 +392,6 @@ class TorchEstimator(EstimatorInterface, SparkEstimatorInterface):
 
     def get_model(self):
         assert self._trainer is not None, "Must call fit first"
-        states = self._trained_results.checkpoint.to_dict()["state_dict"]
-        if isinstance(self._model, torch.nn.Module):
-            model = self._model
-        elif callable(self._model):
-            model = self._model()
-        else:
-            raise Exception(
-                "Unsupported parameter, we only support torch.nn.Model instance "
-                "or a function(dict -> model)")
-        model.load_state_dict(states)
-        return model
+        return TorchCheckpoint(
+                self._trained_results.checkpoint.to_directory()
+            ).get_model(self._model)
