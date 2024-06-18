@@ -78,12 +78,12 @@ def random_split(df, weights, seed=None):
     if is_spark_df:
         return splits
     else:
-        # convert back to koalas DataFrame
-        import databricks.koalas as ks  # pylint: disable=C0415
-        return [ks.DataFrame(split) for split in splits]
+        # convert back to pandas on Spark DataFrame
+        import pyspark.pandas as ps  # pylint: disable=C0415
+        return [ps.DataFrame(split) for split in splits]
 
 
-def _df_helper(df, spark_callback, koalas_callback):
+def _df_helper(df, spark_callback, spark_pandas_callback):
     try:
         import pyspark  # pylint: disable=C0415
     except Exception:
@@ -93,15 +93,15 @@ def _df_helper(df, spark_callback, koalas_callback):
             return spark_callback(df)
 
     try:
-        import databricks.koalas as ks  # pylint: disable=C0415
+        import pyspark.pandas as ps  # pylint: disable=C0415
     except Exception:
         pass
     else:
-        if isinstance(df, ks.DataFrame):
-            return koalas_callback(df)
+        if isinstance(df, ps.DataFrame):
+            return spark_pandas_callback(df)
 
     raise Exception(f"The type: {type(df)} is not supported, only support "
-                    "pyspark.sql.DataFrame and databricks.koalas.DataFrame")
+                    "pyspark.sql.DataFrame and pyspark.pandas.DataFrame")
 
 
 def df_type_check(df):
