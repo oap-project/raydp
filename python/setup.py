@@ -94,16 +94,24 @@ try:
         copy2(jar_path, JARS_TARGET)
     copy2(SCRIPT_PATH, SCRIPT_TARGET)
 
-    install_requires = [
-        "numpy < 2.0.0",
-        "pandas >= 1.1.4",
-        "psutil",
-        "pyarrow >= 4.0.1, <15.0.0",
-        "ray >= 2.1.0",
-        "pyspark >= 3.1.1, <=3.5.1",
-        "netifaces",
-        "protobuf > 3.19.5, <= 3.20.3"
-    ]
+
+    _here = os.path.abspath(os.path.dirname(__file__))
+    with open('requirements.txt') as f:
+        required = f.read().splitlines()
+
+    python_2 = sys.version_info[0] == 2
+
+    def read(file_name):
+        with open(file_name, 'rU' if python_2 else 'r') as file_handler:
+            return file_handler.read()
+
+
+    def read_reqs(file_name):
+        req_path = os.path.join(_here, file_name)
+        return [req.strip() for req in read(req_path).splitlines() if req.strip()]
+
+
+    install_requires = read_reqs('requirements.txt')
 
     _packages = find_packages()
     _packages.append("raydp.jars")
