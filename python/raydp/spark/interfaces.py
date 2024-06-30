@@ -20,8 +20,8 @@ from typing import Optional, Union
 
 from raydp.utils import convert_to_spark
 
-DF = Union["pyspark.sql.DataFrame", "koalas.DataFrame"]
-OPTIONAL_DF = Union[Optional["pyspark.sql.DataFrame"], Optional["koalas.DataFrame"]]
+DF = Union["pyspark.sql.DataFrame", "pyspark.pandas.DataFrame"]
+OPTIONAL_DF = Union[Optional["pyspark.sql.DataFrame"], Optional["pyspark.pandas.DataFrame"]]
 
 
 class SparkEstimatorInterface:

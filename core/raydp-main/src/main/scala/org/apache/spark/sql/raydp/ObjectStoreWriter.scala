@@ -17,21 +17,19 @@
 
 package org.apache.spark.sql.raydp
 
-
+import com.intel.raydp.shims.SparkShimLoader
+import io.ray.api.{ActorHandle, ObjectRef, PyActorHandle, Ray}
+import io.ray.runtime.AbstractRayRuntime
 import java.io.ByteArrayOutputStream
 import java.util.{List, UUID}
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 import java.util.function.{Function => JFunction}
-
-import scala.collection.JavaConverters._
-import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-
-import io.ray.api.{ActorHandle, ObjectRef, PyActorHandle, Ray}
-import io.ray.runtime.AbstractRayRuntime
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.apache.arrow.vector.types.pojo.Schema
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.{RayDPException, SparkContext}
 import org.apache.spark.deploy.raydp._
@@ -105,7 +103,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
         Iterator(iter)
       }
 
-      val arrowSchema = ArrowUtils.toArrowSchema(schema, timeZoneId)
+      val arrowSchema = SparkShimLoader.getSparkShims.toArrowSchema(schema, timeZoneId)
       val allocator = ArrowUtils.rootAllocator.newChildAllocator(
         s"ray object store writer", 0, Long.MaxValue)
       val root = VectorSchemaRoot.create(arrowSchema, allocator)
@@ -217,7 +215,7 @@ object ObjectStoreWriter {
   def toArrowSchema(df: DataFrame): Schema = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
-    ArrowUtils.toArrowSchema(df.schema, timeZoneId)
+    SparkShimLoader.getSparkShims.toArrowSchema(df.schema, timeZoneId)
   }
 
   def fromSparkRDD(df: DataFrame, storageLevel: StorageLevel): Array[Array[Byte]] = {

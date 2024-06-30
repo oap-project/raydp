@@ -17,11 +17,13 @@
 
 package org.apache.spark.sql.spark350
 
+import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.spark.TaskContext
 import org.apache.spark.api.java.JavaRDD
-import org.apache.spark.sql.{DataFrame, SparkSession, SQLContext}
+import org.apache.spark.sql.{DataFrame, SQLContext, SparkSession}
 import org.apache.spark.sql.execution.arrow.ArrowConverters
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.util.ArrowUtils
 
 object SparkSqlUtils {
   def toDataFrame(
@@ -35,5 +37,9 @@ object SparkSqlUtils {
       ArrowConverters.fromBatchIterator(iter, schema, timeZoneId,false, context)
     }
     session.internalCreateDataFrame(rdd.setName("arrow"), schema)
+  }
+
+  def toArrowSchema(schema : StructType, timeZoneId : String) : Schema = {
+    ArrowUtils.toArrowSchema(schema = schema, timeZoneId = timeZoneId, errorOnDuplicatedFieldNames = false)
   }
 }
