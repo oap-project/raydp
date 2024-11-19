@@ -92,7 +92,7 @@ jobs:
               pip install "ray[train] @ https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-3.0.0.dev0-cp39-cp39-manylinux2014_x86_64.whl"
               ;;
           esac
-          pip install pyarrow==6.0.1 pytest koalas tensorflow==2.13.1 tabulate grpcio-tools wget
+          pip install pyarrow==6.0.1 pytest koalas tensorflow==2.13.1 tabulate grpcio-tools wget typing-extensions<4.6.0,>=3.6.6
           pip install "xgboost_ray[default]<=0.1.13"
           pip install torchmetrics
           HOROVOD_WITH_GLOO=1
