@@ -82,7 +82,7 @@ jobs:
           else
             pip install torch
           fi
-          pip install pyarrow==6.0.1 ray[train] pytest tensorflow==2.13.1 tabulate grpcio-tools wget
+          pip install pyarrow==6.0.1 ray[train] pytest tensorflow==2.14.0 tabulate grpcio-tools wget
           pip install "xgboost_ray[default]<=0.1.13"
           pip install torchmetrics
       - name: Cache Maven
