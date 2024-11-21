@@ -84,6 +84,7 @@ jobs:
           fi
           pip install pyarrow==6.0.1 ray[train] pytest tensorflow==2.13.1 tabulate grpcio-tools wget
           pip install "xgboost_ray[default]<=0.1.13"
+          pip install "xgboost<=2.0.3"
           pip install torchmetrics
       - name: Cache Maven
         uses: actions/cache@8492260343ad570701412c2f464a5877dc76bace # v2
