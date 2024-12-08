@@ -95,12 +95,12 @@ try:
     copy2(SCRIPT_PATH, SCRIPT_TARGET)
 
     install_requires = [
-        "numpy < 2.0.0",
+        "numpy",
         "pandas >= 1.1.4",
         "psutil",
-        "pyarrow >= 4.0.1, <15.0.0",
-        "ray >= 2.1.0, <= 2.38.0",
-        "pyspark >= 3.1.1, <=3.5.1",
+        "pyarrow >= 4.0.1",
+        "ray >= 2.1.0",
+        "pyspark >= 3.1.1, <=3.5.3",
         "netifaces",
         "protobuf > 3.19.5, <= 3.20.3"
     ]

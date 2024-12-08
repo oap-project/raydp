@@ -202,14 +202,12 @@ class RayCoarseGrainedSchedulerBackend(
 
   def parseRayDPResourceRequirements(sparkConf: SparkConf): Map[String, Double] = {
     sparkConf.getAll
-      .filter { case (key, _) => {
+      .filter { case (key, _) =>
           key.startsWith(SparkOnRayConfigs.SPARK_EXECUTOR_ACTOR_RESOURCE_PREFIX)
-        }
       }
-      .map { case (key, value) => {
+      .map { case (key, value) =>
         key.stripPrefix(
             s"${SparkOnRayConfigs.SPARK_EXECUTOR_ACTOR_RESOURCE_PREFIX}.") -> value.toDouble
-        }
       }
       .filter { case (key, _) => key.toLowerCase() != "cpu" }
       .toMap

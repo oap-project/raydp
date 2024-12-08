@@ -32,11 +32,3 @@ __all__ = [
   "ray_dataset_to_spark_dataframe",
   "from_spark_recoverable"
 ]
-
-try:
-    import ray.util.data
-    from .dataset import RayMLDataset
-    __all__.append("RayMLDataset")
-except ImportError:
-    # Ray MLDataset is removed in Ray 2.0
-    pass

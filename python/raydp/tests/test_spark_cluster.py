@@ -60,7 +60,7 @@ def test_legacy_spark_on_fractional_cpu():
     cluster.shutdown()
 
 
-def test_spark_on_fractional_cpu():
+def test_spark_executor_on_fractional_cpu():
     cluster = Cluster(
         initialize_head=True,
         connect=True,
