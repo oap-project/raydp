@@ -229,7 +229,7 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                     # pylint: disable=E1123,E1120
                     if version.parse(ray.__version__) >= version.parse("2.39.0"):
                         preprocessor = Concatenator(
-                            columns=self._feature_columns - label_cols,
+                            columns=[col for col in self._feature_columns if col not in label_cols],
                             output_column_name="features",
                         )
                     else:
