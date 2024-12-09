@@ -23,3 +23,6 @@ examples/.ipynb_checkpoints/
 *.parquet
 *.crc
 _SUCCESS
+
+.metals/
+.bloop/
