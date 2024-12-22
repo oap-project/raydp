@@ -41,6 +41,7 @@ def test_spark(spark_on_ray_small):
 
 def test_legacy_spark_on_fractional_cpu():
     cluster = Cluster(
+        initialize_head=True,
         head_node_args={
             "num_cpus": 2
         })
@@ -61,6 +62,7 @@ def test_legacy_spark_on_fractional_cpu():
 
 def test_spark_executor_on_fractional_cpu():
     cluster = Cluster(
+        initialize_head=True,
         head_node_args={
             "num_cpus": 2
         })
@@ -81,6 +83,7 @@ def test_spark_executor_on_fractional_cpu():
 
 def test_spark_executor_node_affinity():
     cluster = Cluster(
+        initialize_head=True,
         head_node_args={
             "num_cpus": 1,
         })
@@ -135,12 +138,23 @@ def test_spark_driver_and_executor_hostname(spark_on_ray_small):
     assert node_ip_address == driver_bind_address
 
 
-def test_ray_dataset_roundtrip(spark_on_ray_2_executors):
+def test_ray_dataset_roundtrip():
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 6,
+        }
+    )
+    cluster.add_node(num_cpus=2, resources={"spark_executor": 10})  # work around
+    ray.init(address=cluster.address, include_dashboard=False)
+    
+    spark = raydp.init_spark(app_name="test", num_executors=2, 
+                             executor_cores=1, executor_memory="500M")
+
     # skipping this to be compatible with ray 2.4.0
     # see issue #343
     if not ray.worker.global_worker.connected:
         pytest.skip("Skip this test if using ray client")
-    spark = spark_on_ray_2_executors
     spark_df = spark.createDataFrame([(1, "a"), (2, "b"), (3, "c")], ["one", "two"])
     rows = [(r.one, r.two) for r in spark_df.take(3)]
     ds = ray.data.from_spark(spark_df)
@@ -154,6 +168,12 @@ def test_ray_dataset_roundtrip(spark_on_ray_2_executors):
         ray_dataset_to_spark_dataframe(spark, ds.schema(), block_refs)
     rows_2 = [(r.one, r.two) for r in df.take(3)]
     assert values == rows_2
+
+    spark.stop()
+    raydp.stop_spark()
+    time.sleep(5)
+    ray.shutdown()
+    cluster.shutdown()
 
 
 def test_ray_dataset_to_spark(spark_on_ray_2_executors):
@@ -227,7 +247,7 @@ def test_placement_group(ray_cluster):
 
 
 def test_reconstruction():
-    cluster = ray.cluster_utils.Cluster()
+    cluster = ray.cluster_utils.Cluster(initialize_head=True)
     # Head node has 2 cores for necessray actors
     head = cluster.add_node(
         num_cpus=2,
