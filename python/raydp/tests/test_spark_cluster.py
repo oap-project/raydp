@@ -148,8 +148,12 @@ def test_ray_dataset_roundtrip(spark_on_ray_2_executors):
     ds = ray.data.from_spark(spark_df)
     values = [(r["one"], r["two"]) for r in ds.take(6)]
     assert values == rows
+    block_refs = []
+    for ref_bundle in ds.iter_internal_ref_bundles():
+        for block_ref, block_md in ref_bundle.blocks:
+            block_refs.append(block_ref)
     df = raydp.spark.dataset. \
-        ray_dataset_to_spark_dataframe(spark, ds.schema(), ds.get_internal_block_refs())
+        ray_dataset_to_spark_dataframe(spark, ds.schema(), block_refs)
     rows_2 = [(r.one, r.two) for r in df.take(3)]
     assert values == rows_2
 
@@ -164,14 +168,22 @@ def test_ray_dataset_to_spark(spark_on_ray_2_executors):
     data = {"value": list(range(n))}
     ds = ray.data.from_arrow(pyarrow.Table.from_pydict(data))
     values = [r["value"] for r in ds.take(n)]
+    block_refs = []
+    for ref_bundle in ds.iter_internal_ref_bundles():
+        for block_ref, block_md in ref_bundle.blocks:
+            block_refs.append(block_ref)
     df = raydp.spark.dataset. \
-        ray_dataset_to_spark_dataframe(spark, ds.schema(), ds.get_internal_block_refs())
+        ray_dataset_to_spark_dataframe(spark, ds.schema(), block_refs)
     rows = [r.value for r in df.take(n)]
     assert values == rows
     ds2 = ray.data.from_items([{"id": i} for i in range(n)])
     ids = [r["id"] for r in ds2.take(n)]
+    block_refs2 = []
+    for ref_bundle in ds2.iter_internal_ref_bundles():
+        for block_ref, block_md in ref_bundle.blocks:
+            block_refs2.append(block_ref)
     df2 = raydp.spark.dataset. \
-        ray_dataset_to_spark_dataframe(spark, ds2.schema(), ds2.get_internal_block_refs())
+        ray_dataset_to_spark_dataframe(spark, ds2.schema(), block_refs2)
     rows2 = [r.id for r in df2.take(n)]
     assert ids == rows2
 
@@ -242,8 +254,9 @@ def test_reconstruction():
         num_cpus=1, object_store_memory=10 ** 8
     )
     # verify that block is recovered
-    for block in ds.get_internal_block_refs():
-        ray.get(block)
+    for ref_bundle in ds.iter_internal_ref_bundles():
+        for block_ref, block_md in ref_bundle.blocks:
+            ray.get(block_ref)
     raydp.stop_spark()
     ray.shutdown()
     cluster.shutdown()

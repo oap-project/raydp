@@ -83,7 +83,7 @@ jobs:
           else
             pip install torch
           fi
-          pip install pyarrow "ray[train]==${{ matrix.ray-version }}" pytest tensorflow==2.13.1 tabulate grpcio-tools wget
+          pip install pyarrow "ray[train]==${{ matrix.ray-version }}" tqdm pytest tensorflow==2.13.1 tabulate grpcio-tools wget
           pip install "xgboost_ray[default]<=0.1.13"
           pip install "xgboost<=2.0.3"
           pip install torchmetrics
