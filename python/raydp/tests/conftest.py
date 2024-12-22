@@ -66,6 +66,7 @@ def spark_on_ray_small(request):
     })
 
     def stop_all():
+        spark.stop()
         raydp.stop_spark()
         time.sleep(5)
         ray.shutdown()
@@ -88,6 +89,7 @@ def spark_on_ray_2_executors(request):
     })
 
     def stop_all():
+        spark.stop()
         raydp.stop_spark()
         time.sleep(5)
         ray.shutdown()
