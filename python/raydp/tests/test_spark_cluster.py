@@ -147,9 +147,15 @@ def test_ray_dataset_roundtrip():
     )
     ray.init(address=cluster.address, include_dashboard=False)
     
+    configs = {
+        # This looks like a bug in Spark, where RayCoarseGrainedSchedulerBackend
+        # always get the same sparkContext between tests.
+        # So we need to re-set the resource explicitly here.
+        "spark.ray.raydp_spark_executor.actor.resource.spark_executor": "0"
+    }
     spark = raydp.init_spark(app_name="test_ray_dataset_roundtrip", num_executors=2, 
                              executor_cores=1, executor_memory="500M",
-                             configs={"spark.ray.raydp_spark_executor.actor.resource.spark_executor": "0"})
+                             configs=configs)
 
     # skipping this to be compatible with ray 2.4.0
     # see issue #343
