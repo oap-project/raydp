@@ -145,11 +145,11 @@ def test_ray_dataset_roundtrip():
             "num_cpus": 6,
         }
     )
-    cluster.add_node(num_cpus=2, resources={"spark_executor": 10})  # work around
     ray.init(address=cluster.address, include_dashboard=False)
     
-    spark = raydp.init_spark(app_name="test", num_executors=2, 
-                             executor_cores=1, executor_memory="500M")
+    spark = raydp.init_spark(app_name="test_ray_dataset_roundtrip", num_executors=2, 
+                             executor_cores=1, executor_memory="500M",
+                             configs={"spark.ray.raydp_spark_executor.actor.resource.spark_executor": "0"})
 
     # skipping this to be compatible with ray 2.4.0
     # see issue #343
@@ -247,19 +247,20 @@ def test_placement_group(ray_cluster):
 
 
 def test_reconstruction():
-    cluster = ray.cluster_utils.Cluster(initialize_head=True)
-    # Head node has 2 cores for necessray actors
-    head = cluster.add_node(
-        num_cpus=2,
-        include_dashboard=False,
-        enable_object_reconstruction=True
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 2,
+            "enable_object_reconstruction": True
+        }
     )
+    
     ray.init(address=cluster.address, include_dashboard=False)
     # init_spark before adding nodes to ensure drivers connect to the head node
     spark = raydp.init_spark('a', 2, 1, '500m', fault_tolerant_mode=True)
     # Add two nodes, 1 executor each
-    node_to_kill = cluster.add_node(num_cpus=1, include_dashboard=False, object_store_memory=10 ** 8)
-    second_node = cluster.add_node(num_cpus=1, include_dashboard=False, object_store_memory=10 ** 8)
+    node_to_kill = cluster.add_node(num_cpus=1, object_store_memory=10 ** 8)
+    second_node = cluster.add_node(num_cpus=1, object_store_memory=10 ** 8)
     # wait for executors to start
     time.sleep(5)
     # df should be large enough so that result will be put into plasma
