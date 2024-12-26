@@ -15,8 +15,7 @@
 # limitations under the License.
 #
 
-import json
-import os
+from packaging import version
 import tempfile
 from typing import Any, List, NoReturn, Optional, Union, Dict
 
@@ -25,6 +24,7 @@ import tensorflow.keras as keras
 from tensorflow import DType, TensorShape
 from tensorflow.keras.callbacks import Callback
 
+import ray
 from ray.train import Checkpoint
 from ray.train.tensorflow import TensorflowTrainer, TensorflowCheckpoint, prepare_dataset_shard
 from ray.air import session
@@ -226,8 +226,17 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
                     label_cols = self._label_columns
                     if not isinstance(label_cols, list):
                         label_cols = [label_cols]
-                    preprocessor = Concatenator(output_column_name="features",
-                                                exclude=label_cols)
+                    # pylint: disable=E1123,E1120
+                    if version.parse(ray.__version__) >= version.parse("2.39.0"):
+                        preprocessor = Concatenator(
+                            columns=[col for col in self._feature_columns if col not in label_cols],
+                            output_column_name="features",
+                        )
+                    else:
+                        preprocessor = Concatenator(
+                            exclude=label_cols,
+                            output_column_name="features",
+                        )
                     train_loop_config["feature_columns"] = "features"
                     train_ds = preprocessor.transform(train_ds)
                     if evaluate_ds is not None:
