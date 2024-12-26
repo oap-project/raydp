@@ -42,11 +42,11 @@ def test_spark(spark_on_ray_small):
 def test_legacy_spark_on_fractional_cpu():
     cluster = Cluster(
         initialize_head=True,
-        connect=True,
         head_node_args={
             "num_cpus": 2
         })
 
+    ray.init(address=cluster.address, include_dashboard=False)
     spark = raydp.init_spark(app_name="test_cpu_fraction",
                              num_executors=1, executor_cores=3, executor_memory="500M",
                              configs={"spark.ray.actor.resource.cpu": "0.1"})
@@ -60,14 +60,14 @@ def test_legacy_spark_on_fractional_cpu():
     cluster.shutdown()
 
 
-def test_spark_on_fractional_cpu():
+def test_spark_executor_on_fractional_cpu():
     cluster = Cluster(
         initialize_head=True,
-        connect=True,
         head_node_args={
             "num_cpus": 2
         })
 
+    ray.init(address=cluster.address, include_dashboard=False)
     spark = raydp.init_spark(app_name="test_cpu_fraction",
                              num_executors=1, executor_cores=3, executor_memory="500M",
                              configs={"spark.ray.raydp_spark_executor.actor.resource.cpu": "0.1"})
@@ -84,18 +84,19 @@ def test_spark_on_fractional_cpu():
 def test_spark_executor_node_affinity():
     cluster = Cluster(
         initialize_head=True,
-        connect=True,
         head_node_args={
             "num_cpus": 1,
         })
     cluster.add_node(num_cpus=2, resources={"spark_executor": 10})
 
+    ray.init(address=cluster.address, include_dashboard=False)
     spark = raydp.init_spark(app_name="test_executor_node_affinity",
                              num_executors=1, executor_cores=2, executor_memory="500M",
                              configs={"spark.ray.raydp_spark_executor.actor.resource.spark_executor": "1"})
     result = spark.range(0, 10).count()
     assert result == 10
 
+    spark.stop()
     raydp.stop_spark()
     time.sleep(5)
     ray.shutdown()
@@ -137,21 +138,48 @@ def test_spark_driver_and_executor_hostname(spark_on_ray_small):
     assert node_ip_address == driver_bind_address
 
 
-def test_ray_dataset_roundtrip(spark_on_ray_2_executors):
+def test_ray_dataset_roundtrip():
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 6,
+        }
+    )
+    ray.init(address=cluster.address, include_dashboard=False)
+    
+    configs = {
+        # This looks like a bug in Spark, where RayCoarseGrainedSchedulerBackend
+        # always get the same sparkContext between tests.
+        # So we need to re-set the resource explicitly here.
+        "spark.ray.raydp_spark_executor.actor.resource.spark_executor": "0"
+    }
+    spark = raydp.init_spark(app_name="test_ray_dataset_roundtrip", num_executors=2, 
+                             executor_cores=1, executor_memory="500M",
+                             configs=configs)
+
     # skipping this to be compatible with ray 2.4.0
     # see issue #343
     if not ray.worker.global_worker.connected:
         pytest.skip("Skip this test if using ray client")
-    spark = spark_on_ray_2_executors
     spark_df = spark.createDataFrame([(1, "a"), (2, "b"), (3, "c")], ["one", "two"])
     rows = [(r.one, r.two) for r in spark_df.take(3)]
     ds = ray.data.from_spark(spark_df)
     values = [(r["one"], r["two"]) for r in ds.take(6)]
     assert values == rows
+    block_refs = []
+    for ref_bundle in ds.iter_internal_ref_bundles():
+        for block_ref, block_md in ref_bundle.blocks:
+            block_refs.append(block_ref)
     df = raydp.spark.dataset. \
-        ray_dataset_to_spark_dataframe(spark, ds.schema(), ds.get_internal_block_refs())
+        ray_dataset_to_spark_dataframe(spark, ds.schema(), block_refs)
     rows_2 = [(r.one, r.two) for r in df.take(3)]
     assert values == rows_2
+
+    spark.stop()
+    raydp.stop_spark()
+    time.sleep(5)
+    ray.shutdown()
+    cluster.shutdown()
 
 
 def test_ray_dataset_to_spark(spark_on_ray_2_executors):
@@ -164,14 +192,22 @@ def test_ray_dataset_to_spark(spark_on_ray_2_executors):
     data = {"value": list(range(n))}
     ds = ray.data.from_arrow(pyarrow.Table.from_pydict(data))
     values = [r["value"] for r in ds.take(n)]
+    block_refs = []
+    for ref_bundle in ds.iter_internal_ref_bundles():
+        for block_ref, block_md in ref_bundle.blocks:
+            block_refs.append(block_ref)
     df = raydp.spark.dataset. \
-        ray_dataset_to_spark_dataframe(spark, ds.schema(), ds.get_internal_block_refs())
+        ray_dataset_to_spark_dataframe(spark, ds.schema(), block_refs)
     rows = [r.value for r in df.take(n)]
     assert values == rows
     ds2 = ray.data.from_items([{"id": i} for i in range(n)])
     ids = [r["id"] for r in ds2.take(n)]
+    block_refs2 = []
+    for ref_bundle in ds2.iter_internal_ref_bundles():
+        for block_ref, block_md in ref_bundle.blocks:
+            block_refs2.append(block_ref)
     df2 = raydp.spark.dataset. \
-        ray_dataset_to_spark_dataframe(spark, ds2.schema(), ds2.get_internal_block_refs())
+        ray_dataset_to_spark_dataframe(spark, ds2.schema(), block_refs2)
     rows2 = [r.id for r in df2.take(n)]
     assert ids == rows2
 
@@ -217,19 +253,20 @@ def test_placement_group(ray_cluster):
 
 
 def test_reconstruction():
-    cluster = ray.cluster_utils.Cluster()
-    # Head node has 2 cores for necessray actors
-    head = cluster.add_node(
-        num_cpus=2,
-        include_dashboard=False,
-        enable_object_reconstruction=True
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={
+            "num_cpus": 2,
+            "enable_object_reconstruction": True
+        }
     )
+    
     ray.init(address=cluster.address, include_dashboard=False)
     # init_spark before adding nodes to ensure drivers connect to the head node
     spark = raydp.init_spark('a', 2, 1, '500m', fault_tolerant_mode=True)
     # Add two nodes, 1 executor each
-    node_to_kill = cluster.add_node(num_cpus=1, include_dashboard=False, object_store_memory=10 ** 8)
-    second_node = cluster.add_node(num_cpus=1, include_dashboard=False, object_store_memory=10 ** 8)
+    node_to_kill = cluster.add_node(num_cpus=1, object_store_memory=10 ** 8)
+    second_node = cluster.add_node(num_cpus=1, object_store_memory=10 ** 8)
     # wait for executors to start
     time.sleep(5)
     # df should be large enough so that result will be put into plasma
@@ -242,8 +279,9 @@ def test_reconstruction():
         num_cpus=1, object_store_memory=10 ** 8
     )
     # verify that block is recovered
-    for block in ds.get_internal_block_refs():
-        ray.get(block)
+    for ref_bundle in ds.iter_internal_ref_bundles():
+        for block_ref, block_md in ref_bundle.blocks:
+            ray.get(block_ref)
     raydp.stop_spark()
     ray.shutdown()
     cluster.shutdown()
