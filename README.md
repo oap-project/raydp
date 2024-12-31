@@ -85,6 +85,22 @@ word_count.show()
 raydp.stop_spark()
 ```
 
+Note: to support a Ray RuntimeEnv with [pymodules](https://docs.ray.io/en/latest/ray-core/api/doc/ray.runtime_env.RuntimeEnv.html#ray.runtime_env.RuntimeEnv) you must set the `spark.executorEnv.PYTHONPATH` in you Spark config:
+```
+import os
+import ray
+import raydp
+
+ray.init()
+spark = raydp.init_spark(app_name="RayDP Example",
+                         num_executors=2,
+                         executor_cores=2,
+                         executor_memory="4GB",
+                         configs={
+                             "spark.executorEnv.PYTHONPATH": os.environ["PYTHONPATH"],
+                         })
+```
+
 Spark features such as dynamic resource allocation, spark-submit script, etc are also supported. Please refer to [Spark on Ray](./doc/spark_on_ray.md) for more details.
 
 
