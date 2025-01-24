@@ -50,7 +50,8 @@ class SparkCluster(Cluster):
         self._enable_hive = enable_hive
         self._configs = configs
         self._prepare_spark_configs()
-        self._set_up_master(resources=self._get_master_resources(self._configs), runtime_env=runtime_env)
+        self._set_up_master(resources=self._get_master_resources(self._configs),
+                            runtime_env=runtime_env)
         self._spark_session: SparkSession = None
 
     def _set_up_master(self, resources: Dict[str, float], runtime_env: Dict[Any, Any]):
