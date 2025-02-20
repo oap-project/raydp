@@ -116,4 +116,6 @@ public class SparkOnRayConfigs {
      */
     public static final String RAYDP_LOGFILE_PREFIX_CFG =
             "-Dray.logging.file-prefix=raydp-java-worker";
+
+    public static final int DEFAULT_SPARK_EXECUTOR_INSTANCES = 1;
 }

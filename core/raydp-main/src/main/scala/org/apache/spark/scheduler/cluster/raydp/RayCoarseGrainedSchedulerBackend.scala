@@ -171,7 +171,8 @@ class RayCoarseGrainedSchedulerBackend(
 
     val resourcesInMap = transferResourceRequirements(executorResourceReqs) ++
       raydpExecutorCustomResources
-    val numExecutors = conf.get(config.EXECUTOR_INSTANCES).get
+    val numExecutors = conf.get(config.EXECUTOR_INSTANCES)
+      .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_EXECUTOR_INSTANCES)
     val sparkCoresPerExecutor = coresPerExecutor
       .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
     val rayActorCPU = conf.get(SparkOnRayConfigs.SPARK_EXECUTOR_ACTOR_CPU_RESOURCE,
