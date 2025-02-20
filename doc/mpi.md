@@ -79,7 +79,7 @@ with create_mpi_job(job_name="example",
 
 ### Specify the MPI script and environments
 
-You could customize the MPI job environments and MPI scritps with `mpi_script_prepare_fn` argument.
+You could customize the MPI job environments and MPI scripts with `mpi_script_prepare_fn` argument.
 
 ```python
 def script_prepare_fn(context: MPIJobContext):

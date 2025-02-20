@@ -1,7 +1,7 @@
 ### Spark master actors node affinity
 
 RayDP will create a ray actor called `RayDPSparkMaster`, which will then launch the java process, 
-acting like a Master in a tradtional Spark cluster. 
+acting like a Master in a traditional Spark cluster. 
 By default, this actor could be scheduled to any node in the ray cluster. 
 If you want it to be on a particular node, you can assign some custom resources to that node, 
 and request those resources when starting `RayDPSparkMaster` by setting 
@@ -83,7 +83,7 @@ spark = raydp.init_spark(app_name='RayDP Oversubscribe Example',
 
 ### External Shuffle Service & Dynamic Resource Allocation
 
-RayDP supports External Shuffle Serivce. To enable it, you can either set `spark.shuffle.service.enabled` to `true` in `spark-defaults.conf`, or you can provide a config to `raydp.init_spark`, as shown below:
+RayDP supports External Shuffle Service. To enable it, you can either set `spark.shuffle.service.enabled` to `true` in `spark-defaults.conf`, or you can provide a config to `raydp.init_spark`, as shown below:
 
 ```python
 raydp.init_spark(..., configs={"spark.shuffle.service.enabled": "true"})
@@ -144,13 +144,13 @@ with open(conf_path, "w") as f:
  3. Run your application, such as `raydp-submit --ray-conf /path/to/ray.conf --class org.apache.spark.examples.SparkPi --conf spark.executor.cores=1 --conf spark.executor.instances=1 --conf spark.executor.memory=500m $SPARK_HOME/examples/jars/spark-examples.jar`. Note that `--ray-conf` must be specified right after raydp-submit, and before any spark arguments.
 
 ### Placement Group
-RayDP can leverage Ray's placement group feature and schedule executors onto spcecified placement group. It provides better control over the allocation of Spark executors on a Ray cluster, for example spreading the spark executors onto seperate nodes or starting all executors on a single node. You can specify a created placement group when init spark, as shown below:
+RayDP can leverage Ray's placement group feature and schedule executors onto specified placement group. It provides better control over the allocation of Spark executors on a Ray cluster, for example spreading the spark executors onto separate nodes or starting all executors on a single node. You can specify a created placement group when init spark, as shown below:
 
 ```python
 raydp.init_spark(..., placement_group=pg)
 ```
 
-Or you can just specify the placement group strategy. RayDP will create a coreesponding placement group and manage its lifecycle, which means the placement group will be created together with SparkSession and removed when calling `raydp.stop_spark()`. Strategy can be "PACK", "SPREAD", "STRICT_PACK" or "STRICT_SPREAD". Please refer to [Placement Groups document](https://docs.ray.io/en/latest/placement-group.html#pgroup-strategy) for details.
+Or you can just specify the placement group strategy. RayDP will create a corresponding placement group and manage its lifecycle, which means the placement group will be created together with SparkSession and removed when calling `raydp.stop_spark()`. Strategy can be "PACK", "SPREAD", "STRICT_PACK" or "STRICT_SPREAD". Please refer to [Placement Groups document](https://docs.ray.io/en/latest/placement-group.html#pgroup-strategy) for details.
 
 ```python
 raydp.init_spark(..., placement_group_strategy="SPREAD")
