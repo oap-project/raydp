@@ -23,7 +23,12 @@ import org.apache.spark.scheduler.cluster.SchedulerBackendUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/**
+ * This class performs unit testing on some methods in `RayCoarseGrainedSchedulerBackend`.
+ */
 public class TestRayCoarseGrainedSchedulerBackend {
+
+  // Test using the default value.
   @Test
   public void testExecutorNumberWithDefaultConfig() {
     SparkConf conf = new SparkConf();
@@ -31,6 +36,7 @@ public class TestRayCoarseGrainedSchedulerBackend {
     assertEquals(2, executorNumber);
   }
 
+  // Test using a negative value.
   @Test
   public void testExecutorNumberWithNegativeConfig() {
     SparkConf conf = new SparkConf();
@@ -39,6 +45,7 @@ public class TestRayCoarseGrainedSchedulerBackend {
     assertEquals(2, executorNumber);
   }
 
+  // Test using reasonable values.
   @Test
   public void testExecutorNumberWithValidConfig() {
     SparkConf conf = new SparkConf();
@@ -47,6 +54,7 @@ public class TestRayCoarseGrainedSchedulerBackend {
     assertEquals(5, executorNumber);
   }
 
+  // Test using dynamic values.
   @Test
   public void testExecutorNumberWithDynamicConfig() {
     SparkConf conf = new SparkConf();
