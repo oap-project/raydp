@@ -20,14 +20,16 @@ package org.apache.spark.scheduler.cluster.raydp
 import java.net.URI
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
 import scala.concurrent.Future
+
 import io.ray.api.{ActorHandle, Ray}
 import org.apache.spark.{RayDPException, SparkConf, SparkContext, SparkException}
 import org.apache.spark.deploy.raydp._
 import org.apache.spark.deploy.security.HadoopDelegationTokenManager
-import org.apache.spark.internal.{Logging, config}
+import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.launcher.{LauncherBackend, SparkAppHandle}
 import org.apache.spark.raydp.SparkOnRayConfigs
 import org.apache.spark.resource.{ResourceProfile, ResourceRequirement, ResourceUtils}
