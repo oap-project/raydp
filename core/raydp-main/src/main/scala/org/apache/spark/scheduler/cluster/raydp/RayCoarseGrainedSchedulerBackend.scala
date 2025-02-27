@@ -36,7 +36,7 @@ import org.apache.spark.raydp.SparkOnRayConfigs
 import org.apache.spark.resource.{ResourceProfile, ResourceRequirement, ResourceUtils}
 import org.apache.spark.rpc.{RpcEndpointAddress, RpcEndpointRef, RpcEnv, ThreadSafeRpcEndpoint}
 import org.apache.spark.scheduler.TaskSchedulerImpl
-import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
+import org.apache.spark.scheduler.cluster.{CoarseGrainedSchedulerBackend, SchedulerBackendUtils}
 import org.apache.spark.util.Utils
 
 /**
@@ -171,7 +171,7 @@ class RayCoarseGrainedSchedulerBackend(
 
     val resourcesInMap = transferResourceRequirements(executorResourceReqs) ++
       raydpExecutorCustomResources
-    val numExecutors = conf.get(config.EXECUTOR_INSTANCES).get
+    val numExecutors = SchedulerBackendUtils.getInitialTargetExecutorNumber(conf);
     val sparkCoresPerExecutor = coresPerExecutor
       .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
     val rayActorCPU = conf.get(SparkOnRayConfigs.SPARK_EXECUTOR_ACTOR_CPU_RESOURCE,
