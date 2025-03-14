@@ -7,13 +7,13 @@
   <parent>
     <groupId>com.intel</groupId>
     <artifactId>raydp-shims</artifactId>
-    <version>1.6.1</version>
+    <version>1.6.2</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
   <artifactId>raydp-shims-common</artifactId>
   <name>RayDP Shims Common</name>
-  <version>1.6.1</version>
+  <version>1.6.2</version>
   <packaging>jar</packaging>
   
   <build>
