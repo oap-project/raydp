@@ -273,10 +273,19 @@ class RayAppMaster(host: String,
       // This will check with dynamic auto scale no additional pending executor actor added more
       // than max executors count as this result in executor even running after job completion
       val dynamicAllocationEnabled = conf.getBoolean("spark.dynamicAllocation.enabled", false)
+      // FIX: Check total executors (current + restarted) against maxExecutor, executorInstances
       if (dynamicAllocationEnabled) {
         val maxExecutor = conf.getInt("spark.dynamicAllocation.maxExecutors", 0)
-        if (restartedExecutors.size >= maxExecutor) {
+        if ((appInfo.executors.size + restartedExecutors.size) >= maxExecutor) {
           return
+        }
+      }
+      else {
+        val executorInstances = conf.getInt("spark.executor.instances", 0)
+        if (executorInstances != 0) {
+          if((appInfo.executors.size + restartedExecutors.size) >=  executorInstances) {
+            return
+          }
         }
       }
 
