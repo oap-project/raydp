@@ -102,7 +102,7 @@ try:
         "ray >= 2.1.0",
         "pyspark >= 3.1.1, <=3.5.4",
         "netifaces",
-        "protobuf > 3.19.5, <= 3.20.3"
+        "protobuf > 3.19.5"
     ]
 
     _packages = find_packages()
