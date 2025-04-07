@@ -260,14 +260,14 @@ class RayAppMaster(host: String,
         .coresPerExecutor
         .getOrElse(SparkOnRayConfigs.DEFAULT_SPARK_CORES_PER_EXECUTOR)
       val rayActorCPU = this.appInfo.desc.rayActorCPU
-
       val memory = appInfo.desc.memoryPerExecutorMB
       val executorId = s"${appInfo.getNextExecutorId()}"
 
-      logInfo(s"Requesting Spark executor with Ray logical resource " +
-        s"{ CPU: ${rayActorCPU}, " +
-        s"${appInfo.desc.resourceReqsPerExecutor
-          .map{ case (name, amount) => s"${name}: ${amount}"}.mkString(", ")} }..")
+      logInfo(
+        s"Requesting Spark executor with Ray logical resource " +
+          s"{ CPU: $rayActorCPU, " +
+          s"${appInfo.desc.resourceReqsPerExecutor
+            .map { case (name, amount) => s"$name: $amount" }.mkString(", ")} }..")
       // TODO: Support generic fractional logical resources using prefix spark.ray.actor.resource.*
 
       // This will check with dynamic auto scale no additional pending executor actor added more
@@ -279,24 +279,23 @@ class RayAppMaster(host: String,
         if ((appInfo.executors.size + restartedExecutors.size) >= maxExecutor) {
           return
         }
-      }
-      else {
+      } else {
         val executorInstances = conf.getInt("spark.executor.instances", 0)
-        if (executorInstances != 0) {
-          if((appInfo.executors.size + restartedExecutors.size) >=  executorInstances) {
-            return
-          }
+        if (executorInstances != 0 &&
+          (appInfo.executors.size + restartedExecutors.size) >= executorInstances) {
+          return
         }
       }
 
       val handler = RayExecutorUtils.createExecutorActor(
-        executorId, getAppMasterEndpointUrl(),
+        executorId,
+        getAppMasterEndpointUrl(),
         rayActorCPU,
         memory,
         // This won't work, Spark expect integer in custom resources,
         // please see python test test_spark_on_fractional_custom_resource
         appInfo.desc.resourceReqsPerExecutor
-          .map{ case (name, amount) => (name, Double.box(amount))}.asJava,
+          .map { case (name, amount) => (name, Double.box(amount)) }.asJava,
         placementGroup,
         getNextBundleIndex,
         seqAsJavaList(appInfo.desc.command.javaOpts))
