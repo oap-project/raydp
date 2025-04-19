@@ -19,20 +19,19 @@ name: RayDP CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
-permissions:  # added using https://github.com/step-security/secure-repo
+permissions: # added using https://github.com/step-security/secure-repo
   contents: read
 
 jobs:
   build-and-test:
-
     strategy:
       matrix:
-        os: [ ubuntu-latest ]
+        os: [ubuntu-latest]
         python-version: [3.9, 3.10.14]
         spark-version: [3.2.4, 3.3.2, 3.4.0, 3.5.0]
         ray-version: [2.34.0, 2.40.0]
@@ -107,7 +106,7 @@ jobs:
       - name: Test with pytest
         run: |
           ray start --head --num-cpus 6
-          pytest python/raydp/tests/ -v
+          PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest python/raydp/tests/ -v
           ray stop --force
       - name: Test Examples
         run: |
