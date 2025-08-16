@@ -94,19 +94,25 @@ search_target()
 	IFS=$origin_IFS
 }
 
-args=()
+conf_args=()
+user_args=()
 while [ $# -gt 0 ]; do
         case "$1" in
-                --conf)
-			args+=("--conf")
-		        args+=("$2")
-			search_target "$2"
-                        shift 2
-                        ;;
-                *)
-                        args+=($1)
-                        shift 1
-                        ;;
+            --ray-conf)
+                conf_args+=("--ray-conf")
+                conf_args+=("$2")
+                shift 2
+                ;;
+            --conf)
+                conf_args+=("--conf")
+                conf_args+=("$2")
+                search_target "$2"
+                shift 2
+                ;;
+            *)
+                user_args+=($1)
+                shift 1
+                ;;
         esac
 done
 
@@ -145,15 +151,18 @@ RAYDP_CLASS_PATH="-cp $SPARK_PREF_CP$RAYDP_HOME/jars/*:$SPARK_HOME/conf:$SPARK_H
 
 # merge all
 new_args=()
-for e in ${args[@]::${#args[@]}-1}
+for e in ${conf_args[@]}
 do
-	new_args+=($e)
+  new_args+=($e)
 done
 for e in ${added_args[@]}
 do
-	new_args+=($e)
+  new_args+=($e)
 done
-new_args+=(${args[${#args[@]}-1]})
+for e in ${user_args[@]}
+do
+  new_args+=($e)
+done
 
 # set arguments
 set -- "${new_args[@]}"
