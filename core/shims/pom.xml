@@ -21,10 +21,11 @@
     <module>spark330</module>
     <module>spark340</module>
     <module>spark350</module>
+    <module>spark400</module>
   </modules>
  
   <properties>
-    <scala.binary.version>2.12</scala.binary.version>
+    <scala.binary.version>2.13</scala.binary.version>
     <scala.plugin.version>4.3.0</scala.plugin.version>
     <scalatest-maven-plugin.version>3.2.2</scalatest-maven-plugin.version>
   </properties>

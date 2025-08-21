@@ -27,9 +27,9 @@ import java.util.function.{Function => JFunction}
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.apache.arrow.vector.types.pojo.Schema
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.jdk.CollectionConverters._
 
 import org.apache.spark.{RayDPException, SparkContext}
 import org.apache.spark.deploy.raydp._
@@ -85,7 +85,7 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
    * Save the DataFrame to Ray object store with Apache Arrow format.
    */
   def save(useBatch: Boolean, ownerName: String): List[RecordBatch] = {
-    val conf = df.queryExecution.sparkSession.sessionState.conf
+    val conf = df.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
     var batchSize = conf.getConf(SQLConf.ARROW_EXECUTION_MAX_RECORDS_PER_BATCH)
     if (!useBatch) {

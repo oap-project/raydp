@@ -22,15 +22,16 @@ import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 import javax.xml.bind.DatatypeConverter
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable.HashMap
+import scala.jdk.CollectionConverters._
+
+import com.fasterxml.jackson.core.JsonFactory
+import com.fasterxml.jackson.databind.ObjectMapper
 
 import io.ray.api.{ActorHandle, PlacementGroups, Ray}
 import io.ray.api.id.PlacementGroupId
 import io.ray.api.placementgroup.PlacementGroup
 import io.ray.runtime.config.RayConfig
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
 
 import org.apache.spark.{RayDPException, SecurityManager, SparkConf}
 import org.apache.spark.executor.RayDPExecutor
@@ -38,6 +39,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.raydp.{RayExecutorUtils, SparkOnRayConfigs}
 import org.apache.spark.rpc._
 import org.apache.spark.util.Utils
+
 
 class RayAppMaster(host: String,
                    port: Int,
@@ -298,7 +300,7 @@ class RayAppMaster(host: String,
           .map { case (name, amount) => (name, Double.box(amount)) }.asJava,
         placementGroup,
         getNextBundleIndex,
-        seqAsJavaList(appInfo.desc.command.javaOpts))
+        appInfo.desc.command.javaOpts.asJava)
       appInfo.addPendingRegisterExecutor(executorId, handler, sparkCoresPerExecutor, memory)
     }
 
@@ -356,11 +358,15 @@ object RayAppMaster extends Serializable {
   val ACTOR_NAME = "RAY_APP_MASTER"
 
   def setProperties(properties: String): Unit = {
-    implicit val formats: DefaultFormats.type = org.json4s.DefaultFormats
-    val parsed = parse(properties).extract[Map[String, String]]
-    parsed.foreach{ case (key, value) =>
-      System.setProperty(key, value)
+    // Use Jackson ObjectMapper directly to avoid JSON4S version conflicts
+    val mapper = new ObjectMapper()
+    val javaMap = mapper.readValue(properties, classOf[java.util.Map[String, Object]])
+    val scalaMap = javaMap.asScala.toMap
+    scalaMap.foreach{ case (key, value) =>
+      // Convert all values to strings since System.setProperty expects String
+      System.setProperty(key, value.toString)
     }
+
     // Use the same session dir as the python side
     RayConfig.create().setSessionDir(System.getProperty("ray.session-dir"))
   }

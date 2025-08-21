@@ -36,7 +36,9 @@ def quiet_logger():
 
 @pytest.fixture(scope="function")
 def spark_session(request):
-    spark = SparkSession.builder.master("local[2]").appName("RayDP test").getOrCreate()
+    spark = SparkSession.builder.master("local[2]").appName("RayDP test") \
+        .config("spark.sql.ansi.enabled", "false") \
+        .getOrCreate()
     request.addfinalizer(lambda: spark.stop())
     quiet_logger()
     return spark
@@ -62,7 +64,8 @@ def spark_on_ray_small(request):
     node_ip = ray.util.get_node_ip_address()
     spark = raydp.init_spark("test", 1, 1, "500M", configs={
         "spark.driver.host": node_ip,
-        "spark.driver.bindAddress": node_ip
+        "spark.driver.bindAddress": node_ip,
+        "spark.sql.ansi.enabled": "false"
     })
 
     def stop_all():
@@ -85,7 +88,8 @@ def spark_on_ray_2_executors(request):
     node_ip = ray.util.get_node_ip_address()
     spark = raydp.init_spark("test", 2, 1, "500M", configs={
         "spark.driver.host": node_ip,
-        "spark.driver.bindAddress": node_ip
+        "spark.driver.bindAddress": node_ip,
+        "spark.sql.ansi.enabled": "false"
     })
 
     def stop_all():
