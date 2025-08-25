@@ -46,6 +46,7 @@ jobs:
         uses: actions/setup-java@v5 # v1.4.4
         with:
           java-version: 17
+          distribution: 'corretto'
       - name: Install extra dependencies for macOS
         if: matrix.os == 'macos-latest'
         run: |
