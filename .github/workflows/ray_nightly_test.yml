@@ -32,7 +32,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest ]
         python-version: [3.9, 3.10.14]
-        spark-version: [3.2.4, 3.3.2, 3.4.0, 3.5.6, 4.0.0]
+        spark-version: [4.0.0]
 
     runs-on: ${{ matrix.os }}
 
