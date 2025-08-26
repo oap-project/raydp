@@ -22,10 +22,15 @@ import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.executor.{RayDPExecutorBackendFactory, RayDPSpark400ExecutorBackendFactory}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.spark400.SparkSqlUtils
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 import org.apache.spark.{SparkEnv, TaskContext}
 import org.apache.spark.spark400.TaskContextUtils
 import com.intel.raydp.shims.{ShimDescriptor, SparkShims}
+import org.apache.spark.rdd.{MapPartitionsRDD, RDD}
+import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.execution.arrow.ArrowConverters
+
+import scala.reflect.ClassTag
 
 class Spark400Shims extends SparkShims {
   override def getShimDescriptor: ShimDescriptor = SparkShimProvider.DESCRIPTOR
@@ -45,7 +50,14 @@ class Spark400Shims extends SparkShims {
     TaskContextUtils.getDummyTaskContext(partitionId, env)
   }
 
-  override def toArrowSchema(schema : StructType, timeZoneId : String) : Schema = {
-    SparkSqlUtils.toArrowSchema(schema = schema, timeZoneId = timeZoneId)
+  override def toArrowSchema(
+      schema: StructType,
+      timeZoneId: String,
+      sparkSession: SparkSession): Schema = {
+    SparkSqlUtils.toArrowSchema(schema, timeZoneId, sparkSession)
+  }
+
+  override def toArrowBatchRDD(dataFrame: DataFrame): RDD[Array[Byte]] = {
+    SparkSqlUtils.toArrowRDD(dataFrame, dataFrame.sparkSession)
   }
 }
