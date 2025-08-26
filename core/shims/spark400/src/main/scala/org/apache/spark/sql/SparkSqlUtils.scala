@@ -40,7 +40,7 @@ object SparkSqlUtils {
         schema = schema,
         timeZoneId = timeZoneId,
         errorOnDuplicatedFieldNames = false,
-        largeVarTypes = true,
+        largeVarTypes = false,
         context = context)
     }
     val rowRdd = internalRowRdd.map { internalRow =>
@@ -54,7 +54,7 @@ object SparkSqlUtils {
       schema = schema,
       timeZoneId = timeZoneId,
       errorOnDuplicatedFieldNames = false,
-      largeVarTypes = true
+      largeVarTypes = false
     )
   }
 }
