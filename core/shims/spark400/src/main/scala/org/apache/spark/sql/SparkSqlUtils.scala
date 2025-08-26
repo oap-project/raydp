@@ -20,11 +20,11 @@ package org.apache.spark.sql.spark400
 import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.spark.TaskContext
 import org.apache.spark.api.java.JavaRDD
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.classic.ClassicConversions
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.execution.arrow.ArrowConverters
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.util.ArrowUtils
-import org.apache.spark.sql.catalyst.InternalRow
 
 object SparkSqlUtils {
   def toDataFrame(
@@ -43,10 +43,7 @@ object SparkSqlUtils {
         largeVarTypes = false,
         context = context)
     }
-    val rowRdd = internalRowRdd.map { internalRow =>
-      Row.fromSeq(internalRow.toSeq(schema))
-    }
-    session.createDataFrame(rowRdd.setName("arrow"), schema)
+    ClassicConversions.castToImpl(session).internalCreateDataFrame(internalRowRdd.setName("arrow"), schema)
   }
 
   def toArrowSchema(schema : StructType, timeZoneId : String) : Schema = {
