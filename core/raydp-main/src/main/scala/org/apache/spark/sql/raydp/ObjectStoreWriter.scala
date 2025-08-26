@@ -85,13 +85,16 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
    * Save the DataFrame to Ray object store with Apache Arrow format.
    */
   def save(useBatch: Boolean, ownerName: String): List[RecordBatch] = {
-    val conf = df.sparkSession.sessionState.conf
+    val sparkSession = df.sparkSession
+    val conf = sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
     var batchSize = conf.getConf(SQLConf.ARROW_EXECUTION_MAX_RECORDS_PER_BATCH)
     if (!useBatch) {
       batchSize = 0
     }
     val schema = df.schema
+    val arrowSchema = SparkShimLoader.getSparkShims.toArrowSchema(
+      schema, timeZoneId, sparkSession)
 
     val objectIds = df.queryExecution.toRdd.mapPartitions{ iter =>
       val queue = ObjectRefHolder.getQueue(uuid)
@@ -102,8 +105,6 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       } else {
         Iterator(iter)
       }
-
-      val arrowSchema = SparkShimLoader.getSparkShims.toArrowSchema(schema, timeZoneId)
       val allocator = ArrowUtils.rootAllocator.newChildAllocator(
         s"ray object store writer", 0, Long.MaxValue)
       val root = VectorSchemaRoot.create(arrowSchema, allocator)
@@ -215,7 +216,7 @@ object ObjectStoreWriter {
   def toArrowSchema(df: DataFrame): Schema = {
     val conf = df.queryExecution.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
-    SparkShimLoader.getSparkShims.toArrowSchema(df.schema, timeZoneId)
+    SparkShimLoader.getSparkShims.toArrowSchema(df.schema, timeZoneId, df.sparkSession)
   }
 
   def fromSparkRDD(df: DataFrame, storageLevel: StorageLevel): Array[Array[Byte]] = {
@@ -225,7 +226,7 @@ object ObjectStoreWriter {
     }
     val uuid = dfToId.getOrElseUpdate(df, UUID.randomUUID())
     val queue = ObjectRefHolder.getQueue(uuid)
-    val rdd = df.toArrowBatchRdd
+    val rdd = SparkShimLoader.getSparkShims.toArrowBatchRDD(df)
     rdd.persist(storageLevel)
     rdd.count()
     var executorIds = df.sqlContext.sparkContext.getExecutorIds.toArray

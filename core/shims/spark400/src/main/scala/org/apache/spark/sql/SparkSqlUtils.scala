@@ -20,8 +20,9 @@ package org.apache.spark.sql.spark400
 import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.spark.TaskContext
 import org.apache.spark.api.java.JavaRDD
-import org.apache.spark.sql.classic.ClassicConversions
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.classic.ClassicConversions.castToImpl
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.execution.arrow.ArrowConverters
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.util.ArrowUtils
@@ -43,15 +44,24 @@ object SparkSqlUtils {
         largeVarTypes = false,
         context = context)
     }
-    ClassicConversions.castToImpl(session).internalCreateDataFrame(internalRowRdd.setName("arrow"), schema)
+    session.internalCreateDataFrame(internalRowRdd.setName("arrow"), schema)
   }
 
-  def toArrowSchema(schema : StructType, timeZoneId : String) : Schema = {
+  def toArrowRDD(dataFrame: DataFrame, sparkSession: SparkSession): RDD[Array[Byte]] = {
+    dataFrame.toArrowBatchRdd
+  }
+
+  def toArrowSchema(schema : StructType, timeZoneId : String, sparkSession: SparkSession) : Schema = {
+    val errorOnDuplicatedFieldNames =
+      sparkSession.sessionState.conf.pandasStructHandlingMode == "legacy"
+    val largeVarTypes =
+      sparkSession.sessionState.conf.arrowUseLargeVarTypes
+
     ArrowUtils.toArrowSchema(
       schema = schema,
       timeZoneId = timeZoneId,
-      errorOnDuplicatedFieldNames = false,
-      largeVarTypes = false
+      errorOnDuplicatedFieldNames = errorOnDuplicatedFieldNames,
+      largeVarTypes = largeVarTypes
     )
   }
 }
