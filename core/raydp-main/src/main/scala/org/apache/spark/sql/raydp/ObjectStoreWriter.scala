@@ -93,8 +93,8 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       batchSize = 0
     }
     val schema = df.schema
-    val arrowSchema = SparkShimLoader.getSparkShims.toArrowSchema(
-      schema, timeZoneId, sparkSession)
+    val arrowSchemaJson = SparkShimLoader.getSparkShims.toArrowSchema(
+      schema, timeZoneId, sparkSession).toJson
 
     val objectIds = df.queryExecution.toRdd.mapPartitions{ iter =>
       val queue = ObjectRefHolder.getQueue(uuid)
@@ -105,6 +105,9 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
       } else {
         Iterator(iter)
       }
+
+      // Reconstruct arrow schema from JSON on executor
+      val arrowSchema = Schema.fromJSON(arrowSchemaJson)
       val allocator = ArrowUtils.rootAllocator.newChildAllocator(
         s"ray object store writer", 0, Long.MaxValue)
       val root = VectorSchemaRoot.create(arrowSchema, allocator)
@@ -214,7 +217,7 @@ object ObjectStoreWriter {
   }
 
   def toArrowSchema(df: DataFrame): Schema = {
-    val conf = df.queryExecution.sparkSession.sessionState.conf
+    val conf = df.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
     SparkShimLoader.getSparkShims.toArrowSchema(df.schema, timeZoneId, df.sparkSession)
   }
@@ -229,7 +232,7 @@ object ObjectStoreWriter {
     val rdd = SparkShimLoader.getSparkShims.toArrowBatchRDD(df)
     rdd.persist(storageLevel)
     rdd.count()
-    var executorIds = df.sqlContext.sparkContext.getExecutorIds.toArray
+    val executorIds = df.sparkSession.sparkContext.getExecutorIds.toArray
     val numExecutors = executorIds.length
     val appMasterHandle = Ray.getActor(RayAppMaster.ACTOR_NAME)
                              .get.asInstanceOf[ActorHandle[RayAppMaster]]
