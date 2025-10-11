@@ -234,6 +234,7 @@ private[spark] class SparkSubmit extends Logging {
       case m if m.startsWith("mesos") => MESOS
       case m if m.startsWith("k8s") => KUBERNETES
       case m if m.startsWith("local") => LOCAL
+      case m if m.startsWith("ray") => RAY
       case _ => OTHERS
 //        error("Master must either be yarn or start with spark, mesos, k8s, or local")
 //        -1
@@ -634,9 +635,9 @@ private[spark] class SparkSubmit extends Logging {
         confKey = EXECUTOR_MEMORY.key),
       OptionAssigner(args.totalExecutorCores, STANDALONE | MESOS | KUBERNETES, ALL_DEPLOY_MODES,
         confKey = CORES_MAX.key),
-      OptionAssigner(args.files, LOCAL | STANDALONE | MESOS | KUBERNETES, ALL_DEPLOY_MODES,
+      OptionAssigner(args.files, LOCAL | STANDALONE | MESOS | KUBERNETES | RAY, ALL_DEPLOY_MODES,
         confKey = FILES.key),
-      OptionAssigner(args.archives, LOCAL | STANDALONE | MESOS | KUBERNETES, ALL_DEPLOY_MODES,
+      OptionAssigner(args.archives, LOCAL | STANDALONE | MESOS | KUBERNETES | RAY, ALL_DEPLOY_MODES,
         confKey = ARCHIVES.key),
       OptionAssigner(args.jars, LOCAL, CLIENT, confKey = JARS.key),
       OptionAssigner(args.jars, STANDALONE | MESOS | KUBERNETES | OTHERS, ALL_DEPLOY_MODES,
@@ -995,7 +996,8 @@ object SparkSubmit extends CommandLineUtils with Logging {
   private val LOCAL = 8
   private val KUBERNETES = 16
   private val OTHERS = 32
-  private val ALL_CLUSTER_MGRS = YARN | STANDALONE | MESOS | LOCAL | KUBERNETES | OTHERS
+  private val RAY = 64
+  private val ALL_CLUSTER_MGRS = YARN | STANDALONE | MESOS | LOCAL | KUBERNETES | OTHERS | RAY
 
   // Deploy modes
   private val CLIENT = 1
