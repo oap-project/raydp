@@ -15,26 +15,19 @@
  * limitations under the License.
  */
 
-package com.intel.raydp.shims.spark350
+package com.intel.raydp.shims.spark400
 
 import com.intel.raydp.shims.{SparkShims, SparkShimDescriptor}
 
 object SparkShimProvider {
-  val SPARK350_DESCRIPTOR = SparkShimDescriptor(3, 5, 0)
-  val SPARK351_DESCRIPTOR = SparkShimDescriptor(3, 5, 1)
-  val SPARK352_DESCRIPTOR = SparkShimDescriptor(3, 5, 2)
-  val SPARK353_DESCRIPTOR = SparkShimDescriptor(3, 5, 3)
-  val SPARK354_DESCRIPTOR = SparkShimDescriptor(3, 5, 4)
-  val SPARK355_DESCRIPTOR = SparkShimDescriptor(3, 5, 5)
-  val SPARK356_DESCRIPTOR = SparkShimDescriptor(3, 5, 6)
-  val DESCRIPTOR_STRINGS = Seq(s"$SPARK350_DESCRIPTOR", s"$SPARK351_DESCRIPTOR", s"$SPARK352_DESCRIPTOR",
-      s"$SPARK353_DESCRIPTOR", s"$SPARK354_DESCRIPTOR", s"$SPARK355_DESCRIPTOR", s"$SPARK356_DESCRIPTOR")
-  val DESCRIPTOR = SPARK350_DESCRIPTOR
+  val SPARK400_DESCRIPTOR = SparkShimDescriptor(4, 0, 0)
+  val DESCRIPTOR_STRINGS = Seq(s"$SPARK400_DESCRIPTOR")
+  val DESCRIPTOR = SPARK400_DESCRIPTOR
 }
 
 class SparkShimProvider extends com.intel.raydp.shims.SparkShimProvider {
   def createShim: SparkShims = {
-    new Spark350Shims()
+    new Spark400Shims()
   }
 
   def matches(version: String): Boolean = {

@@ -18,6 +18,7 @@
     <spark330.version>3.3.0</spark330.version>
     <spark340.version>3.4.0</spark340.version>
     <spark350.version>3.5.0</spark350.version>
+    <spark400.version>4.0.0</spark400.version>
     <snappy.version>1.1.10.4</snappy.version>
     <netty.version>4.1.94.Final</netty.version>
     <commons.text.version>1.10.0</commons.text.version>
@@ -29,9 +30,9 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
-    <scala.version>2.12.15</scala.version>
+    <scala.version>2.13.12</scala.version>
     <jackson.version>2.15.0</jackson.version>
-    <scala.binary.version>2.12</scala.binary.version>
+    <scala.binary.version>2.13</scala.binary.version>
     <junit-jupiter.version>5.10.1</junit-jupiter.version>
   </properties>
 
