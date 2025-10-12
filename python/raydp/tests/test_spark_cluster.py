@@ -32,14 +32,13 @@ import raydp.utils as utils
 from raydp.spark.ray_cluster_master import RayDPSparkMaster, RAYDP_SPARK_MASTER_SUFFIX
 from ray.cluster_utils import Cluster
 
-
 def test_spark(spark_on_ray_small):
     spark = spark_on_ray_small
     result = spark.range(0, 10).count()
     assert result == 10
 
 
-def test_legacy_spark_on_fractional_cpu():
+def test_legacy_spark_on_fractional_cpu(jdk17_extra_spark_configs):
     cluster = Cluster(
         initialize_head=True,
         head_node_args={
@@ -49,7 +48,8 @@ def test_legacy_spark_on_fractional_cpu():
     ray.init(address=cluster.address, include_dashboard=False)
     spark = raydp.init_spark(app_name="test_cpu_fraction",
                              num_executors=1, executor_cores=3, executor_memory="500M",
-                             configs={"spark.ray.actor.resource.cpu": "0.1"})
+                             configs={"spark.ray.actor.resource.cpu": "0.1",
+                                      **jdk17_extra_spark_configs})
     result = spark.range(0, 10).count()
     assert result == 10
 
@@ -60,7 +60,7 @@ def test_legacy_spark_on_fractional_cpu():
     cluster.shutdown()
 
 
-def test_spark_executor_on_fractional_cpu():
+def test_spark_executor_on_fractional_cpu(jdk17_extra_spark_configs):
     cluster = Cluster(
         initialize_head=True,
         head_node_args={
@@ -70,7 +70,8 @@ def test_spark_executor_on_fractional_cpu():
     ray.init(address=cluster.address, include_dashboard=False)
     spark = raydp.init_spark(app_name="test_cpu_fraction",
                              num_executors=1, executor_cores=3, executor_memory="500M",
-                             configs={"spark.ray.raydp_spark_executor.actor.resource.cpu": "0.1"})
+                             configs={"spark.ray.raydp_spark_executor.actor.resource.cpu": "0.1",
+                                      **jdk17_extra_spark_configs})
     result = spark.range(0, 10).count()
     assert result == 10
 
@@ -81,7 +82,7 @@ def test_spark_executor_on_fractional_cpu():
     cluster.shutdown()
 
 
-def test_spark_executor_node_affinity():
+def test_spark_executor_node_affinity(jdk17_extra_spark_configs):
     cluster = Cluster(
         initialize_head=True,
         head_node_args={
@@ -92,7 +93,8 @@ def test_spark_executor_node_affinity():
     ray.init(address=cluster.address, include_dashboard=False)
     spark = raydp.init_spark(app_name="test_executor_node_affinity",
                              num_executors=1, executor_cores=2, executor_memory="500M",
-                             configs={"spark.ray.raydp_spark_executor.actor.resource.spark_executor": "1"})
+                             configs={"spark.ray.raydp_spark_executor.actor.resource.spark_executor": "1",
+                                      **jdk17_extra_spark_configs})
     result = spark.range(0, 10).count()
     assert result == 10
 
@@ -138,7 +140,7 @@ def test_spark_driver_and_executor_hostname(spark_on_ray_small):
     assert node_ip_address == driver_bind_address
 
 
-def test_ray_dataset_roundtrip():
+def test_ray_dataset_roundtrip(jdk17_extra_spark_configs):
     cluster = Cluster(
         initialize_head=True,
         head_node_args={
@@ -151,7 +153,8 @@ def test_ray_dataset_roundtrip():
         # This looks like a bug in Spark, where RayCoarseGrainedSchedulerBackend
         # always get the same sparkContext between tests.
         # So we need to re-set the resource explicitly here.
-        "spark.ray.raydp_spark_executor.actor.resource.spark_executor": "0"
+        "spark.ray.raydp_spark_executor.actor.resource.spark_executor": "0",
+        **jdk17_extra_spark_configs
     }
     spark = raydp.init_spark(app_name="test_ray_dataset_roundtrip", num_executors=2, 
                              executor_cores=1, executor_memory="500M",
