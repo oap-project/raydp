@@ -22,6 +22,7 @@ import platform
 import pytest
 import pyarrow
 import ray
+import zipfile
 
 from multiprocessing import get_context
 
@@ -58,6 +59,51 @@ def test_legacy_spark_on_fractional_cpu():
     time.sleep(5)
     ray.shutdown()
     cluster.shutdown()
+
+
+def test_raydp_submit_py_files(tmp_path):
+    cluster = Cluster(
+        initialize_head=True,
+        head_node_args={"num_cpus": 4},
+    )
+
+    spark = None
+    try:
+        module_path = tmp_path / "extra_module.py"
+        module_path.write_text("VALUE = 'pyfiles works'\n")
+
+        py_files_path = tmp_path / "extra_module.zip"
+        #with zipfile.ZipFile(py_files_path, "w") as zip_file:
+        #    zip_file.write(module_path, arcname="extra_module.py")
+
+        ray.init(address=cluster.address, include_dashboard=False)
+        spark = raydp.init_spark(
+            app_name="test_raydp_submit_py_files",
+            num_executors=1,
+            executor_cores=1,
+            executor_memory="500M",
+            configs={"spark.submit.pyFiles": module_path.as_uri()},
+        )
+
+        py_files_conf = spark.sparkContext.getConf().get("spark.submit.pyFiles")
+        assert py_files_conf is not None
+        assert module_path.name in py_files_conf
+
+        def use_extra_module(_):
+            from extra_module import VALUE
+
+            return VALUE
+
+        result = spark.sparkContext.parallelize([0]).map(use_extra_module).collect()
+        assert result == ["pyfiles works"]
+    finally:
+        if spark is not None:
+            spark.stop()
+            raydp.stop_spark()
+            time.sleep(5)
+        if ray.is_initialized():
+            ray.shutdown()
+        cluster.shutdown()
 
 
 def test_spark_executor_on_fractional_cpu():
