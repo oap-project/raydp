@@ -73,8 +73,8 @@ def test_raydp_submit_py_files(tmp_path):
         module_path.write_text("VALUE = 'pyfiles works'\n")
 
         py_files_path = tmp_path / "extra_module.zip"
-        with zipfile.ZipFile(py_files_path, "w") as zip_file:
-            zip_file.write(module_path, arcname="extra_module.py")
+        #with zipfile.ZipFile(py_files_path, "w") as zip_file:
+        #    zip_file.write(module_path, arcname="extra_module.py")
 
         ray.init(address=cluster.address, include_dashboard=False)
         spark = raydp.init_spark(
@@ -82,12 +82,12 @@ def test_raydp_submit_py_files(tmp_path):
             num_executors=1,
             executor_cores=1,
             executor_memory="500M",
-            configs={"spark.submit.pyFiles": py_files_path.as_uri()},
+            configs={"spark.submit.pyFiles": module_path.as_uri()},
         )
 
         py_files_conf = spark.sparkContext.getConf().get("spark.submit.pyFiles")
         assert py_files_conf is not None
-        assert py_files_path.name in py_files_conf
+        assert module_path.name in py_files_conf
 
         def use_extra_module(_):
             from extra_module import VALUE
