@@ -79,8 +79,4 @@ def test_tf_estimator(spark_on_ray_small, use_fs_directory):
         shutil.rmtree(dir)
 
 if __name__ == "__main__":
-    # sys.exit(pytest.main(["-v", __file__]))
-    import ray, raydp
-    ray.init()
-    spark = raydp.init_spark('a', 6, 1, '500m')
-    test_tf_estimator(spark, False)
+    sys.exit(pytest.main(["-v", __file__]))

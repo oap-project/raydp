@@ -215,10 +215,11 @@ def test_ray_dataset_to_spark(spark_on_ray_2_executors):
     assert ids == rows2
 
 
-def test_placement_group(ray_cluster):
+def test_placement_group(ray_cluster, jdk17_extra_spark_configs):
     for pg_strategy in ["PACK", "STRICT_PACK", "SPREAD", "STRICT_SPREAD"]:
         spark = raydp.init_spark(f"test_strategy_{pg_strategy}_1", 1, 1, "500M",
-                                 placement_group_strategy=pg_strategy)
+                                 placement_group_strategy=pg_strategy,
+                                 configs=jdk17_extra_spark_configs)
         result = spark.range(0, 10, numPartitions=10).count()
         assert result == 10
         raydp.stop_spark()
@@ -240,7 +241,8 @@ def test_placement_group(ray_cluster):
 
         # w/ existing placement group w/o bundle indexes
         spark = raydp.init_spark(f"test_bundle_{pg_strategy}_3", 1, 1, "500M",
-                                 placement_group=pg)
+                                 placement_group=pg,
+                                 configs=jdk17_extra_spark_configs)
         result = spark.range(0, 10, numPartitions=10).count()
         assert result == 10
         raydp.stop_spark()
@@ -255,7 +257,7 @@ def test_placement_group(ray_cluster):
     assert num_non_removed_pgs == 0
 
 
-def test_reconstruction():
+def test_reconstruction(jdk17_extra_spark_configs):
     cluster = Cluster(
         initialize_head=True,
         head_node_args={
@@ -266,7 +268,8 @@ def test_reconstruction():
     
     ray.init(address=cluster.address, include_dashboard=False)
     # init_spark before adding nodes to ensure drivers connect to the head node
-    spark = raydp.init_spark('a', 2, 1, '500m', fault_tolerant_mode=True)
+    spark = raydp.init_spark('a', 2, 1, '500m', fault_tolerant_mode=True,
+                             configs=jdk17_extra_spark_configs)
     # Add two nodes, 1 executor each
     node_to_kill = cluster.add_node(num_cpus=1, object_store_memory=10 ** 8)
     second_node = cluster.add_node(num_cpus=1, object_store_memory=10 ** 8)
