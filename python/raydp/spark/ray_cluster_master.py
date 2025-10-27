@@ -18,6 +18,7 @@
 import json
 import logging
 import os
+import shlex
 import shutil
 import signal
 import struct
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 RAYDP_SPARK_MASTER_SUFFIX = "_SPARK_MASTER"
 RAYDP_EXECUTOR_EXTRA_CLASSPATH = "raydp.executor.extraClassPath"
+RAYDP_APPMASTER_EXTRA_JAVA_OPTIONS = "spark.ray.raydp_app_master.extraJavaOptions"
 
 # configs used internally
 # check doc in SparkOnRayConfigs
@@ -74,8 +76,9 @@ class RayDPSparkMaster():
         self._started_up = True
 
     def _prepare_jvm_classpath(self):
-        # pylint: disable=import-outside-toplevel,multiple-imports,cyclic-import
-        import raydp, pyspark
+        # pylint: disable=import-outside-toplevel,cyclic-import
+        import raydp
+        import pyspark
         raydp_cp = os.path.abspath(os.path.join(os.path.dirname(raydp.__file__), "jars/*"))
         self._spark_home = os.environ.get("SPARK_HOME", os.path.dirname(pyspark.__file__))
         spark_jars_dir = os.path.abspath(os.path.join(self._spark_home, "jars/*"))
@@ -111,9 +114,15 @@ class RayDPSparkMaster():
 
         command = ["java"]
 
+        # Add extra Java options directly to command line (e.g., JDK 17+ --add-opens flags)
+        if RAYDP_APPMASTER_EXTRA_JAVA_OPTIONS in self._configs:
+            extra_opts = self._configs[RAYDP_APPMASTER_EXTRA_JAVA_OPTIONS].strip()
+            if extra_opts:
+                command.extend(shlex.split(extra_opts))
+
         # append JAVA_OPTS. This can be used for debugging.
         if "JAVA_OPTS" in env:
-            command.append(env["JAVA_OPTS"])
+            command.extend(shlex.split(env["JAVA_OPTS"]))
         # set system class loader and log prefer class path
         logging_dir = ray._private.worker._global_node.get_logs_dir_path()
         command.append("-javaagent:" + self._configs[SPARK_JAVAAGENT])

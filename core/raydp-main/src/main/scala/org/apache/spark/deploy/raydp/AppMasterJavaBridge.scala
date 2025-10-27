@@ -34,15 +34,29 @@ class AppMasterJavaBridge {
       Ray.init()
       val name = RayAppMaster.ACTOR_NAME
       val sparkJvmOptions = sparkProps.asScala.toMap.filter(
-        e => !SparkOnRayConfigs.SPARK_DRIVER_EXTRA_JAVA_OPTIONS.equals(e._1))
-        .map  {
+        e => {
+          !SparkOnRayConfigs.SPARK_DRIVER_EXTRA_JAVA_OPTIONS.equals(e._1) &&
+            !SparkOnRayConfigs.SPARK_APP_MASTER_EXTRA_JAVA_OPTIONS.equals(e._1)
+        })
+        .map {
           case (k, v) =>
             if (!SparkOnRayConfigs.SPARK_JAVAAGENT.equals(k)) {
               "-D" + k + "=" + v
             } else {
               "-javaagent:" + v
             }
-      }.toBuffer
+        }.toBuffer
+
+      // Add raw JVM options from spark.ray.raydp_app_master.extraJavaOptions
+      // (e.g., --add-opens for JDK 17)
+      val appMasterExtraJavaOptions =
+        sparkProps.get(SparkOnRayConfigs.SPARK_APP_MASTER_EXTRA_JAVA_OPTIONS)
+      if (appMasterExtraJavaOptions != null) {
+        val opts = appMasterExtraJavaOptions.toString.trim
+        if (opts.nonEmpty) {
+          sparkJvmOptions ++= opts.split("\\s+").toSeq
+        }
+      }
 
       val appMasterResources = sparkProps.asScala.filter {
         case (k, v) => k.startsWith(SparkOnRayConfigs.SPARK_MASTER_ACTOR_RESOURCE_PREFIX)

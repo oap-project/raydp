@@ -9,6 +9,15 @@ public class SparkOnRayConfigs {
             "spark.ray.raydp_spark_executor.actor.resource";
     public static final String SPARK_MASTER_ACTOR_RESOURCE_PREFIX =
             "spark.ray.raydp_spark_master.actor.resource";
+
+    /**
+     * Extra JVM options for the RayDP AppMaster actor and gateway process.
+     * This is useful for passing JDK 17+ --add-opens flags.
+     * Example: "--add-opens=java.base/java.lang=ALL-UNNAMED ..."
+     */
+    public static final String SPARK_APP_MASTER_EXTRA_JAVA_OPTIONS =
+            "spark.ray.raydp_app_master.extraJavaOptions";
+
     /**
      * CPU cores per Ray Actor which host the Spark executor, the resource is used
      * for scheduling. Default value is 1.

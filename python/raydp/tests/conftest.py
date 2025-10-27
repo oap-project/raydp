@@ -36,6 +36,8 @@ def quiet_logger():
 
 @pytest.fixture(scope="function")
 def jdk17_extra_spark_configs() -> Dict[str, str]:
+    # JDK 17+ requires --add-opens for reflective access and --add-exports for direct access
+    # to internal JDK modules. These are needed for Spark, Ray serialization, and RayDP.
     java_opts = " ".join([
         "-XX:+IgnoreUnrecognizedVMOptions",
         "--add-opens=java.base/java.lang=ALL-UNNAMED",
@@ -44,6 +46,7 @@ def jdk17_extra_spark_configs() -> Dict[str, str]:
         "--add-opens=java.base/java.net=ALL-UNNAMED",
         "--add-opens=java.base/java.nio=ALL-UNNAMED",
         "--add-opens=java.base/java.math=ALL-UNNAMED",
+        "--add-opens=java.base/java.text=ALL-UNNAMED",
         "--add-opens=java.base/java.util=ALL-UNNAMED",
         "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
         "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED",
@@ -54,7 +57,8 @@ def jdk17_extra_spark_configs() -> Dict[str, str]:
     ])
     extra_configs = {
         "spark.executor.extraJavaOptions": java_opts,
-        "spark.driver.extraJavaOptions": java_opts
+        "spark.driver.extraJavaOptions": java_opts,
+        "spark.ray.raydp_app_master.extraJavaOptions": java_opts,
     }
     return extra_configs
 
