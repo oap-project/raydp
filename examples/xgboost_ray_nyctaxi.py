@@ -15,7 +15,33 @@ app_name = "NYC Taxi Fare Prediction with RayDP"
 num_executors = 1
 cores_per_executor = 1
 memory_per_executor = "500M"
-spark = raydp.init_spark(app_name, num_executors, cores_per_executor, memory_per_executor)
+# JDK 17+ requires --add-opens for reflective access and --add-exports for direct access
+# to internal JDK modules. These are needed for Spark, Ray serialization, and RayDP.
+java_opts = " ".join([
+        "-XX:+IgnoreUnrecognizedVMOptions",
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        "--add-opens=java.base/java.net=ALL-UNNAMED",
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+        "--add-opens=java.base/java.math=ALL-UNNAMED",
+        "--add-opens=java.base/java.text=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED",
+        "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
+        "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+        "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED",
+        "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
+        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
+])
+extra_configs = {
+        "spark.executor.extraJavaOptions": java_opts,
+        "spark.driver.extraJavaOptions": java_opts,
+        "spark.ray.raydp_app_master.extraJavaOptions": java_opts,
+}
+spark = raydp.init_spark(app_name, num_executors,
+        cores_per_executor, memory_per_executor,
+        configs=extra_configs)
 data = spark.read.format("csv").option("header", "true") \
         .option("inferSchema", "true") \
         .load(NYC_TRAIN_CSV)
