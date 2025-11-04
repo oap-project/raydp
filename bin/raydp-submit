@@ -104,7 +104,7 @@ while [ $# -gt 0 ]; do
                         shift 2
                         ;;
                 *)
-                        args+=($1)
+				args+=("$1")
                         shift 1
                         ;;
         esac
@@ -117,6 +117,25 @@ added_confs+=("-javaagent:$raydp_agent_jar")
 added_confs+=("-Dspark.ray.log4j.factory.class=$SPARK_LOG4J_VERSION")
 added_confs+=("-D$SPARK_LOG4J_CONFIG_FILE_NAME_KEY=$SPARK_LOG4J_CONFIG_FILE_NAME")
 added_confs+=("-Dspark.javaagent=$raydp_agent_jar")
+# Add JDK 17+ module access flags for the SparkSubmit JVM
+# -XX:+IgnoreUnrecognizedVMOptions ensures compatibility with Java 8/11 
+# (they will silently ignore --add-opens/--add-exports flags)
+added_confs+=("-XX:+IgnoreUnrecognizedVMOptions")
+added_confs+=("--add-opens=java.base/java.lang=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/java.lang.invoke=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/java.io=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/java.net=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/java.nio=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/java.math=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/java.text=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/java.util=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/java.util.concurrent=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/sun.nio.ch=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/sun.nio.cs=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/sun.security.action=ALL-UNNAMED")
+added_confs+=("--add-opens=java.base/sun.util.calendar=ALL-UNNAMED")
+added_confs+=("--add-exports=java.base/sun.nio.ch=ALL-UNNAMED")
 added_args+=("--conf")
 added_args+=("spark.ray.log4j.config.file.name=$RAY_LOG4J_CONFIG_FILE_NAME")
 added_args+=("--conf")
@@ -145,15 +164,15 @@ RAYDP_CLASS_PATH="-cp $SPARK_PREF_CP$RAYDP_HOME/jars/*:$SPARK_HOME/conf:$SPARK_H
 
 # merge all
 new_args=()
-for e in ${args[@]::${#args[@]}-1}
+	for e in "${args[@]::${#args[@]}-1}"
 do
-	new_args+=($e)
+		new_args+=("$e")
 done
-for e in ${added_args[@]}
+	for e in "${added_args[@]}"
 do
-	new_args+=($e)
+		new_args+=("$e")
 done
-new_args+=(${args[${#args[@]}-1]})
+	new_args+=("${args[${#args[@]}-1]}")
 
 # set arguments
 set -- "${new_args[@]}"
@@ -163,7 +182,7 @@ echo "$@"
 if [ $1 == "--ray-conf" ]; then
   RAY_CONF=$2
   shift 2
-  $RUNNER $RAYDP_CLASS_PATH -Dray.config-file=$RAY_CONF ${added_confs[@]}  org.apache.spark.deploy.SparkSubmit --master ray "$@"
+  $RUNNER $RAYDP_CLASS_PATH -Dray.config-file=$RAY_CONF "${added_confs[@]}"  org.apache.spark.deploy.SparkSubmit --master ray "$@"
 else
-  $RUNNER $RAYDP_CLASS_PATH ${added_confs[@]} org.apache.spark.deploy.SparkSubmit --master ray "$@"
+  $RUNNER $RAYDP_CLASS_PATH "${added_confs[@]}" org.apache.spark.deploy.SparkSubmit --master ray "$@"
 fi

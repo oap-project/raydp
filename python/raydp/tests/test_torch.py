@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+from pyspark.sql import SparkSession
 import pytest
 import os
 import sys
@@ -31,10 +32,10 @@ from raydp.utils import random_split
 @pytest.mark.parametrize("use_fs_directory", [True, False])
 def test_torch_estimator(spark_on_ray_small, use_fs_directory):
     # ---------------- data process with koalas ------------
-    spark = spark_on_ray_small
+    spark: SparkSession = spark_on_ray_small
 
     # calculate z = 3 * x + 4 * y + 5
-    df: ps.DataFrame = ps.range(0, 100000)
+    df = ps.range(0, 100000)
     df["x"] = df["id"] + 100
     df["y"] = df["id"] + 1000
     df["z"] = df["x"] * 3 + df["y"] * 4 + 5

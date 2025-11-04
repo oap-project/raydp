@@ -175,7 +175,13 @@ class SparkCluster(Cluster):
                      "-D" + versions.SPARK_LOG4J_CONFIG_FILE_NAME_KEY + "=" +
                      self._configs[SPARK_LOG4J_CONFIG_FILE_NAME]
                      ]
-        self._configs["spark.driver.extraJavaOptions"] = " ".join(java_opts)
+        # Append to existing driver options if they exist (e.g., JDK 17+ flags)
+        existing_driver_opts = self._configs.get("spark.driver.extraJavaOptions", "")
+        if existing_driver_opts:
+            all_opts = existing_driver_opts + " " + " ".join(java_opts)
+            self._configs["spark.driver.extraJavaOptions"] = all_opts
+        else:
+            self._configs["spark.driver.extraJavaOptions"] = " ".join(java_opts)
 
     def get_spark_session(self) -> SparkSession:
         if self._spark_session is not None:

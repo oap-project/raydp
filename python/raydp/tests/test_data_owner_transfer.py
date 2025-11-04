@@ -9,14 +9,11 @@ from ray._private.client_mode_hook import client_mode_wrap
 from ray.exceptions import RayTaskError, OwnerDiedError
 import raydp
 from raydp.spark import PartitionObjectsOwner
-
+from pyspark.sql import SparkSession
 from raydp.spark import get_raydp_master_owner
 
 
-def gen_test_data():
-  from pyspark.sql.session import SparkSession
-  s = SparkSession.getActiveSession()
-
+def gen_test_data(spark_session: SparkSession):
   data = []
   tmp = [("ming", 20, 15552211521),
           ("hong", 19, 13287994007),
@@ -27,15 +24,15 @@ def gen_test_data():
   for _ in range(10):
     data += tmp
 
-  rdd = s.sparkContext.parallelize(data)
-  out = s.createDataFrame(rdd, ["Name", "Age", "Phone"])
+  rdd = spark_session.sparkContext.parallelize(data)
+  out = spark_session.createDataFrame(rdd, ["Name", "Age", "Phone"])
   return out
 
 @client_mode_wrap
 def ray_gc():
   ray._private.internal_api.global_gc()
 
-def test_fail_without_data_ownership_transfer(ray_cluster):
+def test_fail_without_data_ownership_transfer(ray_cluster, jdk17_extra_spark_configs):
   """
   Test shutting down Spark worker after data been put
   into Ray object store without data ownership transfer.
@@ -55,10 +52,11 @@ def test_fail_without_data_ownership_transfer(ray_cluster):
     app_name = "example",
     num_executors = num_executor,
     executor_cores = 1,
-    executor_memory = "500M"
+    executor_memory = "500M",
+    configs=jdk17_extra_spark_configs
     )
 
-  df_train = gen_test_data()
+  df_train = gen_test_data(spark)
   # df_train = df_train.sample(False, 0.001, 42)
 
   resource_stats = ray.available_resources()
@@ -85,7 +83,7 @@ def test_fail_without_data_ownership_transfer(ray_cluster):
   except RayTaskError as e:
     assert isinstance(e.cause, OwnerDiedError)
 
-def test_data_ownership_transfer(ray_cluster):
+def test_data_ownership_transfer(ray_cluster, jdk17_extra_spark_configs):
   """
   Test shutting down Spark worker after data been put
   into Ray object store with data ownership transfer.
@@ -104,10 +102,11 @@ def test_data_ownership_transfer(ray_cluster):
     app_name = "example",
     num_executors = num_executor,
     executor_cores = 1,
-    executor_memory = "500M"
+    executor_memory = "500M",
+    configs=jdk17_extra_spark_configs
     )
 
-  df_train = gen_test_data()
+  df_train = gen_test_data(spark)
 
   resource_stats = ray.available_resources()
   cpu_cnt = resource_stats['CPU']
@@ -115,7 +114,7 @@ def test_data_ownership_transfer(ray_cluster):
   # convert data from spark dataframe to ray dataset,
   # and transfer data ownership to dedicated Object Holder (Singleton)
   ds = spark_dataframe_to_ray_dataset(df_train, parallelism=4,
-                                      owner=get_raydp_master_owner(df_train.sql_ctx.sparkSession))
+                                      owner=get_raydp_master_owner(spark))
 
   # display data
   ds.show(5)
@@ -137,7 +136,7 @@ def test_data_ownership_transfer(ray_cluster):
   raydp.stop_spark()
 
 
-def test_custom_ownership_transfer_custom_actor(ray_cluster):
+def test_custom_ownership_transfer_custom_actor(ray_cluster, jdk17_extra_spark_configs):
   """
   Test shutting down Spark worker after data been put
   into Ray object store with data ownership transfer to custom user actor.
@@ -166,10 +165,11 @@ def test_custom_ownership_transfer_custom_actor(ray_cluster):
       app_name="example",
       num_executors=num_executor,
       executor_cores=1,
-      executor_memory="500M"
+      executor_memory="500M",
+      configs=jdk17_extra_spark_configs
   )
 
-  df_train = gen_test_data()
+  df_train = gen_test_data(spark)
 
   resource_stats = ray.available_resources()
   cpu_cnt = resource_stats['CPU']
@@ -203,7 +203,7 @@ def test_custom_ownership_transfer_custom_actor(ray_cluster):
   assert np.isnan(ds.mean('Age')) is not True
 
 
-def test_api_compatibility(ray_cluster):
+def test_api_compatibility(ray_cluster, jdk17_extra_spark_configs):
   """
   Test the changes been made are not to break public APIs.
   """
@@ -214,10 +214,11 @@ def test_api_compatibility(ray_cluster):
     app_name = "example",
     num_executors = num_executor,
     executor_cores = 1,
-    executor_memory = "500M"
+    executor_memory = "500M",
+    configs=jdk17_extra_spark_configs
     )
 
-  df_train = gen_test_data()
+  df_train = gen_test_data(spark)
 
   resource_stats = ray.available_resources()
   cpu_cnt = resource_stats['CPU']
