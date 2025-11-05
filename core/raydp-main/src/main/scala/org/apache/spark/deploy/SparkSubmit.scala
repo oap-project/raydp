@@ -226,6 +226,7 @@ private[spark] class SparkSubmit extends Logging {
     val childClasspath = new ArrayBuffer[String]()
     val sparkConf = args.toSparkConf()
     var childMainClass = ""
+    logInfo("Test cicd pipeline")
 
     // Set the cluster manager
     val clusterManager: Int = args.master match {
