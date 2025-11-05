@@ -113,6 +113,7 @@ jobs:
         run: |
           ray start --head
           python examples/raydp-submit.py
+          python examples/test_raydp_submit_pyfiles.py
           ray stop
           python examples/pytorch_nyctaxi.py
           python examples/tensorflow_nyctaxi.py
