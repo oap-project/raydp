@@ -34,10 +34,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
-    - name: Set up Python 3.9
-      uses: actions/setup-python@0f07f7f756721ebd886c2462646a35f78a8bc4de # v1.2.4
+    - name: Set up Python 3.10
+      uses: actions/setup-python@e9aba2c848f5ebd159c070c61ea2c4e2b122355e # v2.3.4
       with:
-        python-version: 3.9
+        python-version: 3.10
     - name: Set up JDK 1.8
       uses: actions/setup-java@b6e674f4b717d7b0ae3baee0fbe79f498905dfde # v1.4.4
       with:
@@ -57,6 +57,6 @@ jobs:
       run: pip install wheel grpcio-tools && ./build.sh
     - name: Upload
       if: env.COMMIT_TODAY == 'true'
-      uses: pypa/gh-action-pypi-publish@e53eb8b103ffcb59469888563dc324e3c8ba6f06 # release/v1
+      uses: pypa/gh-action-pypi-publish@v1.13.0
       with:
         password: ${{ secrets.PYPI_API_TOKEN }}
