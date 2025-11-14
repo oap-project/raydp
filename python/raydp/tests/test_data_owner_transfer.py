@@ -42,7 +42,7 @@ def test_fail_without_data_ownership_transfer(ray_cluster, jdk17_extra_spark_con
 
   # skipping this to be compatible with ray 2.4.0
   # see issue #343
-  if not ray.worker.global_worker.connected:
+  if not ray.util.client.ray.is_connected():
         pytest.skip("Skip this test if using ray client")
 
   from raydp.spark.dataset import spark_dataframe_to_ray_dataset
@@ -90,7 +90,7 @@ def test_data_ownership_transfer(ray_cluster, jdk17_extra_spark_configs):
   This test should be able to execute till the end without crash as expected.
   """
 
-  if not ray.worker.global_worker.connected:
+  if not ray.util.client.ray.is_connected():
         pytest.skip("Skip this test if using ray client")
 
   from raydp.spark.dataset import spark_dataframe_to_ray_dataset
@@ -153,7 +153,7 @@ def test_custom_ownership_transfer_custom_actor(ray_cluster, jdk17_extra_spark_c
       def set_objects(self, objects):
           self.objects = objects
 
-  if not ray.worker.global_worker.connected:
+  if not ray.util.client.ray.is_connected():
       pytest.skip("Skip this test if using ray client")
 
   from raydp.spark.dataset import spark_dataframe_to_ray_dataset
