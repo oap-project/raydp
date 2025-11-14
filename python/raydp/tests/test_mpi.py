@@ -20,6 +20,7 @@ import platform
 import pytest
 import ray
 from ray.util import placement_group, remove_placement_group
+import ray.util.client as ray_client
 
 from raydp.mpi import create_mpi_job, MPIJobContext, WorkerContext
 
@@ -28,7 +29,7 @@ from raydp.mpi import create_mpi_job, MPIJobContext, WorkerContext
 def test_mpi_start(ray_cluster):
     if platform.system() == "Darwin":
         pytest.skip("Skip MPI test on MacOS")
-    if not ray.worker.global_worker.connected:
+    if ray_client.ray.is_connected():
         pytest.skip("Skip MPI test if using ray client")
     job = create_mpi_job(job_name="test",
                          world_size=2,
@@ -61,7 +62,7 @@ def test_mpi_start(ray_cluster):
 def test_mpi_get_rank_address(ray_cluster):
     if platform.system() == "Darwin":
         pytest.skip("Skip MPI test on MacOS")
-    if not ray.worker.global_worker.connected:
+    if ray_client.ray.is_connected():
         pytest.skip("Skip MPI test if using ray client")
     with create_mpi_job(job_name="test",
                         world_size=2,
@@ -79,7 +80,7 @@ def test_mpi_get_rank_address(ray_cluster):
 def test_mpi_with_script_prepare_fn(ray_cluster):
     if platform.system() == "Darwin":
         pytest.skip("Skip MPI test on MacOS")
-    if not ray.worker.global_worker.connected:
+    if ray_client.ray.is_connected():
         pytest.skip("Skip MPI test if using ray client")
     def script_prepare_fn(context: MPIJobContext):
         context.add_env("is_test", "True")
@@ -106,7 +107,7 @@ def test_mpi_with_script_prepare_fn(ray_cluster):
 def test_mpi_with_pg(ray_cluster):
     if platform.system() == "Darwin":
         pytest.skip("Skip MPI test on MacOS")
-    if not ray.worker.global_worker.connected:
+    if ray_client.ray.is_connected():
         pytest.skip("Skip MPI test if using ray client")
     pg = placement_group(bundles=[{"CPU": 2}], strategy="STRICT_SPREAD")
     with create_mpi_job(job_name="test",
