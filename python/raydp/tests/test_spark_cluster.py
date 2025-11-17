@@ -31,6 +31,7 @@ import raydp
 import raydp.utils as utils
 from raydp.spark.ray_cluster_master import RayDPSparkMaster, RAYDP_SPARK_MASTER_SUFFIX
 from ray.cluster_utils import Cluster
+import ray.util.client as ray_client
 
 def test_spark(spark_on_ray_small):
     spark = spark_on_ray_small
@@ -162,7 +163,7 @@ def test_ray_dataset_roundtrip(jdk17_extra_spark_configs):
 
     # skipping this to be compatible with ray 2.4.0
     # see issue #343
-    if not ray.worker.global_worker.connected:
+    if ray_client.ray.is_connected():
         pytest.skip("Skip this test if using ray client")
     spark_df = spark.createDataFrame([(1, "a"), (2, "b"), (3, "c")], ["one", "two"])
     rows = [(r.one, r.two) for r in spark_df.take(3)]
@@ -188,7 +189,7 @@ def test_ray_dataset_roundtrip(jdk17_extra_spark_configs):
 def test_ray_dataset_to_spark(spark_on_ray_2_executors):
     # skipping this to be compatible with ray 2.4.0
     # see issue #343
-    if not ray.worker.global_worker.connected:
+    if ray_client.ray.is_connected():
         pytest.skip("Skip this test if using ray client")
     spark = spark_on_ray_2_executors
     n = 5
