@@ -64,7 +64,8 @@ def jdk17_extra_spark_configs() -> Dict[str, str]:
 
 @pytest.fixture(scope="function")
 def spark_session(request, jdk17_extra_spark_configs):
-    builder = SparkSession.builder.master("local[2]").appName("RayDP test")
+    builder = SparkSession.builder.master("local[2]").appName("RayDP test") \
+        .config("spark.sql.ansi.enabled", "false")
     for k, v in jdk17_extra_spark_configs.items():
         builder = builder.config(k, v)
     spark = builder.getOrCreate()
@@ -94,6 +95,7 @@ def spark_on_ray_small(request, jdk17_extra_spark_configs):
     extra_configs = {
         "spark.driver.host": node_ip,
         "spark.driver.bindAddress": node_ip,
+        "spark.sql.ansi.enabled": "false",
         **jdk17_extra_spark_configs
     }
     spark = raydp.init_spark("test", 1, 1, "500M", configs=extra_configs)
@@ -119,6 +121,7 @@ def spark_on_ray_2_executors(request, jdk17_extra_spark_configs):
     extra_configs = {
         "spark.driver.host": node_ip,
         "spark.driver.bindAddress": node_ip,
+        "spark.sql.ansi.enabled": "false",
         **jdk17_extra_spark_configs
     }
     spark = raydp.init_spark("test", 2, 1, "500M", configs=extra_configs)

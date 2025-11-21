@@ -17,6 +17,7 @@
 
 from packaging import version
 import tempfile
+import warnings
 from typing import Any, List, NoReturn, Optional, Union, Dict
 
 import tensorflow as tf
@@ -188,11 +189,15 @@ class TFEstimator(EstimatorInterface, SparkEstimatorInterface):
             if config["evaluate"]:
                 test_history = multi_worker_model.evaluate(eval_tf_dataset, callbacks=callbacks)
                 results.append(test_history)
-        with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
-            multi_worker_model.save(temp_checkpoint_dir, save_format="tf")
-            checkpoint = Checkpoint.from_directory(temp_checkpoint_dir)
 
-            session.report({}, checkpoint=checkpoint)
+        # Only save checkpoint from the chief worker to avoid race conditions
+        checkpoint = None
+        if session.get_world_rank() == 0:
+            with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
+                multi_worker_model.save(temp_checkpoint_dir, save_format="tf")
+                checkpoint = Checkpoint.from_directory(temp_checkpoint_dir)
+
+        session.report({}, checkpoint=checkpoint)
 
     def fit(self,
             train_ds: Dataset,

@@ -11,8 +11,8 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <artifactId>raydp-shims-spark350</artifactId>
-  <name>RayDP Shims for Spark 3.5.0</name>
+  <artifactId>raydp-shims-spark400</artifactId>
+  <name>RayDP Shims for Spark 4.0.0</name>
   <packaging>jar</packaging>
 
   <properties>
@@ -65,13 +65,13 @@
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_${scala.binary.version}</artifactId>
-      <version>${spark350.version}</version>
+      <version>${spark400.version}</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_${scala.binary.version}</artifactId>
-      <version>${spark350.version}</version>
+      <version>${spark400.version}</version>
       <scope>provided</scope>
       <exclusions>
         <exclusion>

@@ -155,6 +155,7 @@ def test_ray_dataset_roundtrip(jdk17_extra_spark_configs):
         # always get the same sparkContext between tests.
         # So we need to re-set the resource explicitly here.
         "spark.ray.raydp_spark_executor.actor.resource.spark_executor": "0",
+        "spark.sql.ansi.enabled": "false",
         **jdk17_extra_spark_configs
     }
     spark = raydp.init_spark(app_name="test_ray_dataset_roundtrip", num_executors=2, 
