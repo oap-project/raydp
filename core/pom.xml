@@ -31,7 +31,7 @@
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
     <scala.version>2.13.12</scala.version>
-    <jackson.version>2.15.0</jackson.version>
+    <jackson.version>2.18.2</jackson.version>
     <scala.binary.version>2.13</scala.binary.version>
     <junit-jupiter.version>5.10.1</junit-jupiter.version>
   </properties>
@@ -152,16 +152,19 @@
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-core</artifactId>
         <version>${jackson.version}</version>
+        <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-databind</artifactId>
         <version>${jackson.version}</version>
+        <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-annotations</artifactId>
         <version>${jackson.version}</version>
+        <scope>provided</scope>
       </dependency>
       <!-- Guava is excluded because of SPARK-6149.  The Guava version referenced in this module is
           15.0, which causes runtime incompatibility issues. -->
@@ -169,6 +172,7 @@
         <groupId>com.fasterxml.jackson.module</groupId>
         <artifactId>jackson-module-scala_${scala.binary.version}</artifactId>
         <version>${jackson.version}</version>
+        <scope>provided</scope>
         <exclusions>
           <exclusion>
             <groupId>com.google.guava</groupId>
@@ -180,6 +184,7 @@
         <groupId>com.fasterxml.jackson.module</groupId>
         <artifactId>jackson-module-jaxb-annotations</artifactId>
         <version>${jackson.version}</version>
+        <scope>provided</scope>
       </dependency>
 
       <dependency>
