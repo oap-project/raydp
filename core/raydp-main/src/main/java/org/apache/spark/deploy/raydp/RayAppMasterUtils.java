@@ -37,7 +37,7 @@ public class RayAppMasterUtils {
       creator.setName(name);
     }
     if (memory > 0) {
-      creator.setMemory(memory);
+      creator.setResource("memory", (double)memory);
     }
     jvmOptions.add("-cp");
     jvmOptions.add(cp);
