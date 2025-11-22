@@ -19,6 +19,13 @@ public class SparkOnRayConfigs {
             "spark.ray.raydp_app_master.extraJavaOptions";
 
     /**
+     * Memory (in bytes) for RayDP AppMaster actor.
+     * This is used for Ray scheduling and resource management.
+     */
+    public static final String SPARK_MASTER_ACTOR_MEMORY =
+            "spark.ray.raydp_app_master.memory";
+
+    /**
      * CPU cores per Ray Actor which host the Spark executor, the resource is used
      * for scheduling. Default value is 1.
      * This is different from spark.executor.cores, which defines the task parallelism

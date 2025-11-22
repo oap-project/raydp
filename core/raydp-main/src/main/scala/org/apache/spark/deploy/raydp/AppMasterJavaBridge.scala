@@ -62,10 +62,17 @@ class AppMasterJavaBridge {
         case (k, v) => k.startsWith(SparkOnRayConfigs.SPARK_MASTER_ACTOR_RESOURCE_PREFIX)
       }.map{ case (k, v) => k->double2Double(v.toString.toDouble) }.asJava
 
+      val memory = if (sparkProps.containsKey(SparkOnRayConfigs.SPARK_MASTER_ACTOR_MEMORY)) {
+        sparkProps.get(SparkOnRayConfigs.SPARK_MASTER_ACTOR_MEMORY).toString.toLong
+      } else {
+        500 * 1024 * 1024L
+      }
+
       handle = RayAppMasterUtils.createAppMaster(
           extra_cp, name,
           (sparkJvmOptions ++ Seq(SparkOnRayConfigs.RAYDP_LOGFILE_PREFIX_CFG)).asJava,
-          appMasterResources)
+          appMasterResources,
+          memory)
     }
   }
 
