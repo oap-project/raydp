@@ -65,7 +65,8 @@ class AppMasterJavaBridge {
       handle = RayAppMasterUtils.createAppMaster(
           extra_cp, name,
           (sparkJvmOptions ++ Seq(SparkOnRayConfigs.RAYDP_LOGFILE_PREFIX_CFG)).asJava,
-          appMasterResources)
+          appMasterResources
+          )
     }
   }
 
