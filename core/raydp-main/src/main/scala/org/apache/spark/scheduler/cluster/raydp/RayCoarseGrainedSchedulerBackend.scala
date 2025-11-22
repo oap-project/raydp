@@ -91,8 +91,10 @@ class RayCoarseGrainedSchedulerBackend(
           case (k, v) => k.startsWith(SparkOnRayConfigs.SPARK_MASTER_ACTOR_RESOURCE_PREFIX)
         }.map{ case (k, v) => k->double2Double(v.toDouble) }
 
+        val memory = conf.getLong(SparkOnRayConfigs.SPARK_MASTER_ACTOR_MEMORY, 500 * 1024 * 1024L)
+
         masterHandle = RayAppMasterUtils.createAppMaster(cp, null, options.toBuffer.asJava,
-          appMasterResources.toMap.asJava)
+          appMasterResources.toMap.asJava, memory)
         uri = new URI(RayAppMasterUtils.getMasterUrl(masterHandle))
       } else {
         uri = new URI(sparkUrl)

@@ -30,10 +30,14 @@ public class RayAppMasterUtils {
       String cp,
       String name,
       List<String> jvmOptions,
-      Map<String, Double> appMasterResource) {
+      Map<String, Double> appMasterResource,
+      long memory) {
     ActorCreator<RayAppMaster> creator = Ray.actor(RayAppMaster::new, cp);
     if (name != null) {
       creator.setName(name);
+    }
+    if (memory > 0) {
+      creator.setResource("memory", (double)memory);
     }
     jvmOptions.add("-cp");
     jvmOptions.add(cp);
