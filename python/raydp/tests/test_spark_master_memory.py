@@ -13,9 +13,12 @@ def test_spark_master_memory_custom(jdk17_extra_spark_configs):
             "num_cpus": 2,
             "resources": {"master": 10},
             "include_dashboard": True,
+            "dashboard_port": 8270,
         },
     )
-    ray.init(address=cluster.address)
+    ray.init(address=cluster.address, 
+             dashboard_port=cluster.head_node.dashboard_grpc_port,
+             include_dashboard=True)
 
     custom_memory = 100 * 1024 * 1024  # 100MB in bytes
     configs = jdk17_extra_spark_configs.copy()

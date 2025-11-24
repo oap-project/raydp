@@ -77,7 +77,7 @@ def spark_session(request, jdk17_extra_spark_configs):
 def ray_cluster(request):
     ray.shutdown()
     if request.param == "local":
-        ray.init(address="local", num_cpus=6, include_dashboard=True)
+        ray.init(address="local", num_cpus=6, include_dashboard=False)
     else:
         ray.init(address=request.param)
     request.addfinalizer(lambda: ray.shutdown())
@@ -87,7 +87,7 @@ def ray_cluster(request):
 def spark_on_ray_small(request, jdk17_extra_spark_configs):
     ray.shutdown()
     if request.param == "local":
-        ray.init(address="local", num_cpus=6, include_dashboard=True)
+        ray.init(address="local", num_cpus=6, include_dashboard=False)
     else:
         ray.init(address=request.param)
     node_ip = ray.util.get_node_ip_address()
@@ -112,7 +112,7 @@ def spark_on_ray_small(request, jdk17_extra_spark_configs):
 def spark_on_ray_2_executors(request, jdk17_extra_spark_configs):
     ray.shutdown()
     if request.param == "local":
-        ray.init(address="local", num_cpus=6, include_dashboard=True)
+        ray.init(address="local", num_cpus=6, include_dashboard=False)
     else:
         ray.init(address=request.param)
     node_ip = ray.util.get_node_ip_address()

@@ -61,12 +61,12 @@ class SparkCluster(Cluster):
             if "CPU" in resources:
                 num_cpu = resources["CPU"]
                 resources.pop("CPU", None)
-            
+
             memory = None
             if "memory" in resources:
                 memory = resources["memory"]
                 resources.pop("memory", None)
-                
+
             self._spark_master_handle = RayDPSparkMaster.options(name=spark_master_name,
                                                                  num_cpus=num_cpu,
                                                                  memory=memory,
