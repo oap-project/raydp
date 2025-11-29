@@ -29,7 +29,7 @@ permissions:  # added using https://github.com/step-security/secure-repo
 jobs:
   build-and-publish:
     # do not run in forks
-    if: ${{ github.repository_owner == 'oap-project' }}
+    if: ${{ github.repository_owner == 'ray-project' }}
     name: build wheel and upload
     runs-on: ubuntu-latest
     steps:
