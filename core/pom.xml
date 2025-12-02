@@ -10,7 +10,7 @@
   <packaging>pom</packaging>
 
   <name>RayDP Parent Pom</name>
-  <url>https://github.com/oap-project/raydp.git</url>
+  <url>https://github.com/ray-project/raydp.git</url>
 
   <properties>
     <spark.version>3.3.3</spark.version>
