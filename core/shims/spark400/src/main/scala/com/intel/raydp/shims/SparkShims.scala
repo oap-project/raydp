@@ -15,21 +15,24 @@
  * limitations under the License.
  */
 
-package com.intel.raydp.shims.spark330
+package com.intel.raydp.shims.spark400
 
-import org.apache.spark.{SparkEnv, TaskContext}
-import org.apache.spark.api.java.JavaRDD
-import org.apache.spark.executor.RayDPExecutorBackendFactory
-import org.apache.spark.executor.spark330._
-import org.apache.spark.spark330.TaskContextUtils
-import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.spark330.SparkSqlUtils
-import com.intel.raydp.shims.{ShimDescriptor, SparkShims}
 import org.apache.arrow.vector.types.pojo.Schema
-import org.apache.spark.rdd.RDD
+import org.apache.spark.api.java.JavaRDD
+import org.apache.spark.executor.{RayDPExecutorBackendFactory, RayDPSpark400ExecutorBackendFactory}
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.spark400.SparkSqlUtils
+import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
+import org.apache.spark.{SparkEnv, TaskContext}
+import org.apache.spark.spark400.TaskContextUtils
+import com.intel.raydp.shims.{ShimDescriptor, SparkShims}
+import org.apache.spark.rdd.{MapPartitionsRDD, RDD}
+import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.execution.arrow.ArrowConverters
 
-class Spark330Shims extends SparkShims {
+import scala.reflect.ClassTag
+
+class Spark400Shims extends SparkShims {
   override def getShimDescriptor: ShimDescriptor = SparkShimProvider.DESCRIPTOR
 
   override def toDataFrame(
@@ -40,7 +43,7 @@ class Spark330Shims extends SparkShims {
   }
 
   override def getExecutorBackendFactory(): RayDPExecutorBackendFactory = {
-    new RayDPSpark330ExecutorBackendFactory()
+    new RayDPSpark400ExecutorBackendFactory()
   }
 
   override def getDummyTaskContext(partitionId: Int, env: SparkEnv): TaskContext = {
@@ -48,14 +51,10 @@ class Spark330Shims extends SparkShims {
   }
 
   override def toArrowSchema(
-                              schema : StructType,
-                              timeZoneId : String,
-                              sparkSession: SparkSession) : Schema = {
-    SparkSqlUtils.toArrowSchema(
-      schema = schema,
-      timeZoneId = timeZoneId,
-      sparkSession = sparkSession
-    )
+      schema: StructType,
+      timeZoneId: String,
+      sparkSession: SparkSession): Schema = {
+    SparkSqlUtils.toArrowSchema(schema, timeZoneId, sparkSession)
   }
 
   override def toArrowBatchRDD(dataFrame: DataFrame): RDD[Array[Byte]] = {

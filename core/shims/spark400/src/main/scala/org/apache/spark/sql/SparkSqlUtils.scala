@@ -15,13 +15,14 @@
  * limitations under the License.
  */
 
-package org.apache.spark.sql.spark340
+package org.apache.spark.sql.spark400
 
 import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.spark.TaskContext
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SQLContext, SparkSession}
+import org.apache.spark.sql.classic.ClassicConversions.castToImpl
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.execution.arrow.ArrowConverters
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.util.ArrowUtils
@@ -33,18 +34,34 @@ object SparkSqlUtils {
       session: SparkSession): DataFrame = {
     val schema = DataType.fromJson(schemaString).asInstanceOf[StructType]
     val timeZoneId = session.sessionState.conf.sessionLocalTimeZone
-    val rdd = arrowBatchRDD.rdd.mapPartitions { iter =>
+    val internalRowRdd = arrowBatchRDD.rdd.mapPartitions { iter =>
       val context = TaskContext.get()
-      ArrowConverters.fromBatchIterator(iter, schema, timeZoneId, context)
+      ArrowConverters.fromBatchIterator(
+        arrowBatchIter = iter,
+        schema = schema,
+        timeZoneId = timeZoneId,
+        errorOnDuplicatedFieldNames = false,
+        largeVarTypes = false,
+        context = context)
     }
-    session.internalCreateDataFrame(rdd.setName("arrow"), schema)
-  }
-
-  def toArrowSchema(schema : StructType, timeZoneId : String, sparkSession: SparkSession) : Schema = {
-    ArrowUtils.toArrowSchema(schema = schema, timeZoneId = timeZoneId)
+    session.internalCreateDataFrame(internalRowRdd.setName("arrow"), schema)
   }
 
   def toArrowRDD(dataFrame: DataFrame, sparkSession: SparkSession): RDD[Array[Byte]] = {
-    SparkSqlUtils.toArrowRDD(dataFrame, dataFrame.sparkSession)
+    dataFrame.toArrowBatchRdd
+  }
+
+  def toArrowSchema(schema : StructType, timeZoneId : String, sparkSession: SparkSession) : Schema = {
+    val errorOnDuplicatedFieldNames =
+      sparkSession.sessionState.conf.pandasStructHandlingMode == "legacy"
+    val largeVarTypes =
+      sparkSession.sessionState.conf.arrowUseLargeVarTypes
+
+    ArrowUtils.toArrowSchema(
+      schema = schema,
+      timeZoneId = timeZoneId,
+      errorOnDuplicatedFieldNames = errorOnDuplicatedFieldNames,
+      largeVarTypes = largeVarTypes
+    )
   }
 }

@@ -27,9 +27,9 @@ import java.util.function.{Function => JFunction}
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.apache.arrow.vector.types.pojo.Schema
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.jdk.CollectionConverters._
 
 import org.apache.spark.{RayDPException, SparkContext}
 import org.apache.spark.deploy.raydp._
@@ -85,13 +85,16 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
    * Save the DataFrame to Ray object store with Apache Arrow format.
    */
   def save(useBatch: Boolean, ownerName: String): List[RecordBatch] = {
-    val conf = df.queryExecution.sparkSession.sessionState.conf
+    val sparkSession = df.sparkSession
+    val conf = sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
     var batchSize = conf.getConf(SQLConf.ARROW_EXECUTION_MAX_RECORDS_PER_BATCH)
     if (!useBatch) {
       batchSize = 0
     }
     val schema = df.schema
+    val arrowSchemaJson = SparkShimLoader.getSparkShims.toArrowSchema(
+      schema, timeZoneId, sparkSession).toJson
 
     val objectIds = df.queryExecution.toRdd.mapPartitions{ iter =>
       val queue = ObjectRefHolder.getQueue(uuid)
@@ -103,7 +106,8 @@ class ObjectStoreWriter(@transient val df: DataFrame) extends Serializable {
         Iterator(iter)
       }
 
-      val arrowSchema = SparkShimLoader.getSparkShims.toArrowSchema(schema, timeZoneId)
+      // Reconstruct arrow schema from JSON on executor
+      val arrowSchema = Schema.fromJSON(arrowSchemaJson)
       val allocator = ArrowUtils.rootAllocator.newChildAllocator(
         s"ray object store writer", 0, Long.MaxValue)
       val root = VectorSchemaRoot.create(arrowSchema, allocator)
@@ -213,9 +217,9 @@ object ObjectStoreWriter {
   }
 
   def toArrowSchema(df: DataFrame): Schema = {
-    val conf = df.queryExecution.sparkSession.sessionState.conf
+    val conf = df.sparkSession.sessionState.conf
     val timeZoneId = conf.getConf(SQLConf.SESSION_LOCAL_TIMEZONE)
-    SparkShimLoader.getSparkShims.toArrowSchema(df.schema, timeZoneId)
+    SparkShimLoader.getSparkShims.toArrowSchema(df.schema, timeZoneId, df.sparkSession)
   }
 
   def fromSparkRDD(df: DataFrame, storageLevel: StorageLevel): Array[Array[Byte]] = {
@@ -225,10 +229,10 @@ object ObjectStoreWriter {
     }
     val uuid = dfToId.getOrElseUpdate(df, UUID.randomUUID())
     val queue = ObjectRefHolder.getQueue(uuid)
-    val rdd = df.toArrowBatchRdd
+    val rdd = SparkShimLoader.getSparkShims.toArrowBatchRDD(df)
     rdd.persist(storageLevel)
     rdd.count()
-    var executorIds = df.sqlContext.sparkContext.getExecutorIds.toArray
+    val executorIds = df.sparkSession.sparkContext.getExecutorIds.toArray
     val numExecutors = executorIds.length
     val appMasterHandle = Ray.getActor(RayAppMaster.ACTOR_NAME)
                              .get.asInstanceOf[ActorHandle[RayAppMaster]]

@@ -21,6 +21,7 @@ import org.apache.arrow.vector.types.pojo.Schema
 import org.apache.spark.{SparkEnv, TaskContext}
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.executor.RayDPExecutorBackendFactory
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
@@ -39,5 +40,7 @@ trait SparkShims {
 
   def getDummyTaskContext(partitionId: Int, env: SparkEnv): TaskContext
 
-  def toArrowSchema(schema : StructType, timeZoneId : String) : Schema
+  def toArrowSchema(schema : StructType, timeZoneId : String, sparkSession: SparkSession) : Schema
+
+  def toArrowBatchRDD(dataFrame: DataFrame): RDD[Array[Byte]]
 }
