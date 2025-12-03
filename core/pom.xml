@@ -22,7 +22,7 @@
     <netty.version>4.1.94.Final</netty.version>
     <commons.text.version>1.10.0</commons.text.version>
     <commons.compress.version>1.26.0</commons.compress.version>
-    <rhino.version>1.7.12</rhino.version>
+    <rhino.version>1.7.14.1</rhino.version>
     <protobuf.version>3.25.5</protobuf.version>
     <ivy.version>2.5.2</ivy.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
