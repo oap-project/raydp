@@ -115,7 +115,7 @@ try:
         author="RayDP Developers",
         author_email="raydp-dev@googlegroups.com",
         license="Apache 2.0",
-        url="https://github.com/oap-project/raydp",
+        url="https://github.com/ray-project/raydp",
         keywords="raydp spark ray distributed data-processing",
         description="RayDP: Distributed Data Processing on Ray",
         long_description=io.open(
